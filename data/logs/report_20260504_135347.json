@@ -1,0 +1,13 @@
+{
+  "status": "FAILED",
+  "attempt": 3,
+  "error": "Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN",
+  "timestamp": "2026-05-04T13:54:49.800296",
+  "alerts": [
+    {
+      "type": "API_ERROR",
+      "severity": "CRITICAL",
+      "message": "🚨 Meta API sync thất bại sau 3 lần thử: Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN"
+    }
+  ]
+}

@@ -1,0 +1,535 @@
+'use client';
+import { formatMoney as fmt } from '@/lib/utils';
+import { useState, useEffect, useCallback } from 'react';
+import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  zaloId: string | null;
+  source: string | null;
+  totalOrders: number;
+  totalSpent: number;
+  lastOrder: string | null;
+  tags: string | null;
+  notes: string | null;
+  status: string;
+  loyaltyPoints: number;
+  loyaltyTier: string;
+  lastPurchaseDate: string | null;
+  contactAccount: string | null;
+  address: string | null;
+  tailoringNeed: string | null;
+  measurementInfo: string | null;
+  noteInfo: string | null;
+  completedDate: string | null;
+  inactiveDays: number;
+  createdAt: string;
+}
+
+interface LoyaltyTx {
+  id: string;
+  type: string;
+  points: number;
+  amount: number | null;
+  description: string | null;
+  createdAt: string;
+}
+
+const sourceOptions = ['Facebook', 'TikTok', 'Instagram', 'Zalo', 'Google', 'Google Sheet', 'Giới thiệu', 'Khác'];
+const statusOptions = ['Mới', 'Đang tư vấn', 'Đã mua', 'VIP', 'Không phản hồi'];
+
+const tierConfig: Record<string, { color: string; bg: string; icon: typeof Star }> = {
+  New: { color: 'text-slate-600', bg: 'bg-slate-100', icon: Star },
+  Silver: { color: 'text-slate-500', bg: 'bg-gradient-to-r from-slate-100 to-slate-200', icon: Award },
+  Gold: { color: 'text-amber-600', bg: 'bg-gradient-to-r from-amber-50 to-amber-100', icon: Crown },
+  VIP: { color: 'text-purple-600', bg: 'bg-gradient-to-r from-purple-50 to-purple-100', icon: Crown },
+};
+
+function TierBadge({ tier }: { tier: string }) {
+  const cfg = tierConfig[tier] || tierConfig.New;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${cfg.color} ${cfg.bg}`}>
+      <cfg.icon size={10} /> {tier}
+    </span>
+  );
+}
+
+export default function CRMContent() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: '', phone: '', email: '', source: 'Facebook', status: 'Mới', tags: '', notes: '' });
+
+  // Import File state
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importSheet, setImportSheet] = useState('QUẢN LÍ KHÁCH HÀNG');
+  const [importStartRow, setImportStartRow] = useState('6');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ message: string; imported: number; updated: number; skipped: number; sheetUsed?: string; availableSheets?: string[]; errors?: string[] } | null>(null);
+
+  // Loyalty detail state
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showLoyalty, setShowLoyalty] = useState(false);
+  const [loyaltyHistory, setLoyaltyHistory] = useState<LoyaltyTx[]>([]);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [earnValue, setEarnValue] = useState('');
+  const [earnOrderId, setEarnOrderId] = useState('');
+  const [earnLoading, setEarnLoading] = useState(false);
+  const [redeemLoading, setRedeemLoading] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/customers');
+      if (res.ok) setCustomers(await res.json());
+    } catch { toast.error('Lỗi tải dữ liệu'); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAdd = async () => {
+    if (!form.name.trim()) { toast.error('Vui lòng nhập tên khách hàng'); return; }
+    try {
+      const res = await fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      if (res.ok) { toast.success('Thêm khách hàng thành công'); setShowAdd(false); setForm({ name: '', phone: '', email: '', source: 'Facebook', status: 'Mới', tags: '', notes: '' }); fetchData(); }
+    } catch { toast.error('Lỗi thêm khách hàng'); }
+  };
+
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      await fetch('/api/customers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      setCustomers(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+    } catch { toast.error('Lỗi cập nhật'); }
+  };
+
+  // === Import File (Excel/CSV) ===
+  const handleImportFile = async () => {
+    if (!importFile) { toast.error('Vui lòng chọn file Excel hoặc CSV'); return; }
+    setImportLoading(true);
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', importFile);
+      fd.append('sheetName', importSheet || '');
+      fd.append('startRow', importStartRow || '6');
+
+      const res = await fetch('/api/crm/import-file', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Không thể import file');
+      }
+      setImportResult(data);
+      toast.success(data.message || `Import thành công ${data.imported} khách hàng`);
+      fetchData();
+    } catch (err: any) {
+      setImportError(err.message);
+      toast.error(err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // === Loyalty Functions ===
+  const openLoyalty = async (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowLoyalty(true);
+    setLoyaltyLoading(true);
+    setEarnValue('');
+    setEarnOrderId('');
+    try {
+      const res = await fetch(`/api/crm/loyalty/history?customerId=${customer.id}`);
+      if (res.ok) setLoyaltyHistory(await res.json());
+    } catch { /* silent */ } finally { setLoyaltyLoading(false); }
+  };
+
+  const handleEarn = async () => {
+    if (!selectedCustomer || !earnValue) return;
+    setEarnLoading(true);
+    try {
+      const res = await fetch('/api/crm/loyalty/earn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: selectedCustomer.id, orderId: earnOrderId || undefined, orderValue: Number(earnValue.replace(/\./g, '').replace(/,/g, '')) }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error);
+      toast.success(data.message);
+      setEarnValue('');
+      setEarnOrderId('');
+      fetchData();
+      openLoyalty({ ...selectedCustomer, loyaltyPoints: data.totalPoints, loyaltyTier: data.tier });
+    } catch (err: any) { toast.error(err.message); } finally { setEarnLoading(false); }
+  };
+
+  const handleRedeem = async (points: number) => {
+    if (!selectedCustomer) return;
+    setRedeemLoading(true);
+    try {
+      const res = await fetch('/api/crm/loyalty/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: selectedCustomer.id, points }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error);
+      toast.success(data.message);
+      fetchData();
+      openLoyalty({ ...selectedCustomer, loyaltyPoints: data.remainingPoints, loyaltyTier: data.tier });
+    } catch (err: any) { toast.error(err.message); } finally { setRedeemLoading(false); }
+  };
+
+  const filtered = customers.filter(c => {
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'all' || c.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
+
+  const stats = {
+    total: customers.length,
+    newCount: customers.filter(c => c.loyaltyTier === 'New').length,
+    silver: customers.filter(c => c.loyaltyTier === 'Silver').length,
+    gold: customers.filter(c => c.loyaltyTier === 'Gold').length,
+    vip: customers.filter(c => c.loyaltyTier === 'VIP').length,
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <UserCheck className="text-indigo-600" size={28} /> CRM Khách Hàng
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">Quản lý khách hàng, tích điểm & import Google Sheet</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5">
+            <RefreshCw size={14} /> Làm mới
+          </button>
+          <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5">
+            <FileSpreadsheet size={14} /> Import Excel/CSV
+          </button>
+          <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5">
+            <Plus size={14} /> Thêm khách hàng
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {[
+          { label: 'Tổng khách', value: stats.total, color: 'bg-blue-50 text-blue-700' },
+          { label: 'New', value: stats.newCount, color: 'bg-slate-50 text-slate-700' },
+          { label: 'Silver', value: stats.silver, color: 'bg-slate-100 text-slate-600' },
+          { label: 'Gold', value: stats.gold, color: 'bg-amber-50 text-amber-700' },
+          { label: 'VIP', value: stats.vip, color: 'bg-purple-50 text-purple-700' },
+        ].map(k => (
+          <div key={k.label} className={`rounded-xl p-4 ${k.color}`}>
+            <p className="text-xs font-medium opacity-80">{k.label}</p>
+            <p className="text-2xl font-bold mt-1">{k.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm" placeholder="Tìm theo tên, SĐT, email..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="all">Tất cả trạng thái</option>
+          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Khách hàng</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Liên hệ</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Nguồn</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Điểm</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Hạng</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Chi tiêu</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Mua gần nhất</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Chưa có khách hàng nào</td></tr>
+              ) : filtered.map(c => (
+                <tr key={c.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openLoyalty(c)}>
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-slate-900">{c.name}</p>
+                    {c.tags && <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5"><Tag size={10} />{c.tags}</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.phone && <p className="flex items-center gap-1 text-slate-600"><Phone size={12} />{c.phone}</p>}
+                    {c.email && <p className="flex items-center gap-1 text-slate-500 text-xs"><Mail size={12} />{c.email}</p>}
+                  </td>
+                  <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">{c.source}</span></td>
+                  <td className="px-4 py-3 font-bold text-indigo-600">{c.loyaltyPoints}</td>
+                  <td className="px-4 py-3"><TierBadge tier={c.loyaltyTier} /></td>
+                  <td className="px-4 py-3 font-medium text-emerald-600">{fmt(c.totalSpent)}</td>
+                  <td className="px-4 py-3 text-xs text-slate-500">{c.lastPurchaseDate || '—'}</td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <select className="text-xs px-2 py-1 rounded-lg border bg-white" value={c.status} onChange={e => handleStatusChange(c.id, e.target.value)}>
+                      {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ===== Import Excel/CSV Modal ===== */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2"><FileSpreadsheet size={20} className="text-green-600" /> Import Excel / CSV</h2>
+              <button onClick={() => setShowImport(false)}><X size={20} /></button>
+            </div>
+            <div className="space-y-4">
+              {/* File Upload */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1.5 block">Chọn file Excel (.xlsx, .xls) hoặc CSV</label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={e => { setImportFile(e.target.files?.[0] || null); setImportError(null); setImportResult(null); }}
+                    className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
+                  />
+                </div>
+                {importFile && (
+                  <p className="text-xs text-slate-500 mt-1">Đã chọn: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)</p>
+                )}
+              </div>
+
+              {/* Sheet Name */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Tên Sheet/Tab <span className="text-slate-400 font-normal">(để trống = tự động chọn)</span></label>
+                <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="QUẢN LÍ KHÁCH HÀNG" value={importSheet} onChange={e => setImportSheet(e.target.value)} />
+              </div>
+
+              {/* Start Row */}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Dữ liệu bắt đầu từ hàng</label>
+                <input type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="6" value={importStartRow} onChange={e => setImportStartRow(e.target.value)} />
+              </div>
+
+              {/* Error */}
+              {importError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-red-700">{importError}</p>
+                </div>
+              )}
+
+              {/* Success Result */}
+              {importResult && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
+                  <p className="text-sm font-medium text-green-800">{importResult.message}</p>
+                  {importResult.sheetUsed && <p className="text-xs text-green-600">Sheet: {importResult.sheetUsed}</p>}
+                  {importResult.errors && importResult.errors.length > 0 && (
+                    <div className="mt-2 text-xs text-amber-700 bg-amber-50 rounded p-2 max-h-24 overflow-y-auto">
+                      {importResult.errors.map((e, i) => <p key={i}>• {e}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Info */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                <p><strong>Cấu trúc cột (A→K):</strong></p>
+                <p>STT | Ngày hoàn thành đơn | Tên khách | Tài khoản liên hệ | SĐT | Địa chỉ | Nhu cầu may đo | Thông tin số đo | Thông tin lưu ý | Giá trị đơn hàng | Ngày gián đoạn</p>
+                <p className="mt-1">• Trùng SĐT → cập nhật, không tạo trùng</p>
+                <p>• Tự động tính điểm loyalty: 10.000đ = 1 điểm</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-sm">Đóng</button>
+              <button onClick={handleImportFile} disabled={importLoading || !importFile} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                {importLoading ? 'Đang import...' : 'Import dữ liệu'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Add Customer Modal ===== */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Thêm khách hàng mới</h2>
+              <button onClick={() => setShowAdd(false)}><X size={20} /></button>
+            </div>
+            <div className="space-y-3">
+              <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="Tên khách hàng *" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="Số điện thoại" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+              <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+              <div className="grid grid-cols-2 gap-3">
+                <select className="px-3 py-2.5 rounded-lg border text-sm bg-white" value={form.source} onChange={e => setForm({...form, source: e.target.value})}>
+                  {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select className="px-3 py-2.5 rounded-lg border text-sm bg-white" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+                  {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="Tags (VIP, Mới, ...)" value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} />
+              <textarea className="w-full px-3 py-2.5 rounded-lg border text-sm" rows={2} placeholder="Ghi chú" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-sm">Hủy</button>
+              <button onClick={handleAdd} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Thêm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Loyalty Detail Modal ===== */}
+      {showLoyalty && selectedCustomer && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowLoyalty(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Star size={20} className="text-amber-500" /> Tích điểm — {selectedCustomer.name}
+              </h2>
+              <button onClick={() => setShowLoyalty(false)}><X size={20} /></button>
+            </div>
+
+            {/* Loyalty Overview */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="rounded-xl p-3 bg-indigo-50">
+                <p className="text-xs text-indigo-600 font-medium">Tổng điểm</p>
+                <p className="text-2xl font-bold text-indigo-700">{selectedCustomer.loyaltyPoints}</p>
+              </div>
+              <div className="rounded-xl p-3 bg-amber-50">
+                <p className="text-xs text-amber-600 font-medium">Hạng</p>
+                <div className="mt-1"><TierBadge tier={selectedCustomer.loyaltyTier} /></div>
+              </div>
+              <div className="rounded-xl p-3 bg-emerald-50">
+                <p className="text-xs text-emerald-600 font-medium">Tổng chi tiêu</p>
+                <p className="text-lg font-bold text-emerald-700">{fmt(selectedCustomer.totalSpent)}</p>
+              </div>
+              <div className="rounded-xl p-3 bg-slate-50">
+                <p className="text-xs text-slate-600 font-medium">Tổng đơn</p>
+                <p className="text-2xl font-bold text-slate-700">{selectedCustomer.totalOrders}</p>
+              </div>
+            </div>
+
+            {/* Customer Details */}
+            {(selectedCustomer.address || selectedCustomer.tailoringNeed || selectedCustomer.measurementInfo) && (
+              <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-1 text-sm">
+                {selectedCustomer.address && <p><span className="font-medium">Địa chỉ:</span> {selectedCustomer.address}</p>}
+                {selectedCustomer.contactAccount && <p><span className="font-medium">Tài khoản:</span> {selectedCustomer.contactAccount}</p>}
+                {selectedCustomer.tailoringNeed && <p><span className="font-medium">Nhu cầu may đo:</span> {selectedCustomer.tailoringNeed}</p>}
+                {selectedCustomer.measurementInfo && <p><span className="font-medium">Số đo:</span> {selectedCustomer.measurementInfo}</p>}
+                {selectedCustomer.noteInfo && <p><span className="font-medium">Lưu ý:</span> {selectedCustomer.noteInfo}</p>}
+              </div>
+            )}
+
+            {/* Earn Points */}
+            <div className="bg-indigo-50 rounded-xl p-4 mb-5">
+              <h3 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center gap-1.5">
+                <Plus size={14} /> Cộng điểm
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input className="flex-1 px-3 py-2 rounded-lg border text-sm bg-white" placeholder="Giá trị đơn hàng (VNĐ)" value={earnValue} onChange={e => setEarnValue(e.target.value)} />
+                <input className="flex-1 px-3 py-2 rounded-lg border text-sm bg-white" placeholder="Mã đơn hàng (tuỳ chọn)" value={earnOrderId} onChange={e => setEarnOrderId(e.target.value)} />
+                <button onClick={handleEarn} disabled={earnLoading || !earnValue} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 whitespace-nowrap">
+                  {earnLoading ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+                  Cộng điểm
+                </button>
+              </div>
+              <p className="text-xs text-indigo-600 mt-2">Quy đổi: 10.000đ = 1 điểm</p>
+            </div>
+
+            {/* Redeem Points */}
+            <div className="bg-purple-50 rounded-xl p-4 mb-5">
+              <h3 className="text-sm font-semibold text-purple-800 mb-3 flex items-center gap-1.5">
+                <Gift size={14} /> Đổi điểm
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { pts: 100, discount: '50.000đ' },
+                  { pts: 200, discount: '120.000đ' },
+                  { pts: 500, discount: '350.000đ' },
+                ].map(opt => (
+                  <button key={opt.pts} onClick={() => handleRedeem(opt.pts)} disabled={redeemLoading || selectedCustomer.loyaltyPoints < opt.pts}
+                    className="px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-white hover:bg-purple-100 text-purple-700 border-purple-200">
+                    {opt.pts} điểm → Giảm {opt.discount}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Loyalty History */}
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                <History size={14} /> Lịch sử điểm
+              </h3>
+              {loyaltyLoading ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Đang tải...</p>
+              ) : loyaltyHistory.length === 0 ? (
+                <p className="text-sm text-slate-400 py-4 text-center">Chưa có lịch sử tích điểm</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {loyaltyHistory.map(tx => (
+                    <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 text-sm">
+                      <div>
+                        <p className="font-medium text-slate-800">{tx.description || tx.type}</p>
+                        <p className="text-xs text-slate-500">{new Date(tx.createdAt).toLocaleString('vi-VN')}</p>
+                      </div>
+                      <span className={`font-bold ${tx.points > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {tx.points > 0 ? '+' : ''}{tx.points}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tier Progress */}
+            <div className="mt-5 bg-gradient-to-r from-slate-50 to-indigo-50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-slate-800 mb-2">Hạng tiếp theo</h3>
+              {selectedCustomer.loyaltyTier === 'VIP' ? (
+                <p className="text-sm text-purple-600">🎉 Đã đạt hạng cao nhất!</p>
+              ) : (
+                <div className="text-sm text-slate-600">
+                  {selectedCustomer.loyaltyTier === 'New' && <p>Cần thêm {100 - selectedCustomer.loyaltyPoints} điểm để lên <TierBadge tier="Silver" /></p>}
+                  {selectedCustomer.loyaltyTier === 'Silver' && <p>Cần thêm {300 - selectedCustomer.loyaltyPoints} điểm để lên <TierBadge tier="Gold" /></p>}
+                  {selectedCustomer.loyaltyTier === 'Gold' && <p>Cần thêm {700 - selectedCustomer.loyaltyPoints} điểm để lên <TierBadge tier="VIP" /></p>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

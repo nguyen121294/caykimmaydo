@@ -1,0 +1,356 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/maydo_central_dashboard/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("user")
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  orderId     String   @unique
+  customerName String
+  phone       String?
+  product     String
+  productType String?
+  quantity    Int?     @default(1)
+  fabricType  String?
+  tailorName  String?
+  orderDate   String?
+  expectedDate String?
+  actualDate  String?
+  tryDate     String?
+  deliveryDate String?
+  price       String?
+  total       Float?   @default(0)
+  deposit     Float?   @default(0)
+  department  String?
+  status      String   @default("Mới")
+  hasMedia    String?  @default("No")
+  hasFeedback String?  @default("No")
+  mediaLink   String?
+  notes       String?
+  action      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  name        String
+  department  String
+  assignee    String?
+  orderId     String?
+  description String?
+  startDate   String?
+  deadline    String?
+  status      String   @default("Chưa làm")
+  priority    String   @default("Trung bình")
+  note        String?
+  checklist   Json?    @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TailorChecklist {
+  id          String   @id @default(cuid())
+  orderId     String
+  tailorName  String
+  mediaType   String?
+  description String?
+  quantity    Int?     @default(0)
+  deadline    String?
+  submitted   String?  @default("Chưa")
+  quality     String?
+  fileLink    String?
+  fileName    String?
+  notes       String?
+  bonus       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model VideoScript {
+  id            String   @id @default(cuid())
+  scriptId      String   @unique
+  funnelStage   String
+  contentType   String
+  hook          String?
+  painPoint     String?
+  solution      String?
+  cta           String?
+  caption       String?
+  duration      String?
+  targetAudience String?
+  expectedKpi   String?
+  status        String   @default("Chưa Dùng")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model InboxScript {
+  id             String   @id @default(cuid())
+  customerType   String
+  colorTag       String?
+  identifiers    String?
+  messageNumber  String?
+  sender         String?
+  label          String?
+  content        String?
+  sheetName      String   @default("Master")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ContentTracking {
+  id            String   @id @default(cuid())
+  contentId     String   @unique
+  orderId       String?
+  contentType   String?
+  channel       String?
+  postDate      String?
+  views         String?  @default("0")
+  saves         String?  @default("0")
+  comments      String?  @default("0")
+  shares        String?  @default("0")
+  engageRate    String?
+  usedAds       String?  @default("No")
+  adCost        String?
+  ordersFromAds String?
+  roas          String?
+  aiSuggestion  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ContentCalendar {
+  id          String   @id @default(cuid())
+  date        String
+  week        String?
+  contentType String?
+  topic       String?
+  channel     String?
+  postTime    String?
+  orderRef    String?
+  status      String   @default("📝 Chưa Làm")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ABTest {
+  id             String   @id @default(cuid())
+  testId         String   @unique
+  testName       String
+  dateStarted    String?
+  dateEnded      String?
+  variantA       String?
+  variantB       String?
+  budgetA        Float?   @default(0)
+  budgetB        Float?   @default(0)
+  impressionsA   Float?   @default(0)
+  impressionsB   Float?   @default(0)
+  clicksA        Float?   @default(0)
+  clicksB        Float?   @default(0)
+  conversionsA   Float?   @default(0)
+  conversionsB   Float?   @default(0)
+  revenueA       Float?   @default(0)
+  revenueB       Float?   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model TeamWorkflow {
+  id              String   @id @default(cuid())
+  roleNumber      String?
+  role            String
+  responsibilities String?
+  sheetsAccess    String?
+  accessLevel     String?
+  dailyTasks      String?
+  weeklyTasks     String?
+  tools           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PlatformCredential {
+  id           String   @id @default(cuid())
+  platform     String   @unique
+  credentials  String
+  isConnected  Boolean  @default(false)
+  lastTested   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AutomationLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  level     String
+  source    String?
+  message   String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model KpiSnapshot {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  totalOrders     Float?   @default(0)
+  totalRevenue    Float?   @default(0)
+  totalAdSpend    Float?   @default(0)
+  roas            Float?   @default(0)
+  conversionRate  Float?   @default(0)
+  totalContent    Float?   @default(0)
+  avgViews        Float?   @default(0)
+  saveRate        Float?   @default(0)
+  closeRate       Float?   @default(0)
+  mediaRate       Float?   @default(0)
+  createdAt       DateTime @default(now())
+}
+
+model InboxKpi {
+  id           String   @id @default(cuid())
+  date         String
+  customerType String?
+  customerId   String?
+  status       String?
+  lastMessage  String?
+  result       String?
+  notes        String?
+  agent        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  zaloId          String?
+  source          String?  @default("Khác")
+  totalOrders     Int      @default(0)
+  totalSpent      Float    @default(0)
+  lastOrder       String?
+  tags            String?
+  notes           String?
+  status          String   @default("Mới")
+  // Loyalty fields
+  loyaltyPoints   Int      @default(0)
+  loyaltyTier     String   @default("New")
+  lastPurchaseDate String?
+  // Google Sheet extra fields
+  contactAccount  String?
+  address         String?
+  tailoringNeed   String?
+  measurementInfo String?
+  noteInfo        String?
+  completedDate   String?
+  inactiveDays    Int      @default(0)
+  // Relations
+  loyaltyTransactions LoyaltyTransaction[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderId     String?
+  type        String   // earn, redeem, adjust, expire
+  points      Int
+  amount      Float?   @default(0)
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  source      String?  @default("Facebook")
+  stage       String   @default("Mới")
+  value       Float    @default(0)
+  assignee    String?
+  nextAction  String?
+  nextDate    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FinanceEntry {
+  id          String   @id @default(cuid())
+  date        String
+  type        String   @default("Thu")
+  category    String
+  description String?
+  amount      Float    @default(0)
+  orderId     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

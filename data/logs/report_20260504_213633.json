@@ -1,0 +1,20 @@
+{
+  "status": "FAILED",
+  "attempt": 3,
+  "error": "Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN",
+  "stack_trace": "Traceback (most recent call last):\n  File \"./automation/run_sync.py\", line 372, in run_sync_with_retry\n    campaign_rows, adset_rows, ad_rows = automation.pull_all_levels()\n                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"./automation/meta_api_automation.py\", line 54, in pull_all_levels\n    self.authenticate_meta()\n  File \"./automation/meta_api_automation.py\", line 33, in authenticate_meta\n    raise ValueError(\"Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN\")\nValueError: Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN\n",
+  "timestamp": "2026-05-04T21:37:34.887261+07:00",
+  "duration_seconds": 60.002543926239014,
+  "alerts": [
+    {
+      "type": "API_ERROR",
+      "severity": "CRITICAL",
+      "metric": "API Availability",
+      "entity": "Meta Sync Job",
+      "level": "system",
+      "current_value": "FAILED",
+      "target_value": "SUCCESS",
+      "message": "Meta API sync thất bại sau 3 lần thử: Thiếu Meta Access Token trong config.yaml hoặc biến môi trường META_ACCESS_TOKEN"
+    }
+  ]
+}

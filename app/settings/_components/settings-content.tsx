@@ -1,76 +1,32 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Settings, Shield, CheckCircle, XCircle, ChevronDown, ChevronUp, ExternalLink, Key, Lock } from 'lucide-react';
+import { Settings, Shield, CheckCircle, XCircle, ChevronDown, ChevronUp, ExternalLink, Key, Lock, Plug } from 'lucide-react';
 import PageHeader from '@/app/components/page-header';
 import { toast } from 'sonner';
 
 const platforms = [
   {
-    id: 'meta_ads',
-    name: 'Meta Ads',
-    icon: '📊',
-    fields: [
-      { key: 'access_token', label: 'Access Token', type: 'password' },
-      { key: 'ad_account_id', label: 'Ad Account ID', type: 'text' },
-    ],
-    guide: [
-      'Bước 1: Truy cập business.facebook.com > Cài đặt doanh nghiệp',
-      'Bước 2: Vào mục "Tài khoản" > "Tài khoản quảng cáo"',
-      'Bước 3: Chọn tài khoản quảng cáo cần kết nối',
-      'Bước 4: Vào developers.facebook.com > Tạo App',
-      'Bước 5: Vào Tools > Graph API Explorer',
-      'Bước 6: Chọn các quyền: ads_read, ads_management, read_insights',
-      'Bước 7: Tạo Long-lived Access Token (60 ngày)',
-      'Bước 8: Dán Access Token và Ad Account ID vào đây',
-    ],
-  },
-  {
-    id: 'instagram',
-    name: 'Instagram',
-    icon: '📸',
-    fields: [
-      { key: 'access_token', label: 'Access Token', type: 'password' },
-    ],
-    guide: [
-      'Bước 1: Kết nối Instagram với Facebook Page',
-      'Bước 2: Vào developers.facebook.com > Tạo App',
-      'Bước 3: Thêm Instagram Graph API',
-      'Bước 4: Tạo token với quyền instagram_basic, instagram_content_publish',
-      'Bước 5: Dán Access Token vào đây',
-    ],
-  },
-  {
-    id: 'facebook',
-    name: 'Facebook Page',
+    id: 'facebook_oauth',
+    name: 'Facebook & Instagram',
     icon: '📘',
-    fields: [
-      { key: 'page_access_token', label: 'Page Access Token', type: 'password' },
-      { key: 'page_id', label: 'Page ID', type: 'text' },
-    ],
+    isOAuth: true,
+    oauthUrl: '/api/oauth/facebook/authorize',
     guide: [
-      'Bước 1: Vào Facebook Page cần kết nối',
-      'Bước 2: Vào business.facebook.com > Cài đặt doanh nghiệp > Tài khoản > Trang',
-      'Bước 3: Lấy Page ID từ About section của Page',
-      'Bước 4: Tạo Page Access Token từ Graph API Explorer',
-      'Bước 5: Chọn quyền: pages_read_engagement, pages_manage_posts',
+      'Nhấn "Kết Nối Facebook" để ủy quyền.',
+      'Hệ thống tự lấy Token (60 ngày) cho Fanpage, Ads và Instagram.',
+      'Vui lòng cấp tất cả các quyền được yêu cầu.'
     ],
   },
   {
     id: 'zalo',
     name: 'Zalo OA',
     icon: '💬',
-    fields: [
-      { key: 'app_id', label: 'App ID', type: 'text' },
-      { key: 'secret_key', label: 'Secret Key', type: 'password' },
-    ],
+    isOAuth: true,
+    oauthUrl: '/api/oauth/zalo/authorize',
     guide: [
-      'Bước 1: Truy cập developers.zalo.me',
-      'Bước 2: Tạo ứng dụng mới hoặc chọn ứng dụng có sẵn',
-      'Bước 3: Vào mục "Thông tin ứng dụng"',
-      'Bước 4: Copy App ID và Secret Key',
-      'Bước 5: Dán vào các trường tương ứng ở đây',
+      'Nhấn "Kết Nối Zalo" để ủy quyền.',
+      'Hệ thống tự lấy Token và tự động gia hạn (Refresh Token).'
     ],
-    link: 'https://developers.zalo.me',
   },
 ];
 
@@ -94,6 +50,12 @@ export default function SettingsContent() {
   useEffect(() => { fetchData(); }, []);
 
   const isConnected = (platformId: string) => {
+    if (platformId === 'facebook_oauth') {
+      return (credentials ?? []).some((c: any) => ['Facebook Page', 'Facebook Ads', 'Instagram'].includes(c.platform) && c.isConnected);
+    }
+    if (platformId === 'zalo') {
+      return (credentials ?? []).some((c: any) => c.platform === 'Zalo' && c.isConnected);
+    }
     return (credentials ?? [])?.find?.((c: any) => c?.platform === platformId)?.isConnected ?? false;
   };
 
@@ -203,40 +165,53 @@ export default function SettingsContent() {
                 </div>
               )}
 
-              {/* Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {(p?.fields ?? [])?.map?.((field: any) => (
-                  <div key={field?.key}>
-                    <label className="text-xs font-medium text-gray-600 mb-1 block">{field?.label}</label>
-                    <div className="relative">
-                      <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type={field?.type ?? 'text'}
-                        value={formData?.[p?.id]?.[field?.key] ?? ''}
-                        onChange={(e: any) => updateField(p?.id, field?.key, e?.target?.value ?? '')}
-                        className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                        placeholder={isConnected(p?.id) ? '***configured***' : `Nhập ${field?.label}`}
-                      />
-                    </div>
+              {/* Fields or OAuth Button */}
+              {p?.isOAuth ? (
+                <div className="mt-4 flex items-center gap-2">
+                  <a href={p.oauthUrl} className="px-4 py-2 text-sm gradient-bg text-white rounded-lg hover:opacity-90 transition font-medium inline-flex items-center gap-2">
+                    <Plug size={16} /> Kết Nối {p.name}
+                  </a>
+                  <a href="/connections" className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium inline-flex items-center">
+                    Kiểm Tra Trạng Thái
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(p?.fields ?? [])?.map?.((field: any) => (
+                      <div key={field?.key}>
+                        <label className="text-xs font-medium text-gray-600 mb-1 block">{field?.label}</label>
+                        <div className="relative">
+                          <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type={field?.type ?? 'text'}
+                            value={formData?.[p?.id]?.[field?.key] ?? ''}
+                            onChange={(e: any) => updateField(p?.id, field?.key, e?.target?.value ?? '')}
+                            className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                            placeholder={isConnected(p?.id) ? '***configured***' : `Nhập ${field?.label}`}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              <div className="flex items-center gap-2 mt-4">
-                <button
-                  onClick={() => saveCredentials(p?.id)}
-                  disabled={saving === p?.id}
-                  className="px-4 py-2 text-sm gradient-bg text-white rounded-lg hover:opacity-90 transition font-medium disabled:opacity-50"
-                >
-                  {saving === p?.id ? 'Đang lưu...' : 'Lưu Thông Tin'}
-                </button>
-                <a
-                  href="/connections"
-                  className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium inline-flex items-center"
-                >
-                  Kiểm Tra Kết Nối
-                </a>
-              </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <button
+                      onClick={() => saveCredentials(p?.id)}
+                      disabled={saving === p?.id}
+                      className="px-4 py-2 text-sm gradient-bg text-white rounded-lg hover:opacity-90 transition font-medium disabled:opacity-50"
+                    >
+                      {saving === p?.id ? 'Đang lưu...' : 'Lưu Thông Tin'}
+                    </button>
+                    <a
+                      href="/connections"
+                      className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium inline-flex items-center"
+                    >
+                      Kiểm Tra Kết Nối
+                    </a>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )) ?? []}

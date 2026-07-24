@@ -23,12 +23,12 @@ interface SyncResult {
 
 type SyncVia = 'meta' | 'telegram' | 'instagram' | 'manychat' | 'unsupported';
 
-const platforms: { key: string; icon: string; color: string; desc: string; syncDesc: string; syncVia: SyncVia; hasAdAccountId?: boolean }[] = [
-  { key: 'Facebook Page', icon: '📘', color: 'bg-blue-50 border-blue-200', desc: 'Quản lý trang Facebook, tin nhắn, bình luận', syncDesc: 'Inbox + Khách hàng', syncVia: 'meta' },
-  { key: 'Facebook Ads', icon: '💰', color: 'bg-blue-50 border-blue-200', desc: 'Quảng cáo Facebook, chi phí, leads', syncDesc: 'Campaign + Spend + Leads', syncVia: 'meta', hasAdAccountId: true },
-  { key: 'Instagram', icon: '📷', color: 'bg-pink-50 border-pink-200', desc: 'Quản lý Instagram, thống kê bài đăng', syncDesc: 'Content Tracking', syncVia: 'instagram' },
+const platforms: { key: string; icon: string; color: string; desc: string; syncDesc: string; syncVia: SyncVia; hasAdAccountId?: boolean; isOAuth?: boolean }[] = [
+  { key: 'Facebook Page', icon: '📘', color: 'bg-blue-50 border-blue-200', desc: 'Quản lý trang Facebook, tin nhắn, bình luận', syncDesc: 'Inbox + Khách hàng', syncVia: 'meta', isOAuth: true },
+  { key: 'Facebook Ads', icon: '💰', color: 'bg-blue-50 border-blue-200', desc: 'Quảng cáo Facebook, chi phí, leads', syncDesc: 'Campaign + Spend + Leads', syncVia: 'meta', hasAdAccountId: true, isOAuth: true },
+  { key: 'Instagram', icon: '📷', color: 'bg-pink-50 border-pink-200', desc: 'Quản lý Instagram, thống kê bài đăng', syncDesc: 'Content Tracking', syncVia: 'instagram', isOAuth: true },
   { key: 'TikTok', icon: '🎵', color: 'bg-gray-50 border-gray-200', desc: 'Kênh TikTok, video analytics', syncDesc: 'Content Tracking', syncVia: 'unsupported' },
-  { key: 'Zalo', icon: '💬', color: 'bg-blue-50 border-blue-200', desc: 'Zalo OA, tin nhắn tự động', syncDesc: 'InboxKpi + Khách hàng', syncVia: 'unsupported' },
+  { key: 'Zalo', icon: '💬', color: 'bg-blue-50 border-blue-200', desc: 'Zalo OA, tin nhắn tự động', syncDesc: 'InboxKpi + Khách hàng', syncVia: 'unsupported', isOAuth: true },
   { key: 'ManyChat', icon: '🤖', color: 'bg-purple-50 border-purple-200', desc: 'Chatbot tự động, flow automation', syncDesc: 'InboxKpi', syncVia: 'manychat' },
   { key: 'Google Sheets', icon: '📊', color: 'bg-green-50 border-green-200', desc: 'Đồng bộ dữ liệu 2 chiều với Sheet', syncDesc: 'KPI Dashboard', syncVia: 'unsupported' },
   { key: 'Telegram', icon: '✈️', color: 'bg-sky-50 border-sky-200', desc: 'Bot Telegram, thông báo tự động', syncDesc: 'Automation Logs', syncVia: 'telegram' },
@@ -396,23 +396,34 @@ export default function ConnectionsContent() {
                 </div>
               )}
 
-              {/* Token input */}
-              <input
-                className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
-                placeholder={stored && !tokens[p.key] ? 'Token đã lưu — nhập mới để thay thế' : `Nhập API Token / Key cho ${p.key}`}
-                type="password"
-                value={tokens[p.key] || ''}
-                onChange={e => setTokens(prev => ({ ...prev, [p.key]: e.target.value }))}
-              />
+              {/* Token input or OAuth Info */}
+              {p.isOAuth ? (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+                  <p className="text-xs text-indigo-700 flex items-center gap-1.5">
+                    <Plug size={14} className="text-indigo-500" />
+                    Được ủy quyền tự động qua OAuth. Quản lý trong <a href="/settings" className="font-semibold underline ml-1">Cài Đặt</a>.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <input
+                    className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
+                    placeholder={stored && !tokens[p.key] ? 'Token đã lưu — nhập mới để thay thế' : `Nhập API Token / Key cho ${p.key}`}
+                    type="password"
+                    value={tokens[p.key] || ''}
+                    onChange={e => setTokens(prev => ({ ...prev, [p.key]: e.target.value }))}
+                  />
 
-              {/* Ad Account ID cho Facebook Ads */}
-              {p.hasAdAccountId && (
-                <input
-                  className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
-                  placeholder="Ad Account ID (ví dụ: 123456789 hoặc act_123456789)"
-                  value={adAccountIds[p.key] || ''}
-                  onChange={e => setAdAccountIds(prev => ({ ...prev, [p.key]: e.target.value }))}
-                />
+                  {/* Ad Account ID cho Facebook Ads */}
+                  {p.hasAdAccountId && (
+                    <input
+                      className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
+                      placeholder="Ad Account ID (ví dụ: 123456789 hoặc act_123456789)"
+                      value={adAccountIds[p.key] || ''}
+                      onChange={e => setAdAccountIds(prev => ({ ...prev, [p.key]: e.target.value }))}
+                    />
+                  )}
+                </>
               )}
 
               {/* Timestamps */}

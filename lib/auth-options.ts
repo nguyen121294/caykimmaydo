@@ -1,6 +1,6 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import GoogleProvider from 'next-auth/providers/google';
+
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -8,11 +8,6 @@ import bcrypt from 'bcryptjs';
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-      allowDangerousEmailAccountLinking: true,
-    }),
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -21,6 +16,17 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        // Superadmin override from environment variables
+        if (
+          process.env.SUPERADMIN_EMAIL &&
+          process.env.SUPERADMIN_PASSWORD &&
+          credentials.email === process.env.SUPERADMIN_EMAIL &&
+          credentials.password === process.env.SUPERADMIN_PASSWORD
+        ) {
+          return { id: 'superadmin', email: credentials.email, name: 'Super Admin', role: 'admin' };
+        }
+
         try {
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },

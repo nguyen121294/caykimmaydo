@@ -144,6 +144,16 @@ function statusColor(s: string) {
 export default function TeamContent() {
   const [view, setView] = useState('tasks');
   const [tasks, setTasks] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [showResetForm, setShowResetForm] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+
+  const emptyUser = { name: '', email: '', password: '', role: 'user' };
+  const [userForm, setUserForm] = useState(emptyUser);
+  const [resetForm, setResetForm] = useState({ newPassword: '' });
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -169,14 +179,17 @@ export default function TeamContent() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [tRes, oRes] = await Promise.all([
+      const [tRes, oRes, uRes] = await Promise.all([
         fetch('/api/tasks'),
         fetch('/api/orders'),
+        fetch('/api/users'),
       ]);
       const tData = await tRes.json();
       const oData = await oRes.json();
+      const uData = await uRes.json();
       setTasks(Array.isArray(tData) ? tData : []);
       setOrders(Array.isArray(oData) ? oData : []);
+      setUsers(Array.isArray(uData) ? uData : []);
     } catch (e) {
       toast.error('Lỗi tải dữ liệu');
     } finally {
@@ -210,6 +223,57 @@ export default function TeamContent() {
       checklist: Array.isArray(t.checklist) ? t.checklist : [],
     });
     setShowForm(true);
+  }
+
+  function generatePassword() {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+    let pass = '';
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass;
+  }
+
+  async function saveUserForm() {
+    if (!userForm.name || !userForm.email || !userForm.password) {
+      toast.error('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userForm),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Lỗi tạo tài khoản');
+      }
+      toast.success('Đã tạo tài khoản');
+      setShowUserForm(false);
+      loadAll();
+    } catch (e: any) {
+      toast.error(e.message || 'Lỗi lưu tài khoản');
+    }
+  }
+
+  async function saveResetForm() {
+    if (!resetForm.newPassword) {
+      toast.error('Vui lòng nhập mật khẩu mới');
+      return;
+    }
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedUser.id, newPassword: resetForm.newPassword }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      toast.success('Đã reset mật khẩu');
+      setShowResetForm(false);
+    } catch (e) {
+      toast.error('Lỗi reset mật khẩu');
+    }
   }
 
   async function saveForm() {
@@ -345,6 +409,14 @@ export default function TeamContent() {
               }`}
             >
               Vai trò & Quy trình
+            </button>
+            <button
+              onClick={() => setView('users')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
+                view === 'users' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tài khoản
             </button>
           </div>
           {view === 'tasks' && (
@@ -506,6 +578,68 @@ export default function TeamContent() {
           </div>
         )}
 
+        {view === 'users' && (
+          <div>
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => {
+                  setUserForm(emptyUser);
+                  setShowUserForm(true);
+                }}
+                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800"
+              >
+                + Thêm tài khoản
+              </button>
+            </div>
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Họ tên</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium">Vai trò</th>
+                    <th className="px-4 py-3 font-medium">Ngày tạo</th>
+                    <th className="px-4 py-3 font-medium text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
+                      <td className="px-4 py-3">{u.email}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                          {u.role === 'admin' ? 'Admin' : 'User'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">{formatDate(u.createdAt)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedUser(u);
+                            setResetForm({ newPassword: '' });
+                            setShowResetForm(true);
+                          }}
+                          className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                        >
+                          Reset mật khẩu
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                        Chưa có tài khoản nào
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {view === 'roles' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(roleData).map(([key, role]: any) => {
@@ -571,6 +705,106 @@ export default function TeamContent() {
           </div>
         )}
       </main>
+
+      {showUserForm && (
+        <Modal title="Thêm tài khoản mới" onClose={() => setShowUserForm(false)}>
+          <div className="space-y-4">
+            <Input
+              label="Họ tên *"
+              value={userForm.name}
+              onChange={(v: string) => setUserForm({ ...userForm, name: v })}
+            />
+            <Input
+              label="Email (Tên đăng nhập) *"
+              value={userForm.email}
+              onChange={(v: string) => setUserForm({ ...userForm, email: v })}
+            />
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-700">Mật khẩu *</label>
+                <button
+                  type="button"
+                  onClick={() => setUserForm({ ...userForm, password: generatePassword() })}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  Tạo ngẫu nhiên
+                </button>
+              </div>
+              <input
+                type="text"
+                value={userForm.password}
+                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
+                placeholder="Nhập hoặc tạo mật khẩu"
+              />
+            </div>
+            <Select
+              label="Vai trò"
+              value={userForm.role}
+              options={['user', 'admin']}
+              onChange={(v: string) => setUserForm({ ...userForm, role: v })}
+            />
+          </div>
+          <div className="flex gap-3 pt-4 mt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={saveUserForm}
+              className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md"
+            >
+              Tạo tài khoản
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUserForm(false)}
+              className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Hủy
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {showResetForm && selectedUser && (
+        <Modal title={`Reset mật khẩu: ${selectedUser.name}`} onClose={() => setShowResetForm(false)}>
+          <div className="space-y-4">
+            <div>
+              <div className="flex justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-700">Mật khẩu mới *</label>
+                <button
+                  type="button"
+                  onClick={() => setResetForm({ newPassword: generatePassword() })}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  Tạo ngẫu nhiên
+                </button>
+              </div>
+              <input
+                type="text"
+                value={resetForm.newPassword}
+                onChange={(e) => setResetForm({ newPassword: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
+                placeholder="Nhập hoặc tạo mật khẩu mới"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-4 mt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={saveResetForm}
+              className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+            >
+              Lưu mật khẩu
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowResetForm(false)}
+              className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Hủy
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {showForm && (
         <Modal

@@ -1,12 +1,28 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { decrypt } from '@/lib/crypto';
 
 export async function GET() {
-  const clientId = process.env.FACEBOOK_CLIENT_ID;
+  let clientId = process.env.FACEBOOK_CLIENT_ID;
+
+  try {
+    const dbMetaApp = await prisma.platformCredential.findUnique({
+      where: { platform: 'Meta App Credentials' },
+    });
+    if (dbMetaApp?.credentials) {
+      const decrypted = decrypt(dbMetaApp.credentials);
+      const parsed = JSON.parse(decrypted);
+      if (parsed?.clientId) {
+        clientId = parsed.clientId;
+      }
+    }
+  } catch {}
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const redirectUri = `${baseUrl}/api/oauth/facebook/callback`;
 
   if (!clientId) {
-    return NextResponse.json({ error: 'FACEBOOK_CLIENT_ID is not configured' }, { status: 500 });
+    return NextResponse.json({ error: 'FACEBOOK_CLIENT_ID chưa được cấu hình. Vui lòng vào Cài Đặt để nhập App ID.' }, { status: 500 });
   }
 
   const scopes = [
@@ -22,3 +38,4 @@ export async function GET() {
 
   return NextResponse.redirect(authUrl);
 }
+

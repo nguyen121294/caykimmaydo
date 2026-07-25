@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { encrypt } from '@/lib/crypto';
+import { encrypt, decrypt } from '@/lib/crypto';
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -15,14 +16,28 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/settings?error=no_code', request.url));
   }
 
-  const clientId = process.env.FACEBOOK_CLIENT_ID;
-  const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+  let clientId = process.env.FACEBOOK_CLIENT_ID;
+  let clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
+
+  try {
+    const dbMetaApp = await prisma.platformCredential.findUnique({
+      where: { platform: 'Meta App Credentials' },
+    });
+    if (dbMetaApp?.credentials) {
+      const decrypted = decrypt(dbMetaApp.credentials);
+      const parsed = JSON.parse(decrypted);
+      if (parsed?.clientId) clientId = parsed.clientId;
+      if (parsed?.clientSecret) clientSecret = parsed.clientSecret;
+    }
+  } catch {}
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const redirectUri = `${baseUrl}/api/oauth/facebook/callback`;
 
   if (!clientId || !clientSecret) {
     return NextResponse.redirect(new URL('/settings?error=missing_credentials', request.url));
   }
+
 
   try {
     // 1. Exchange code for short-lived user access token

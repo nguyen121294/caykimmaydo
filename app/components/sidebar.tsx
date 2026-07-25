@@ -6,7 +6,7 @@ import {
   LayoutDashboard, BarChart3, Film, Package, MessageSquare,
   Users, Bell, Settings, BookOpen, Menu, X, LogOut, Scissors,
   UserCheck, Kanban, Megaphone, MessageCircle, Wallet,
-  FileSpreadsheet, Plug, ChevronDown, ChevronRight
+  FileSpreadsheet, Plug, ChevronDown, ChevronRight, ShieldCheck
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -49,6 +49,7 @@ const navGroups = [
       { href: '/connections', label: 'Kết Nối', icon: Plug },
       { href: '/automation', label: 'Nhật Ký', icon: Bell },
       { href: '/settings', label: 'Cài Đặt', icon: Settings },
+      { href: '/admin', label: 'Quản Trị', icon: ShieldCheck, adminOnly: true },
     ]
   },
 ];
@@ -57,6 +58,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession() || {};
   const [open, setOpen] = useState(false);
+  const userRole = (session?.user as any)?.role;
 
   return (
     <>
@@ -96,33 +98,38 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4">
-          {navGroups?.map((group: any) => (
-            <div key={group?.label}>
-              <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-purple-400/70">
-                {group?.label}
-              </p>
-              <div className="space-y-0.5">
-                {group?.items?.map((item: any) => {
-                  const isActive = pathname?.startsWith(item?.href);
-                  const Icon = item?.icon;
-                  return (
-                    <Link
-                      key={item?.href}
-                      href={item?.href}
-                      onClick={() => setOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all duration-200
-                        ${isActive
-                          ? 'bg-white/15 text-white font-medium shadow-sm'
-                          : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
-                    >
-                      <Icon size={16} />
-                      <span>{item?.label}</span>
-                    </Link>
-                  );
-                })}
+          {navGroups?.map((group: any) => {
+            const visibleItems = group?.items?.filter((item: any) => !item?.adminOnly || userRole === 'admin');
+            if (!visibleItems || visibleItems.length === 0) return null;
+
+            return (
+              <div key={group?.label}>
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-purple-400/70">
+                  {group?.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item: any) => {
+                    const isActive = pathname?.startsWith(item?.href);
+                    const Icon = item?.icon;
+                    return (
+                      <Link
+                        key={item?.href}
+                        href={item?.href}
+                        onClick={() => setOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all duration-200
+                          ${isActive
+                            ? 'bg-white/15 text-white font-medium shadow-sm'
+                            : 'text-purple-200 hover:bg-white/10 hover:text-white'}`}
+                      >
+                        <Icon size={16} />
+                        <span>{item?.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* User section */}

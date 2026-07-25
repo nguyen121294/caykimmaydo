@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { encrypt, decrypt } from '@/lib/crypto';
 
@@ -14,6 +16,9 @@ function isTelegramPlatform(platform: string): boolean {
 
 export async function GET() {
   try {
+    const session = await getServerSession(authOptions);
+    const isAdmin = (session?.user as any)?.role === 'admin';
+
     const credentials = await prisma.platformCredential.findMany({
       orderBy: { createdAt: 'desc' },
     });
@@ -44,7 +49,7 @@ export async function GET() {
         needsVerification,
       };
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ connections: result, isAdmin });
   } catch (error: any) {
     return NextResponse.json([], { status: 200 });
   }
@@ -52,12 +57,22 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userRole = (session?.user as any)?.role;
+
     const body = await req.json();
     const { platform, action, token, adAccountId } = body ?? {};
 
     if (!platform) {
       return NextResponse.json({ error: 'Thiếu tên nền tảng' }, { status: 400 });
     }
+
+    if (action === 'test' || action === 'disconnect') {
+      if (userRole !== 'admin') {
+        return NextResponse.json({ error: 'Chỉ Admin mới có quyền thao tác kết nối' }, { status: 403 });
+      }
+    }
+
 
     // Disconnect
     if (action === 'disconnect') {

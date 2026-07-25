@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Adapter disabled for JWT strategy to prevent DB timeout from blocking authentication
   providers: [
     CredentialsProvider({
       name: 'credentials',

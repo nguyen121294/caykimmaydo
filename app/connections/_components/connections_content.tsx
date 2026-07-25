@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { Plug, CheckCircle, XCircle, RefreshCw, Zap, CloudDownload, Clock, Database, AlertCircle, AlertTriangle, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,6 +36,9 @@ const platforms: { key: string; icon: string; color: string; desc: string; syncD
 ];
 
 export default function ConnectionsContent() {
+  const { data: session } = useSession();
+  const isAdminSession = (session?.user as any)?.role === 'admin';
+
   const [connections, setConnections] = useState<PlatformConn[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState<string | null>(null);
@@ -44,12 +48,23 @@ export default function ConnectionsContent() {
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [tokens, setTokens] = useState<Record<string, string>>({});
   const [adAccountIds, setAdAccountIds] = useState<Record<string, string>>({});
+  const [apiIsAdmin, setApiIsAdmin] = useState(false);
+
+  const isAdmin = isAdminSession || apiIsAdmin;
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/connections');
-      if (res.ok) setConnections(await res.json());
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          setConnections(json);
+        } else {
+          setConnections(json.connections || []);
+          setApiIsAdmin(!!json.isAdmin);
+        }
+      }
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
@@ -63,10 +78,13 @@ export default function ConnectionsContent() {
   const needsVerification = (platform: string) => getConn(platform)?.needsVerification || false;
 
   const handleTest = async (platformKey: string) => {
+    if (!isAdmin) {
+      toast.error('Chỉ tài khoản Admin mới có quyền kiểm tra kết nối.');
+      return;
+    }
     const token = tokens[platformKey];
     const storedToken = hasStoredToken(platformKey);
 
-    // Cho phép test với token đã lưu (không cần nhập lại)
     if (!token && !storedToken) {
       toast.error('Vui lòng nhập API Token/Key');
       return;
@@ -79,7 +97,6 @@ export default function ConnectionsContent() {
         platform: platformKey,
         action: 'test',
       };
-      // Chỉ gửi token mới nếu user nhập
       if (token) bodyData.token = token;
       if (adAccountIds[platformKey]) bodyData.adAccountId = adAccountIds[platformKey];
 
@@ -114,7 +131,6 @@ export default function ConnectionsContent() {
 
     const platformDef = platforms.find(p => p.key === platformKey);
 
-    // Nền tảng chưa hỗ trợ đồng bộ tự động
     if (platformDef?.syncVia === 'unsupported') {
       toast.info(`${platformKey}: Đã kết nối nhưng chưa hỗ trợ đồng bộ tự động.`);
       return;
@@ -137,47 +153,32 @@ export default function ConnectionsContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: platformKey }),
       });
-      const result = await res.json();
+      const result = await res.json().catch(() => ({}));
 
-      if (!res.ok || result?.success === false) {
+      if (!res.ok || result.success === false) {
         const errorMsg = result?.error || `Lỗi đồng bộ ${platformKey}`;
         toast.error(errorMsg);
         setSyncErrors(prev => ({ ...prev, [platformKey]: errorMsg }));
-
-        if (result?.results) {
+      } else {
+        let fetched = result.recordsFetched ?? 0;
+        let saved = result.recordsSaved ?? 0;
+        if (result.results && Array.isArray(result.results)) {
           const platformResult = result.results.find((r: any) => r.platform === platformKey) || result.results[0];
           if (platformResult) {
             setSyncResults(prev => ({ ...prev, [platformKey]: platformResult }));
+            fetched = platformResult.recordsFetched ?? fetched;
+            saved = platformResult.recordsSaved ?? saved;
           }
         }
-        return;
-      }
-
-      const saved = result.recordsSaved ?? 0;
-      const fetched = result.recordsFetched ?? 0;
-
-      const platformResult = result.results?.find((r: any) => r.platform === platformKey) || {
-        platform: platformKey,
-        recordsFetched: fetched,
-        recordsSaved: saved,
-        syncedAt: result.syncedAt || new Date().toISOString(),
-      };
-      setSyncResults(prev => ({ ...prev, [platformKey]: platformResult }));
-
-      if (saved === 0 && fetched === 0) {
-        toast.info(result.message || 'Đã kết nối nhưng chưa có dữ liệu mới');
-      } else {
+        const platformResult = result.results?.find((r: any) => r.platform === platformKey) || {
+          platform: platformKey,
+          recordsFetched: fetched,
+          recordsSaved: saved,
+          syncedAt: new Date().toISOString(),
+        };
+        setSyncResults(prev => ({ ...prev, [platformKey]: platformResult }));
         toast.success(result.message || `Đồng bộ ${platformKey}: ${fetched} lấy về, ${saved} đã lưu`);
       }
-
-      if (result.errors?.length) {
-        for (const e of result.errors) {
-          if (e.includes(platformKey)) {
-            setSyncErrors(prev => ({ ...prev, [platformKey]: e }));
-          }
-        }
-      }
-
       fetchData();
     } catch {
       toast.error('Lỗi kết nối server');
@@ -187,81 +188,80 @@ export default function ConnectionsContent() {
   };
 
   const handleRefreshAll = async () => {
-    const connected = platforms.filter(p => isConnected(p.key));
-    if (connected.length === 0) {
-      toast.error('Chưa có nền tảng nào được kết nối.');
-      return;
-    }
-
-    const syncable = connected.filter(p => p.syncVia !== 'unsupported');
-
-    if (syncable.length === 0) {
-      toast.info('Các nền tảng đã kết nối chưa hỗ trợ đồng bộ tự động.');
-      return;
-    }
-
     setSyncingAll(true);
-    setSyncErrors({});
-    toast.info(`Đang đồng bộ ${syncable.length} nền tảng...`);
-
     try {
+      const syncable = platforms.filter(p => isConnected(p.key) && p.syncVia !== 'unsupported');
+      if (syncable.length === 0) {
+        toast.info('Không có nền tảng nào đã kết nối để đồng bộ');
+        return;
+      }
       const metaPlatforms = syncable.filter(p => p.syncVia === 'meta');
       if (metaPlatforms.length > 0) {
         const res = await fetch('/api/marketing/sync/meta', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
+          body: JSON.stringify({ platform: 'all' }),
         });
-        const result = await res.json();
-        if (result?.results) {
-          for (const r of result.results) {
+        const result = await res.json().catch(() => ({}));
+        if (result.results) {
+          result.results.forEach((r: any) => {
             setSyncResults(prev => ({ ...prev, [r.platform]: r }));
             if (r.error) setSyncErrors(prev => ({ ...prev, [r.platform]: r.error }));
-          }
-        }
-        if (res.ok && result?.success) {
-          toast.success(result?.message || 'Đồng bộ Meta thành công');
-        } else if (result?.error) {
-          toast.error(result.error);
+          });
         }
       }
-
-      const nonMeta = syncable.filter(p => p.syncVia !== 'meta');
-      for (const p of nonMeta) {
-        await handleSync(p.key);
+      for (const p of syncable) {
+        if (p.syncVia !== 'meta') {
+          await handleSync(p.key);
+        }
       }
-
+      toast.success('Đã hoàn tất đồng bộ dữ liệu');
       fetchData();
     } catch {
-      toast.error('Lỗi kết nối server');
+      toast.error('Lỗi khi đồng bộ dữ liệu');
     } finally {
       setSyncingAll(false);
     }
   };
 
   const handleDisconnect = async (platformKey: string) => {
+    if (!isAdmin) {
+      toast.error('Chỉ tài khoản Admin mới có quyền ngắt kết nối.');
+      return;
+    }
+    if (!confirm(`Bạn có chắc muốn ngắt kết nối ${platformKey}?`)) return;
     try {
-      await fetch('/api/connections', {
+      const res = await fetch('/api/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: platformKey, action: 'disconnect' }),
       });
-      toast.success(`Ngắt kết nối ${platformKey}`);
-      setSyncResults(prev => { const c = { ...prev }; delete c[platformKey]; return c; });
-      setSyncErrors(prev => { const c = { ...prev }; delete c[platformKey]; return c; });
-      setTokens(prev => { const c = { ...prev }; delete c[platformKey]; return c; });
-      fetchData();
-    } catch { toast.error('Lỗi ngắt kết nối'); }
+      if (res.ok) {
+        toast.success(`Đã ngắt kết nối ${platformKey}`);
+        setTokens(prev => { const c = { ...prev }; delete c[platformKey]; return c; });
+        setSyncResults(prev => { const c = { ...prev }; delete c[platformKey]; return c; });
+        fetchData();
+      }
+    } catch {
+      toast.error('Lỗi ngắt kết nối');
+    }
   };
 
-  const getBadge = (platformKey: string) => {
-    const isSyncingThis = syncing === platformKey;
-    const isTestingThis = testing === platformKey;
-    const connected = isConnected(platformKey);
-    const error = syncErrors[platformKey] || getTokenError(platformKey);
-    const stored = hasStoredToken(platformKey);
-    const unverified = needsVerification(platformKey);
+  const renderBadge = (p: typeof platforms[0]) => {
+    const connected = isConnected(p.key);
+    const error = getTokenError(p.key) || syncErrors[p.key];
+    const isTestingThis = testing === p.key;
+    const isSyncingThis = syncing === p.key;
+    const stored = hasStoredToken(p.key);
+    const unverified = needsVerification(p.key);
 
+    if (loading) {
+      return (
+        <span className="flex items-center gap-1 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+          <Loader2 size={12} className="animate-spin" /> Đang tải
+        </span>
+      );
+    }
     if (isSyncingThis) {
       return (
         <span className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
@@ -290,7 +290,6 @@ export default function ConnectionsContent() {
         </span>
       );
     }
-    // Token đã lưu (từ Settings) nhưng chưa xác minh
     if (stored && !connected && unverified) {
       return (
         <span className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-100 px-2 py-1 rounded-full">
@@ -315,7 +314,7 @@ export default function ConnectionsContent() {
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Plug className="text-indigo-600" size={28} /> Kết Nối Nền Tảng
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Quản lý kết nối và đồng bộ dữ liệu thật với các nền tảng</p>
+          <p className="text-slate-500 text-sm mt-1">Quản lý kết nối và đồng bộ dữ liệu với các nền tảng</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleRefreshAll} disabled={syncing !== null || syncingAll}
@@ -326,77 +325,75 @@ export default function ConnectionsContent() {
         </div>
       </div>
 
-      {/* Info banner */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-        <AlertCircle size={18} className="text-amber-600 mt-0.5 shrink-0" />
-        <div className="text-sm text-amber-800">
-          <strong>Lưu ý:</strong> Chỉ hỗ trợ dữ liệu thật từ API. Nhập token thật và nhấn <strong>"Kiểm tra"</strong> để xác minh API. Trạng thái <strong>"Đã kết nối"</strong> chỉ hiển thị khi API test thành công. Nút <strong>"Đồng bộ dữ liệu"</strong> gọi API thật để lấy dữ liệu.
-        </div>
-      </div>
-
-      {/* Unverified warning */}
-      {unverifiedCount > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-start gap-3">
-          <ShieldAlert size={18} className="text-orange-600 mt-0.5 shrink-0" />
-          <div className="text-sm text-orange-800">
-            <strong>{unverifiedCount} token chưa xác minh.</strong> Token đã được lưu từ trang Cài Đặt nhưng chưa được kiểm tra với API thật. Nhấn <strong>"Xác minh"</strong> để kiểm tra kết nối.
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="text-sm font-medium">Chế độ chỉ xem: Bạn cần tài khoản <strong>Admin</strong> để dán API Token, kiểm tra hoặc ngắt kết nối.</span>
           </div>
+          <span className="text-xs bg-amber-200 text-amber-900 font-semibold px-2.5 py-1 rounded-full">User View</span>
         </div>
       )}
 
-      {/* Summary */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+        <AlertCircle size={18} className="text-blue-600 mt-0.5 shrink-0" />
+        <div className="text-sm text-blue-800">
+          <strong>Lưu ý:</strong> Chỉ hỗ trợ dữ liệu từ API. Nhập token thật và nhấn <strong>"Kiểm tra"</strong> để xác minh API. Trạng thái <strong>"Đã kết nối"</strong> chỉ hiển thị khi API test thành công. Nút <strong>"Đồng bộ dữ liệu"</strong> gọi API để lấy dữ liệu.
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl p-4 bg-blue-50 text-blue-700">
           <p className="text-xs font-medium">Tổng nền tảng</p>
           <p className="text-2xl font-bold">{platforms.length}</p>
         </div>
         <div className="rounded-xl p-4 bg-emerald-50 text-emerald-700">
-          <p className="text-xs font-medium">Đã kết nối (xác minh)</p>
+          <p className="text-xs font-medium">Đã kết nối</p>
           <p className="text-2xl font-bold">{connectedCount}</p>
         </div>
         <div className="rounded-xl p-4 bg-amber-50 text-amber-700">
           <p className="text-xs font-medium">Chưa xác minh</p>
           <p className="text-2xl font-bold">{unverifiedCount}</p>
         </div>
-        <div className="rounded-xl p-4 bg-purple-50 text-purple-700">
-          <p className="text-xs font-medium">Đã đồng bộ</p>
-          <p className="text-2xl font-bold">{Object.keys(syncResults).length}</p>
+        <div className="rounded-xl p-4 bg-slate-100 text-slate-700">
+          <p className="text-xs font-medium">Chưa kết nối</p>
+          <p className="text-2xl font-bold">{platforms.length - connectedCount - unverifiedCount}</p>
         </div>
       </div>
 
-      {/* Platform Cards */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {platforms.map(p => {
           const connected = isConnected(p.key);
+          const error = getTokenError(p.key) || syncErrors[p.key];
+          const isTesting = testing === p.key;
+          const isSyncing = syncing === p.key;
           const lastTest = lastTested(p.key);
           const syncResult = syncResults[p.key];
-          const syncError = syncErrors[p.key] || getTokenError(p.key);
-          const isSyncing = syncing === p.key;
-          const isTesting = testing === p.key;
           const stored = hasStoredToken(p.key);
           const unverified = needsVerification(p.key);
+
           return (
-            <div key={p.key} className={`rounded-xl border ${p.color} p-5 space-y-3`}>
+            <div key={p.key} className={`bg-white rounded-xl border p-5 space-y-4 shadow-sm transition-all ${connected ? 'border-emerald-200' : error ? 'border-red-200' : unverified ? 'border-amber-200' : 'border-slate-200'}`}>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{p.icon}</span>
+                  <span className="text-3xl p-2 rounded-lg bg-slate-50">{p.icon}</span>
                   <div>
                     <h3 className="font-semibold text-slate-900">{p.key}</h3>
                     <p className="text-xs text-slate-500">{p.desc}</p>
+                    <span className="inline-block text-[11px] text-slate-400 mt-0.5">Dữ liệu: {p.syncDesc}</span>
                   </div>
                 </div>
-                {getBadge(p.key)}
+                {renderBadge(p)}
               </div>
 
-              {/* Error display */}
-              {syncError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
-                  <AlertTriangle size={14} className="text-red-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-red-700">{syncError}</p>
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 space-y-1">
+                  <p className="font-semibold flex items-center gap-1">
+                    <AlertTriangle size={14} className="text-red-500" /> {error}
+                  </p>
                 </div>
               )}
 
-              {/* Token input or OAuth Info */}
               {p.isOAuth ? (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                   <p className="text-xs text-indigo-700 flex items-center gap-1.5">
@@ -407,17 +404,18 @@ export default function ConnectionsContent() {
               ) : (
                 <>
                   <input
-                    className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
+                    disabled={!isAdmin}
+                    className="w-full px-3 py-2 rounded-lg border text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
                     placeholder={stored && !tokens[p.key] ? 'Token đã lưu — nhập mới để thay thế' : `Nhập API Token / Key cho ${p.key}`}
                     type="password"
                     value={tokens[p.key] || ''}
                     onChange={e => setTokens(prev => ({ ...prev, [p.key]: e.target.value }))}
                   />
 
-                  {/* Ad Account ID cho Facebook Ads */}
                   {p.hasAdAccountId && (
                     <input
-                      className="w-full px-3 py-2 rounded-lg border text-sm bg-white"
+                      disabled={!isAdmin}
+                      className="w-full px-3 py-2 rounded-lg border text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
                       placeholder="Ad Account ID (ví dụ: 123456789 hoặc act_123456789)"
                       value={adAccountIds[p.key] || ''}
                       onChange={e => setAdAccountIds(prev => ({ ...prev, [p.key]: e.target.value }))}
@@ -426,7 +424,6 @@ export default function ConnectionsContent() {
                 </>
               )}
 
-              {/* Timestamps */}
               <div className="space-y-1">
                 {lastTest && (
                   <p className="text-xs text-slate-500 flex items-center gap-1">
@@ -440,24 +437,21 @@ export default function ConnectionsContent() {
                 )}
               </div>
 
-              {/* Action buttons */}
               <div className="flex flex-wrap gap-2">
-                {/* Nút kiểm tra / xác minh */}
                 {!connected && stored && unverified && !tokens[p.key] ? (
-                  <button onClick={() => handleTest(p.key)} disabled={isTesting || isSyncing}
+                  <button onClick={() => handleTest(p.key)} disabled={!isAdmin || isTesting || isSyncing}
                     className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
                     {isTesting ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
                     Xác minh token đã lưu
                   </button>
                 ) : (
-                  <button onClick={() => handleTest(p.key)} disabled={isTesting || isSyncing}
+                  <button onClick={() => handleTest(p.key)} disabled={!isAdmin || isTesting || isSyncing}
                     className="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
                     {isTesting ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
                     Kiểm tra
                   </button>
                 )}
 
-                {/* Nút đồng bộ — chỉ hiện khi đã kết nối (đã xác minh) */}
                 {connected && p.syncVia !== 'unsupported' && (
                   <button onClick={() => handleSync(p.key)} disabled={isSyncing || isTesting}
                     className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
@@ -472,8 +466,8 @@ export default function ConnectionsContent() {
                   </span>
                 )}
                 {connected && (
-                  <button onClick={() => handleDisconnect(p.key)}
-                    className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm hover:bg-slate-200 transition-colors">
+                  <button onClick={() => handleDisconnect(p.key)} disabled={!isAdmin}
+                    className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm hover:bg-slate-200 disabled:opacity-50 transition-colors">
                     Ngắt kết nối
                   </button>
                 )}
@@ -483,7 +477,6 @@ export default function ConnectionsContent() {
         })}
       </div>
 
-      {/* Instructions */}
       <div className="bg-white rounded-xl shadow-sm border p-6">
         <h3 className="font-semibold text-slate-900 mb-3">Hướng dẫn kết nối</h3>
         <div className="text-sm text-slate-600 space-y-2">

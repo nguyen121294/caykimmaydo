@@ -37,19 +37,45 @@ async function syncFacebookPage(token: string, pageId?: string): Promise<SyncLog
   const today = new Date().toISOString().slice(0, 10);
 
   try {
+    let effectiveToken = token;
+
+    // Nếu có pageId, thử tìm Page Access Token riêng cho Page đó từ /me/accounts
+    if (pageId) {
+      try {
+        const pagesRes = await fetch(
+          `https://graph.facebook.com/v19.0/me/accounts?fields=id,access_token&limit=100&access_token=${encodeURIComponent(token)}`,
+          { signal: AbortSignal.timeout(10000) }
+        );
+        if (pagesRes.ok) {
+          const pagesData = await pagesRes.json();
+          const targetPage = (pagesData.data || []).find((p: any) => p.id === pageId);
+          if (targetPage?.access_token) {
+            effectiveToken = targetPage.access_token;
+          }
+        }
+      } catch {}
+    }
+
     // Verify token first
-    const meRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(15000) });
+    const meRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${encodeURIComponent(effectiveToken)}`, { signal: AbortSignal.timeout(15000) });
     const meData = await meRes.json();
     if (meData.error) {
       throw new Error(meData.error?.message || 'Token không hợp lệ');
     }
 
-    const targetNode = pageId ? pageId : 'me';
-    // Lấy conversations từ Facebook Page API
-    const convRes = await fetch(
-      `https://graph.facebook.com/v19.0/${targetNode}/conversations?fields=participants,messages.limit(1){message,from,created_time}&limit=25&access_token=${encodeURIComponent(token)}`,
+    // Lấy conversations từ Facebook Page API (Thử theo pageId trước, fallback về /me/conversations)
+    let convRes = await fetch(
+      `https://graph.facebook.com/v19.0/${pageId || 'me'}/conversations?fields=participants,messages.limit(1){message,from,created_time}&limit=25&access_token=${encodeURIComponent(effectiveToken)}`,
       { signal: AbortSignal.timeout(15000) }
     );
+
+    if (!convRes.ok && pageId) {
+      // Fallback về /me/conversations nếu dùng Page Access Token
+      convRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/conversations?fields=participants,messages.limit(1){message,from,created_time}&limit=25&access_token=${encodeURIComponent(effectiveToken)}`,
+        { signal: AbortSignal.timeout(15000) }
+      );
+    }
 
     if (!convRes.ok) {
       const err = await convRes.json().catch(() => ({}));

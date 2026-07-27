@@ -28,10 +28,13 @@ export async function GET() {
   const scopes = [
     'pages_read_engagement',
     'pages_manage_posts',
+    'pages_manage_metadata',
+    'pages_read_user_content',
+    'pages_messaging',
+    'pages_show_list',
     'ads_read',
     'read_insights',
-    'instagram_basic',
-    'pages_show_list'
+    'instagram_basic'
   ].join(',');
 
   const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;

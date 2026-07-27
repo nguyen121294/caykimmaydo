@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   const host = request.headers.get('host') || 'localhost:3000';
   const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
   const dynamicBaseUrl = `${proto}://${host}`;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || dynamicBaseUrl;
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || dynamicBaseUrl).replace(/\/+$/, '');
   const redirectUri = `${baseUrl}/api/oauth/facebook/callback`;
 
   if (!clientId || !clientSecret) {

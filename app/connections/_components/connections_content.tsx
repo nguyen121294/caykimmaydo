@@ -9,6 +9,10 @@ interface PlatformConn {
   platform: string;
   isConnected: boolean;
   lastTested: string | null;
+  pageId?: string;
+  pageName?: string;
+  adAccountId?: string;
+  adAccountName?: string;
   tokenError?: string;
   hasToken?: boolean;
   needsVerification?: boolean;
@@ -50,6 +54,15 @@ export default function ConnectionsContent() {
   const [adAccountIds, setAdAccountIds] = useState<Record<string, string>>({});
   const [apiIsAdmin, setApiIsAdmin] = useState(false);
 
+  // State Meta Account Selector Modal
+  const [showMetaModal, setShowMetaModal] = useState(false);
+  const [metaPages, setMetaPages] = useState<any[]>([]);
+  const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
+  const [selectedPageId, setSelectedPageId] = useState<string>('');
+  const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>('');
+  const [loadingMetaAccounts, setLoadingMetaAccounts] = useState(false);
+  const [savingMetaChoice, setSavingMetaChoice] = useState(false);
+
   const isAdmin = isAdminSession || apiIsAdmin;
 
   const fetchData = useCallback(async () => {
@@ -68,7 +81,71 @@ export default function ConnectionsContent() {
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const loadMetaAccounts = useCallback(async () => {
+    try {
+      setLoadingMetaAccounts(true);
+      const res = await fetch('/api/meta/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.error) {
+          toast.error(data.error);
+        } else {
+          setMetaPages(data.pages || []);
+          setMetaAdAccounts(data.adAccounts || []);
+          if (data.selectedPageId) setSelectedPageId(data.selectedPageId);
+          else if (data.pages?.[0]?.id) setSelectedPageId(data.pages[0].id);
+
+          if (data.selectedAdAccountId) setSelectedAdAccountId(data.selectedAdAccountId);
+          else if (data.adAccounts?.[0]?.id) setSelectedAdAccountId(data.adAccounts[0].id);
+        }
+      }
+    } catch {
+      toast.error('Lỗi khi tải danh sách tài khoản Meta');
+    } finally {
+      setLoadingMetaAccounts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    if (typeof window !== 'undefined' && window.location.search.includes('select_meta=true')) {
+      setShowMetaModal(true);
+      loadMetaAccounts();
+    }
+  }, [fetchData, loadMetaAccounts]);
+
+  const handleSaveMetaSelection = async () => {
+    try {
+      setSavingMetaChoice(true);
+      const selectedPageObj = metaPages.find(p => p.id === selectedPageId);
+      const selectedAdObj = metaAdAccounts.find(a => a.id === selectedAdAccountId);
+
+      const res = await fetch('/api/meta/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId: selectedPageId,
+          pageName: selectedPageObj?.name || '',
+          pageAccessToken: selectedPageObj?.accessToken || '',
+          adAccountId: selectedAdAccountId,
+          adAccountName: selectedAdObj?.name || '',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || 'Cập nhật tài khoản chọn thành công!');
+        setShowMetaModal(false);
+        fetchData();
+      } else {
+        toast.error(data.error || 'Cập nhật thất bại');
+      }
+    } catch {
+      toast.error('Lỗi kết nối server khi lưu lựa chọn');
+    } finally {
+      setSavingMetaChoice(false);
+    }
+  };
 
   const getConn = (platform: string) => connections.find(c => c.platform === platform);
   const isConnected = (platform: string) => getConn(platform)?.isConnected || false;
@@ -317,6 +394,16 @@ export default function ConnectionsContent() {
           <p className="text-slate-500 text-sm mt-1">Quản lý kết nối và đồng bộ dữ liệu với các nền tảng</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setShowMetaModal(true);
+              loadMetaAccounts();
+            }}
+            className="px-4 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium flex items-center gap-1.5 border border-indigo-200 transition-colors"
+          >
+            <Plug size={14} className="text-indigo-600" />
+            Tùy Chọn Page & Quảng Cáo
+          </button>
           <button onClick={handleRefreshAll} disabled={syncing !== null || syncingAll}
             className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors">
             {syncingAll ? <Loader2 size={14} className="animate-spin" /> : <CloudDownload size={14} />}
@@ -363,6 +450,7 @@ export default function ConnectionsContent() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {platforms.map(p => {
+          const conn = getConn(p.key);
           const connected = isConnected(p.key);
           const error = getTokenError(p.key) || syncErrors[p.key];
           const isTesting = testing === p.key;
@@ -391,6 +479,20 @@ export default function ConnectionsContent() {
                   <p className="font-semibold flex items-center gap-1">
                     <AlertTriangle size={14} className="text-red-500" /> {error}
                   </p>
+                </div>
+              )}
+
+              {p.key === 'Facebook Page' && conn?.pageId && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 space-y-0.5">
+                  <p className="font-medium text-slate-900">📘 Trang Fanpage Đã Chọn:</p>
+                  <p className="font-semibold text-indigo-600">{conn.pageName || 'Tên trang chưa cập nhật'} <span className="text-slate-400 font-normal">(ID: {conn.pageId})</span></p>
+                </div>
+              )}
+
+              {p.key === 'Facebook Ads' && (conn?.adAccountId || conn?.adAccountName) && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 space-y-0.5">
+                  <p className="font-medium text-slate-900">💰 Tài Khoản Quảng Cáo Đã Chọn:</p>
+                  <p className="font-semibold text-indigo-600">{conn.adAccountName || `act_${conn.adAccountId}`} <span className="text-slate-400 font-normal">(ID: act_{conn.adAccountId})</span></p>
                 </div>
               )}
 
@@ -438,6 +540,18 @@ export default function ConnectionsContent() {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                {p.isOAuth && (
+                  <button
+                    onClick={() => {
+                      setShowMetaModal(true);
+                      loadMetaAccounts();
+                    }}
+                    className="px-3 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plug size={12} /> Tùy chọn Page/Ads
+                  </button>
+                )}
+
                 {!connected && stored && unverified && !tokens[p.key] ? (
                   <button onClick={() => handleTest(p.key)} disabled={!isAdmin || isTesting || isSyncing}
                     className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
@@ -491,6 +605,106 @@ export default function ConnectionsContent() {
           <p>• <strong>TikTok, Zalo, Google Sheets:</strong> Hỗ trợ lưu token, <em>chưa hỗ trợ đồng bộ tự động</em>.</p>
         </div>
       </div>
+
+      {/* Modal Tùy chọn Meta (Facebook Page & Facebook Ads) */}
+      {showMetaModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  📘 Tùy Chọn Fanpage & Quảng Cáo Meta
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Chọn cụ thể Fanpage và Tài khoản Quảng cáo Facebook bạn muốn đồng bộ.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMetaModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-semibold px-2 py-1 rounded-md"
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingMetaAccounts ? (
+              <div className="py-8 flex flex-col items-center justify-center space-y-2">
+                <Loader2 className="w-7 h-7 text-indigo-600 animate-spin" />
+                <p className="text-xs text-slate-500 font-medium">Đang tải danh sách Fanpage và Ad Accounts từ Facebook...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Chọn Fanpage */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    1. Trang Fanpage Facebook
+                  </label>
+                  {metaPages.length > 0 ? (
+                    <select
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={selectedPageId}
+                      onChange={e => setSelectedPageId(e.target.value)}
+                    >
+                      {metaPages.map(page => (
+                        <option key={page.id} value={page.id}>
+                          {page.name} (ID: {page.id}) {page.category ? `- ${page.category}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                      Không tìm thấy Fanpage nào hoặc chưa kết nối tài khoản. Vui lòng nhấn <strong>"Kết Nối Facebook"</strong> trong Cài Đặt.
+                    </p>
+                  )}
+                </div>
+
+                {/* Chọn Tài khoản Quảng cáo */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    2. Tài Khoản Quảng Cáo Facebook (Ad Account)
+                  </label>
+                  {metaAdAccounts.length > 0 ? (
+                    <select
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={selectedAdAccountId}
+                      onChange={e => setSelectedAdAccountId(e.target.value)}
+                    >
+                      {metaAdAccounts.map(acct => (
+                        <option key={acct.id} value={acct.id}>
+                          {acct.name} (ID: act_{acct.id}) [{acct.currency}] {acct.status === 1 ? '• Active' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                      Không tìm thấy tài khoản quảng cáo nào thuộc Facebook này.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowMetaModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveMetaSelection}
+                disabled={savingMetaChoice || loadingMetaAccounts}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {savingMetaChoice ? <Loader2 size={14} className="animate-spin" /> : <Plug size={14} />}
+                Lưu Lựa Chọn
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

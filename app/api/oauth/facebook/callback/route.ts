@@ -67,50 +67,56 @@ export async function GET(request: Request) {
     const firstPage = pagesData.data?.[0];
     let pageAccessToken = null;
     let pageId = null;
+    let pageName = null;
 
     if (firstPage) {
       pageAccessToken = firstPage.access_token;
       pageId = firstPage.id;
-      
-      await prisma.platformCredential.upsert({
-        where: { platform: 'Facebook Page' },
-        update: {
-          credentials: encrypt(JSON.stringify({ type: 'live', token: pageAccessToken, pageId })),
-          isConnected: true,
-          lastTested: new Date(),
-        },
-        create: {
-          platform: 'Facebook Page',
-          credentials: encrypt(JSON.stringify({ type: 'live', token: pageAccessToken, pageId })),
-          isConnected: true,
-          lastTested: new Date(),
-        },
-      });
+      pageName = firstPage.name;
     }
+
+    await prisma.platformCredential.upsert({
+      where: { platform: 'Facebook Page' },
+      update: {
+        credentials: encrypt(JSON.stringify({ type: 'live', token: pageAccessToken || userAccessToken, userToken: userAccessToken, pageId, pageName })),
+        isConnected: true,
+        lastTested: new Date(),
+      },
+      create: {
+        platform: 'Facebook Page',
+        credentials: encrypt(JSON.stringify({ type: 'live', token: pageAccessToken || userAccessToken, userToken: userAccessToken, pageId, pageName })),
+        isConnected: true,
+        lastTested: new Date(),
+      },
+    });
 
     // 4. Get Ad Accounts
     const adAccountsRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=id,name&access_token=${userAccessToken}`);
     const adAccountsData = await adAccountsRes.json();
     
     const firstAdAccount = adAccountsData.data?.[0];
+    let adAccountId = null;
+    let adAccountName = null;
+
     if (firstAdAccount) {
-      const adAccountId = firstAdAccount.id.replace('act_', ''); // store without act_ or with it, based on what user expects. The sync script handles it.
-      
-      await prisma.platformCredential.upsert({
-        where: { platform: 'Facebook Ads' },
-        update: {
-          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, adAccountId })),
-          isConnected: true,
-          lastTested: new Date(),
-        },
-        create: {
-          platform: 'Facebook Ads',
-          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, adAccountId })),
-          isConnected: true,
-          lastTested: new Date(),
-        },
-      });
+      adAccountId = firstAdAccount.id.replace('act_', '');
+      adAccountName = firstAdAccount.name;
     }
+
+    await prisma.platformCredential.upsert({
+      where: { platform: 'Facebook Ads' },
+      update: {
+        credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, userToken: userAccessToken, adAccountId, adAccountName })),
+        isConnected: true,
+        lastTested: new Date(),
+      },
+      create: {
+        platform: 'Facebook Ads',
+        credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, userToken: userAccessToken, adAccountId, adAccountName })),
+        isConnected: true,
+        lastTested: new Date(),
+      },
+    });
 
     // 5. Get Instagram Business Accounts
     const igRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account{id,username}&access_token=${userAccessToken}`);
@@ -123,22 +129,22 @@ export async function GET(request: Request) {
       await prisma.platformCredential.upsert({
         where: { platform: 'Instagram' },
         update: {
-          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, igAccountId })),
+          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, userToken: userAccessToken, igAccountId })),
           isConnected: true,
           lastTested: new Date(),
         },
         create: {
           platform: 'Instagram',
-          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, igAccountId })),
+          credentials: encrypt(JSON.stringify({ type: 'live', token: userAccessToken, userToken: userAccessToken, igAccountId })),
           isConnected: true,
           lastTested: new Date(),
         },
       });
     }
 
-    return NextResponse.redirect(new URL('/settings?oauth_success=facebook', request.url));
+    return NextResponse.redirect(new URL('/connections?oauth_success=facebook&select_meta=true', request.url));
   } catch (error: any) {
     console.error('Facebook OAuth Error:', error);
-    return NextResponse.redirect(new URL(`/settings?error=${encodeURIComponent(error.message)}`, request.url));
+    return NextResponse.redirect(new URL(`/connections?error=${encodeURIComponent(error.message)}`, request.url));
   }
 }

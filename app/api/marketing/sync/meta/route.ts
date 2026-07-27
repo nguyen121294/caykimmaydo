@@ -13,21 +13,26 @@ interface SyncLog {
   error?: string;
 }
 
-async function getTokenForPlatform(platform: string): Promise<{ token: string | null; adAccountId?: string; igAccountId?: string }> {
+async function getTokenForPlatform(platform: string): Promise<{ token: string | null; pageId?: string; adAccountId?: string; igAccountId?: string }> {
   const credential = await prisma.platformCredential.findUnique({ where: { platform } });
   if (!credential || !credential.isConnected) return { token: null };
   try {
     const decrypted = decrypt(credential.credentials);
     const parsed = JSON.parse(decrypted);
-    if (parsed?.type !== 'live' || !parsed?.token) return { token: null };
-    return { token: parsed.token, adAccountId: parsed.adAccountId, igAccountId: parsed.igAccountId };
+    if (parsed?.type !== 'live' || (!parsed?.token && !parsed?.userToken)) return { token: null };
+    return {
+      token: parsed.token || parsed.userToken,
+      pageId: parsed.pageId,
+      adAccountId: parsed.adAccountId,
+      igAccountId: parsed.igAccountId
+    };
   } catch {
     return { token: null };
   }
 }
 
 // ===== FACEBOOK PAGE SYNC =====
-async function syncFacebookPage(token: string): Promise<SyncLog> {
+async function syncFacebookPage(token: string, pageId?: string): Promise<SyncLog> {
   const log: SyncLog = { platform: 'Facebook Page', recordsFetched: 0, recordsSaved: 0, syncedAt: new Date().toISOString() };
   const today = new Date().toISOString().slice(0, 10);
 
@@ -39,9 +44,10 @@ async function syncFacebookPage(token: string): Promise<SyncLog> {
       throw new Error(meData.error?.message || 'Token không hợp lệ');
     }
 
+    const targetNode = pageId ? pageId : 'me';
     // Lấy conversations từ Facebook Page API
     const convRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/conversations?fields=participants,messages.limit(1){message,from,created_time}&limit=25&access_token=${encodeURIComponent(token)}`,
+      `https://graph.facebook.com/v19.0/${targetNode}/conversations?fields=participants,messages.limit(1){message,from,created_time}&limit=25&access_token=${encodeURIComponent(token)}`,
       { signal: AbortSignal.timeout(15000) }
     );
 
@@ -305,7 +311,7 @@ export async function POST(req: NextRequest) {
 
     // ===== Facebook Page =====
     if (!requestedPlatform || requestedPlatform === 'Facebook Page') {
-      const { token } = await getTokenForPlatform('Facebook Page');
+      const { token, pageId } = await getTokenForPlatform('Facebook Page');
       if (!token) {
         results.push({
           platform: 'Facebook Page',
@@ -315,7 +321,7 @@ export async function POST(req: NextRequest) {
         });
         errors.push('Facebook Page: Chưa có token hợp lệ');
       } else {
-        const pageLog = await syncFacebookPage(token);
+        const pageLog = await syncFacebookPage(token, pageId);
         results.push(pageLog);
         totalFetched += pageLog.recordsFetched;
         totalSaved += pageLog.recordsSaved;

@@ -25,6 +25,9 @@ export async function GET() {
     const result = (credentials ?? []).map((c: any) => {
       let mode = 'disconnected';
       let adAccountId = '';
+      let pageId = '';
+      let pageName = '';
+      let adAccountName = '';
       let tokenError = '';
       let hasToken = false;
       let needsVerification = false;
@@ -33,8 +36,11 @@ export async function GET() {
         const parsed = JSON.parse(decrypted);
         mode = parsed?.type === 'live' ? 'live' : 'disconnected';
         adAccountId = parsed?.adAccountId || '';
+        pageId = parsed?.pageId || '';
+        pageName = parsed?.pageName || '';
+        adAccountName = parsed?.adAccountName || '';
         tokenError = parsed?.tokenError || '';
-        hasToken = !!parsed?.token;
+        hasToken = !!(parsed?.token || parsed?.userToken);
         needsVerification = !!parsed?.needsVerification;
       } catch { /* fallback */ }
       return {
@@ -44,6 +50,9 @@ export async function GET() {
         lastTested: c.lastTested ? c.lastTested.toISOString() : null,
         mode,
         adAccountId,
+        pageId,
+        pageName,
+        adAccountName,
         tokenError,
         hasToken,
         needsVerification,

@@ -7,18 +7,6 @@ import { toast } from 'sonner';
 
 const platforms = [
   {
-    id: 'facebook_oauth',
-    name: 'Facebook & Instagram',
-    icon: '📘',
-    isOAuth: true,
-    oauthUrl: '/api/oauth/facebook/authorize',
-    guide: [
-      'Nhấn "Kết Nối Facebook" để ủy quyền.',
-      'Hệ thống tự lấy Token (60 ngày) cho Fanpage, Ads và Instagram.',
-      'Vui lòng cấp tất cả các quyền được yêu cầu.'
-    ],
-  },
-  {
     id: 'zalo',
     name: 'Zalo OA',
     icon: '💬',
@@ -185,65 +173,7 @@ export default function SettingsContent() {
         </div>
       )}
 
-      {/* Meta App OAuth Configuration Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-blue-600" />
-            <div>
-              <h3 className="font-semibold text-slate-900">Cấu hình App Facebook OAuth (App ID & Secret)</h3>
-              <p className="text-xs text-slate-500">Dùng cho tính năng "Ủy quyền tự động qua Facebook". Nếu không nhập, hệ thống sẽ dùng file .env làm mặc định.</p>
-            </div>
-          </div>
-          {hasMetaClientSecret && (
-            <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium px-2.5 py-1 rounded-full flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-emerald-500" /> App Secret đã thiết lập
-            </span>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-medium text-slate-700 mb-1 block">FACEBOOK_CLIENT_ID (App ID)</label>
-            <div className="relative">
-              <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                disabled={!isAdmin}
-                value={metaClientId}
-                onChange={(e) => setMetaClientId(e.target.value)}
-                placeholder="Ví dụ: 123456789012345"
-                className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-slate-700 mb-1 block">FACEBOOK_CLIENT_SECRET (App Secret)</label>
-            <div className="relative">
-              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="password"
-                disabled={!isAdmin}
-                value={metaClientSecret}
-                onChange={(e) => setMetaClientSecret(e.target.value)}
-                placeholder={hasMetaClientSecret ? '•••••••••••••••• (Để trống nếu không đổi)' : 'Nhập Facebook App Secret'}
-                className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-slate-100 disabled:text-slate-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-4">
-          <button
-            onClick={saveMetaAppCredentials}
-            disabled={!isAdmin || savingMetaApp}
-            className="px-4 py-2 text-sm gradient-bg text-white rounded-lg hover:opacity-90 transition font-medium disabled:opacity-50"
-          >
-            {savingMetaApp ? 'Đang lưu...' : 'Lưu Cấu Hình App Meta'}
-          </button>
-        </div>
-      </div>
 
       {/* Platform Connections */}
       <div className="space-y-4">

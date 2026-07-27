@@ -31,7 +31,10 @@ export async function GET(request: Request) {
     }
   } catch {}
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const host = request.headers.get('host') || 'localhost:3000';
+  const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+  const dynamicBaseUrl = `${proto}://${host}`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || dynamicBaseUrl;
   const redirectUri = `${baseUrl}/api/oauth/facebook/callback`;
 
   if (!clientId || !clientSecret) {

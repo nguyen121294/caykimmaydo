@@ -592,17 +592,34 @@ export default function ConnectionsContent() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-6">
-        <h3 className="font-semibold text-slate-900 mb-3">Hướng dẫn kết nối</h3>
+        <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+          <span>💡 Hướng dẫn lấy API Token Facebook Dài Hạn (Khuyên Dùng)</span>
+          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">Khắc phục 100% lỗi Domain OAuth</span>
+        </h3>
+        <div className="text-sm text-slate-600 space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <p>Dùng Token thủ công giúp ứng dụng hoạt động <strong>24/7 độc lập</strong> mà không cần mở trình duyệt hay đăng nhập Facebook:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5">
+              <span className="font-semibold text-indigo-700 block">Bước 1: Lấy Token từ Facebook Explorer</span>
+              <p>Mở công cụ <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-medium">Graph API Explorer</a> ➔ Chọn App của bạn ➔ Bấm <em>Add a Permission</em> chọn đủ các quyền: <code>pages_read_engagement</code>, <code>pages_messaging</code>, <code>pages_manage_metadata</code>, <code>ads_read</code>, <code>read_insights</code> ➔ Bấm <strong>Generate Access Token</strong>.</p>
+            </div>
+            <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1.5">
+              <span className="font-semibold text-indigo-700 block">Bước 2: Đổi thành Token Dài Hạn (60 ngày)</span>
+              <p>Mở công cụ <a href="https://developers.facebook.com/tools/debug/accesstoken/" target="_blank" rel="noreferrer" className="text-indigo-600 underline font-medium">Access Token Debugger</a> ➔ Dán token ở B1 vào bấm <strong>Debug</strong> ➔ Cuộn xuống bấm <strong>Extend Access Token</strong> ➔ Copy token 60 ngày dán vào khung ở trên.</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500 italic">Lưu ý: Ô Ad Account ID bạn có thể nhập <code>1052674760608736</code> hoặc <code>act_1052674760608736</code>, hệ thống tự động nhận diện chuẩn xác.</p>
+        </div>
+
+        <h3 className="font-semibold text-slate-900 mt-6 mb-3">Quy trình kiểm tra & đồng bộ chung</h3>
         <div className="text-sm text-slate-600 space-y-2">
           <p>• <strong>Bước 1:</strong> Nhập API Token thật của nền tảng và nhấn <strong>"Kiểm tra"</strong>. Hệ thống sẽ gọi API thật để xác minh token.</p>
           <p>• <strong>Bước 2:</strong> Sau khi kiểm tra thành công (badge xanh "Đã kết nối"), nhấn <strong>"Đồng bộ dữ liệu"</strong> để lấy dữ liệu thật và lưu vào database.</p>
           <p>• <strong>Bước 3:</strong> Dữ liệu thật được lưu vào database → hiển thị trên Dashboard & Marketing.</p>
-          <p>• <strong>Quan trọng:</strong> Trạng thái "Đã kết nối" <em>chỉ</em> hiển thị khi API test thật thành công. Token lưu mà chưa xác minh sẽ hiện badge vàng "Chưa xác minh".</p>
           <p>• <strong>Facebook Ads:</strong> Cần token + Ad Account ID hợp lệ (quyền <code>ads_read</code>). Dữ liệu từ <code>actions</code> và <code>action_values</code> được map thành Leads, Purchases, Revenue.</p>
           <p>• <strong>Instagram:</strong> Token cần quyền <code>instagram_basic</code> + <code>pages_show_list</code>.</p>
           <p>• <strong>Telegram:</strong> Bot Token từ @BotFather → hệ thống gọi <code>getMe</code> để xác minh.</p>
           <p>• <strong>ManyChat:</strong> API Key từ Settings → API → hệ thống gọi <code>getInfo</code> để xác minh.</p>
-          <p>• <strong>TikTok, Zalo, Google Sheets:</strong> Hỗ trợ lưu token, <em>chưa hỗ trợ đồng bộ tự động</em>.</p>
         </div>
       </div>
 

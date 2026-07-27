@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
 
       const credentialData: any = { type: 'live', token: effectiveToken };
       if (storedAdAccountId) {
+        storedAdAccountId = storedAdAccountId.trim().replace(/^act_/, '');
         credentialData.adAccountId = storedAdAccountId;
       }
 
@@ -245,10 +246,30 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: userError }, { status: 400 });
           }
 
+          // Lấy tên Page/User từ meData
+          if (meData.name) {
+            credentialData.pageName = meData.name;
+            if (meData.id) credentialData.pageId = meData.id;
+          }
+
+          // Nếu là Token của User, thử lấy Fanpage đầu tiên từ /me/accounts
+          try {
+            const pageAccRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(effectiveToken)}`);
+            const pageAccData = await pageAccRes.json();
+            if (pageAccData?.data && pageAccData.data.length > 0) {
+              const firstPage = pageAccData.data[0];
+              credentialData.pageId = firstPage.id;
+              credentialData.pageName = firstPage.name;
+              if (firstPage.access_token) {
+                credentialData.pageAccessToken = firstPage.access_token;
+              }
+            }
+          } catch {}
+
           // Facebook Ads: kiểm tra thêm adAccountId
           const lower = platform.toLowerCase();
           if (lower.includes('ads') && storedAdAccountId) {
-            const cleanId = storedAdAccountId.replace('act_', '');
+            const cleanId = storedAdAccountId.trim().replace(/^act_/, '');
             const adRes = await fetch(
               `https://graph.facebook.com/v19.0/act_${cleanId}?access_token=${encodeURIComponent(effectiveToken)}&fields=name,account_status`
             );
@@ -271,6 +292,9 @@ export async function POST(req: NextRequest) {
                 },
               });
               return NextResponse.json({ success: false, error: adError }, { status: 400 });
+            }
+            if (adData.name) {
+              credentialData.adAccountName = adData.name;
             }
           }
 

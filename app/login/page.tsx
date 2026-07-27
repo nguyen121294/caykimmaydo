@@ -2,7 +2,8 @@
 import { signIn, useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Scissors, Eye, EyeOff, LogIn } from 'lucide-react';
+import Link from 'next/link';
+import { Scissors, Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -110,6 +111,17 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+        </div>
+
+        {/* Footer Privacy Policy Link */}
+        <div className="mt-6 text-center">
+          <Link
+            href="/privacy"
+            className="text-xs text-slate-400 hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5 font-medium"
+          >
+            <ShieldCheck size={14} className="text-indigo-500" />
+            Chính sách quyền riêng tư (Privacy Policy)
+          </Link>
         </div>
       </div>
     </div>

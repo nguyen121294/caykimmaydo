@@ -352,3 +352,21 @@ model FinanceEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model FacebookPost {
+  id            String    @id @default(cuid())
+  postId        String    @unique
+  pageId        String?
+  pageName      String?
+  message       String?
+  picture       String?
+  permalinkUrl  String?
+  createdTime   DateTime?
+  likesCount    Int       @default(0)
+  viewsCount    Int       @default(0)
+  commentsCount Int       @default(0)
+  sharesCount   Int       @default(0)
+  syncedAt      DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

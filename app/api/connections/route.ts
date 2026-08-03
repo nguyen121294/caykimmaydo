@@ -301,7 +301,7 @@ export async function POST(req: NextRequest) {
           // Instagram: kiểm tra pages và instagram_business_account
           if (lower.includes('instagram')) {
             const igRes = await fetch(
-              `https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(effectiveToken)}`
+              `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,instagram_business_account{id,username}&access_token=${encodeURIComponent(effectiveToken)}`
             );
             const igData = await igRes.json();
             if (igData?.error) {
@@ -316,9 +316,16 @@ export async function POST(req: NextRequest) {
               return NextResponse.json({ success: false, error: igError }, { status: 400 });
             }
 
-            const igAccount = (igData?.data || []).find((p: any) => p.instagram_business_account);
+            const pages = igData?.data || [];
+            const igAccount = pages.find((p: any) => p.instagram_business_account);
             if (!igAccount) {
-              const igError = 'Không tìm thấy tài khoản Instagram Business. Cần đảm bảo: 1) Tài khoản IG đã chuyển sang Chuyên nghiệp (Business/Creator). 2) Đã liên kết tài khoản IG với một Fanpage Facebook. 3) Token là Mã Người Dùng (User Access Token) có quyền instagram_basic & pages_show_list.';
+              let igError = '';
+              if (pages.length === 0) {
+                igError = 'Token không lấy được Fanpage nào từ Meta. Khi cấp quyền trên Graph API Explorer, bạn cần chọn/tích đủ Fanpage Facebook của bạn.';
+              } else {
+                const pageNames = pages.map((p: any) => `"${p.name || p.id}"`).join(', ');
+                igError = `Tìm thấy ${pages.length} Fanpage (${pageNames}), nhưng chưa Fanpage nào được liên kết với tài khoản Instagram Business. Vui lòng vào Facebook Fanpage ➔ Cài đặt Trang ➔ Tài khoản đã liên kết ➔ Liên kết Instagram.`;
+              }
               credentialData.tokenError = igError;
               const encrypted = encrypt(JSON.stringify(credentialData));
               await prisma.platformCredential.upsert({

@@ -1,0 +1,93 @@
+================================================================================
+           HƯỚNG DẪN CHI TIẾT LẤY API TOKEN / KEY CHO TẤT CẢ CÁC NỀN TẢNG
+================================================================================
+
+1. FACEBOOK PAGE & FACEBOOK ADS (TOKEN DÀI HẠN 60 NGÀY)
+--------------------------------------------------------------------------------
+Bước 1: Lấy Token từ Graph API Explorer
+- Mở liên kết: https://developers.facebook.com/tools/explorer/
+- Chọn App của bạn.
+- Tại mục "Người dùng hoặc Trang": Chọn "Mã người dùng" (User Access Token).
+- Tại mục "Permissions" (Quyền bên phải), nhấn "Add a Permission" và chọn đủ các quyền:
+    + ads_read (Bắt buộc cho Facebook Ads)
+    + read_insights
+    + pages_show_list
+    + pages_read_engagement
+    + pages_messaging
+- Bấm nút "Generate Access Token" và đăng nhập xác nhận trên Facebook.
+
+Bước 2: Đổi thành Token Dài Hạn (60 ngày)
+- Mở công cụ: https://developers.facebook.com/tools/debug/accesstoken/
+- Dán đoạn token vừa copy ở B1 vào ô rồi bấm "Debug".
+- Cuộn xuống dưới cùng bấm nút "Extend Access Token".
+- Copy chuỗi token 60 ngày thu được dán vào ô Facebook Page / Facebook Ads trong ứng dụng.
+
+
+2. CÁCH LẤY AD ACCOUNT ID (TÀI KHOẢN QUẢNG CÁO FACEBOOK)
+--------------------------------------------------------------------------------
+Cách 1: Lấy từ URL Trình quản lý quảng cáo (Nhanh nhất)
+- Mở https://adsmanager.facebook.com/
+- Nhìn lên thanh địa chỉ (URL) trình duyệt:
+  https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=1052674760608736
+- Chuỗi số nằm ngay sau "act=" chính là Ad Account ID (Ví dụ: 1052674760608736).
+
+Cách 2: Chọn tự động trong ứng dụng
+- Dán Facebook Token vào ô ➔ Bấm "Kiểm tra" ➔ Bấm nút "Tùy chọn Page/Ads".
+- Hệ thống sẽ tự động gọi API lấy danh sách Ad Accounts để bạn chọn.
+
+
+3. TELEGRAM (BOT TOKEN)
+--------------------------------------------------------------------------------
+- Mở ứng dụng Telegram trên điện thoại hoặc máy tính.
+- Tìm kiếm bot có tên: @BotFather (có tích xanh chính thức).
+- Gửi tin nhắn: /newbot
+- Nhập Tên Bot (Ví dụ: MayDo Notification Bot).
+- Nhập Username Bot (Bắt buộc kết thúc bằng từ "bot", ví dụ: maydo_fashion_bot).
+- BotFather sẽ trả về chuỗi API Token có dạng:
+  7123456789:AAHxxxxxx_xxxxxxxxxxxxxxxxxxxxxxx
+- Copy toàn bộ chuỗi này dán vào ô Telegram trong trang Kết Nối ➔ Bấm "Kiểm tra".
+
+
+4. MANYCHAT (API KEY)
+--------------------------------------------------------------------------------
+* Yêu cầu: Tài khoản ManyChat gói Pro.
+- Đăng nhập https://manychat.com/
+- Chọn Fanpage/Bot cần lấy Key.
+- Ở menu trái, vào Settings (Cài đặt) ➔ Chọn mục API.
+- Tại phần API Keys, bấm "Generate Your API Key" (hoặc copy mã đã tạo).
+- Mã API Key có dạng: 1234567890:abcdefghijklmnopqrstuvwxyz...
+- Copy dán vào ô ManyChat trong trang Kết Nối ➔ Bấm "Kiểm tra".
+
+
+5. INSTAGRAM BUSINESS (META ACCESS TOKEN)
+--------------------------------------------------------------------------------
+* Yêu cầu: Tài khoản Instagram phải là Business/Creator và đã liên kết với Fanpage Facebook.
+- Mở https://developers.facebook.com/tools/explorer/
+- Chọn "Mã người dùng" (User Access Token).
+- Tích chọn các quyền:
+    + instagram_basic
+    + instagram_manage_insights
+    + pages_show_list
+    + pages_read_engagement
+- Bấm "Generate Access Token" ➔ Đổi sang Token 60 ngày tại Access Token Debugger.
+- Copy dán vào ô Instagram trong trang Kết Nối ➔ Bấm "Kiểm tra".
+
+
+6. ZALO OA (ZALO OFFICIAL ACCOUNT ACCESS TOKEN)
+--------------------------------------------------------------------------------
+- Mở https://developers.zalo.me/
+- Đăng nhập tài khoản Quản trị viên Zalo OA.
+- Vào "Thêm ứng dụng mới" (Tạo App).
+- Vào mục Tools ➔ Chọn "Tạo Access Token".
+- Tích chọn quyền đọc thông tin OA & Gửi tin nhắn ➔ Bấm "Tạo Access Token".
+- Copy mã Access Token dán vào ô Zalo trong trang Kết Nối ➔ Bấm "Kiểm tra".
+
+
+7. TIKTOK (OPEN API TOKEN)
+--------------------------------------------------------------------------------
+- Mở https://developers.tiktok.com/ hoặc https://partner.tiktokshop.com/
+- Đăng nhập tài khoản TikTok doanh nghiệp / đối tác.
+- Vào App Management ➔ Tạo ứng dụng mới.
+- Chọn quyền scope: user.info.basic, video.list.
+- Copy mã Access Token được cấp dán vào ô TikTok ➔ Bấm "Kiểm tra".
+================================================================================

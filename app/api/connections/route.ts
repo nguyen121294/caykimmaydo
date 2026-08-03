@@ -304,9 +304,21 @@ export async function POST(req: NextRequest) {
               `https://graph.facebook.com/v19.0/me/accounts?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(effectiveToken)}`
             );
             const igData = await igRes.json();
+            if (igData?.error) {
+              const igError = `Meta API lỗi (${igData.error.code}): ${igData.error.message}`;
+              credentialData.tokenError = igError;
+              const encrypted = encrypt(JSON.stringify(credentialData));
+              await prisma.platformCredential.upsert({
+                where: { platform },
+                update: { credentials: encrypted, isConnected: false, lastTested: new Date() },
+                create: { platform, credentials: encrypted, isConnected: false, lastTested: new Date() },
+              });
+              return NextResponse.json({ success: false, error: igError }, { status: 400 });
+            }
+
             const igAccount = (igData?.data || []).find((p: any) => p.instagram_business_account);
             if (!igAccount) {
-              const igError = 'Không tìm thấy tài khoản Instagram Business. Kiểm tra token có quyền instagram_basic và pages_show_list.';
+              const igError = 'Không tìm thấy tài khoản Instagram Business. Cần đảm bảo: 1) Tài khoản IG đã chuyển sang Chuyên nghiệp (Business/Creator). 2) Đã liên kết tài khoản IG với một Fanpage Facebook. 3) Token là Mã Người Dùng (User Access Token) có quyền instagram_basic & pages_show_list.';
               credentialData.tokenError = igError;
               const encrypted = encrypt(JSON.stringify(credentialData));
               await prisma.platformCredential.upsert({

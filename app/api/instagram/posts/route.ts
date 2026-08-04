@@ -13,32 +13,14 @@ export async function GET(req: NextRequest) {
     const hasIgModel = !!(prisma as any).instagramPost;
     let posts: any[] = [];
 
-    if (hasIgModel) {
-      const where: any = {};
-      if (search) where.caption = { contains: search, mode: 'insensitive' };
-      if (days !== 'all') {
-        const numDays = parseInt(days, 10);
-        if (!isNaN(numDays)) {
-          const dateCutoff = new Date();
-          dateCutoff.setDate(dateCutoff.getDate() - numDays);
-          where.createdTime = { gte: dateCutoff };
-        }
-      }
-      let orderBy: any = { createdTime: 'desc' };
-      if (sortBy === 'likes') orderBy = { likesCount: 'desc' };
-      if (sortBy === 'comments') orderBy = { commentsCount: 'desc' };
-      if (sortBy === 'oldest') orderBy = { createdTime: 'asc' };
-
-      posts = await (prisma as any).instagramPost.findMany({ where, orderBy, take: 100 });
-    } else {
-      // Fallback: Query ContentTracking với channel === 'Instagram'
+    const fetchFromTracking = async () => {
       const trackingList = await prisma.contentTracking.findMany({
         where: { channel: 'Instagram' },
         orderBy: { createdAt: 'desc' },
         take: 100,
       });
 
-      posts = trackingList.map((t: any) => ({
+      let res = trackingList.map((t: any) => ({
         id: t.id,
         postId: t.contentId?.replace(/^ig_/, '') || t.id,
         caption: t.aiSuggestion || '',
@@ -51,10 +33,35 @@ export async function GET(req: NextRequest) {
         syncedAt: t.updatedAt || t.createdAt,
       }));
 
-      // Lọc tay theo search
       if (search) {
-        posts = posts.filter((p: any) => p.caption.toLowerCase().includes(search.toLowerCase()));
+        res = res.filter((p: any) => p.caption.toLowerCase().includes(search.toLowerCase()));
       }
+      return res;
+    };
+
+    if (hasIgModel) {
+      try {
+        const where: any = {};
+        if (search) where.caption = { contains: search, mode: 'insensitive' };
+        if (days !== 'all') {
+          const numDays = parseInt(days, 10);
+          if (!isNaN(numDays)) {
+            const dateCutoff = new Date();
+            dateCutoff.setDate(dateCutoff.getDate() - numDays);
+            where.createdTime = { gte: dateCutoff };
+          }
+        }
+        let orderBy: any = { createdTime: 'desc' };
+        if (sortBy === 'likes') orderBy = { likesCount: 'desc' };
+        if (sortBy === 'comments') orderBy = { commentsCount: 'desc' };
+        if (sortBy === 'oldest') orderBy = { createdTime: 'asc' };
+
+        posts = await (prisma as any).instagramPost.findMany({ where, orderBy, take: 100 });
+      } catch {
+        posts = await fetchFromTracking();
+      }
+    } else {
+      posts = await fetchFromTracking();
     }
 
     const totalPosts = posts.length;
@@ -157,32 +164,34 @@ export async function POST() {
 
       // Nếu model InstagramPost có sẵn trong Prisma Instance
       if (hasIgModel) {
-        await (prisma as any).instagramPost.upsert({
-          where: { postId },
-          update: {
-            igAccountId,
-            caption,
-            mediaType,
-            mediaUrl,
-            permalinkUrl,
-            createdTime,
-            likesCount,
-            commentsCount,
-            syncedAt: new Date(),
-          },
-          create: {
-            postId,
-            igAccountId,
-            caption,
-            mediaType,
-            mediaUrl,
-            permalinkUrl,
-            createdTime,
-            likesCount,
-            commentsCount,
-            syncedAt: new Date(),
-          },
-        });
+        try {
+          await (prisma as any).instagramPost.upsert({
+            where: { postId },
+            update: {
+              igAccountId,
+              caption,
+              mediaType,
+              mediaUrl,
+              permalinkUrl,
+              createdTime,
+              likesCount,
+              commentsCount,
+              syncedAt: new Date(),
+            },
+            create: {
+              postId,
+              igAccountId,
+              caption,
+              mediaType,
+              mediaUrl,
+              permalinkUrl,
+              createdTime,
+              likesCount,
+              commentsCount,
+              syncedAt: new Date(),
+            },
+          });
+        } catch { /* DB table InstagramPost does not exist on Supabase production yet */ }
       }
 
       // Cũng đồng bộ vào ContentTracking cho Analytics & Fallback

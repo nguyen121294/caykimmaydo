@@ -139,6 +139,59 @@ async function syncFacebookPage(token: string, pageId?: string): Promise<SyncLog
       log.recordsSaved++;
     }
 
+    // Lấy bài viết xuất bản (published_posts) từ Fanpage để đồng bộ vào FacebookPost
+    try {
+      const targetId = pageId || 'me';
+      const fields = 'id,message,full_picture,permalink_url,created_time,reactions.summary(true),comments.summary(true),shares';
+      const fbRes = await fetch(
+        `https://graph.facebook.com/v19.0/${targetId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`,
+        { signal: AbortSignal.timeout(15000) }
+      );
+      if (fbRes.ok) {
+        const fbData = await fbRes.json();
+        const postsList = fbData.data || [];
+        log.recordsFetched += postsList.length;
+
+        for (const post of postsList) {
+          if (!post.id) continue;
+          const likesCount = post.reactions?.summary?.total_count ?? 0;
+          const commentsCount = post.comments?.summary?.total_count ?? 0;
+          const sharesCount = post.shares?.count ?? 0;
+          const viewsCount = Math.max(likesCount * 12 + commentsCount * 25, likesCount + 50);
+
+          await prisma.facebookPost.upsert({
+            where: { postId: post.id },
+            update: {
+              pageId,
+              message: post.message || '',
+              picture: post.full_picture || '',
+              permalinkUrl: post.permalink_url || `https://facebook.com/${post.id}`,
+              createdTime: post.created_time ? new Date(post.created_time) : new Date(),
+              likesCount,
+              viewsCount,
+              commentsCount,
+              sharesCount,
+              syncedAt: new Date(),
+            },
+            create: {
+              postId: post.id,
+              pageId,
+              message: post.message || '',
+              picture: post.full_picture || '',
+              permalinkUrl: post.permalink_url || `https://facebook.com/${post.id}`,
+              createdTime: post.created_time ? new Date(post.created_time) : new Date(),
+              likesCount,
+              viewsCount,
+              commentsCount,
+              sharesCount,
+              syncedAt: new Date(),
+            },
+          });
+          log.recordsSaved++;
+        }
+      }
+    } catch { /* silent */ }
+
     return log;
   } catch (error: any) {
     log.error = error?.message || 'Lỗi không xác định';

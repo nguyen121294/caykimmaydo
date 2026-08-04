@@ -59,14 +59,17 @@ Cách 2: Chọn tự động trong ứng dụng
 - Copy dán vào ô ManyChat trong trang Kết Nối ➔ Bấm "Kiểm tra".
 
 
-5. INSTAGRAM BUSINESS (META ACCESS TOKEN)
+5. INSTAGRAM BUSINESS (META ACCESS TOKEN DÀI HẠN)
 --------------------------------------------------------------------------------
 * Yêu cầu: Tài khoản Instagram phải là Business/Creator và đã liên kết với Fanpage Facebook.
 - Mở https://developers.facebook.com/tools/explorer/
 - Chọn "Mã người dùng" (User Access Token).
-- Tích chọn các quyền:
-    + instagram_basic
-    + instagram_manage_insights
+- Tích chọn đủ các quyền Instagram & Fanpage:
+    + instagram_basic (Đọc thông tin tài khoản & Media cơ bản)
+    + instagram_manage_insights (Đọc Reach, Impressions, Story Analytics cho Phân Tích)
+    + instagram_manage_messages (Đọc & Nhắn tin Instagram DMs trong Inbox / CRM)
+    + instagram_manage_comments (Đọc & Trả lời / Ẩn bình luận trên bài đăng IG)
+    + instagram_content_publish (Đăng bài & Reels lên Instagram từ Kho Nội Dung)
     + pages_show_list
     + pages_read_engagement
 - Bấm "Generate Access Token" ➔ Đổi sang Token 60 ngày tại Access Token Debugger.

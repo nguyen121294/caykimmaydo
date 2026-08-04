@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { BarChart3, Trophy, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
+import { BarChart3, Trophy, TrendingUp, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import PageHeader from '@/app/components/page-header';
 import BudgetChart from './budget-chart';
 import WeeklyChart from './weekly-chart';
@@ -8,6 +8,8 @@ import WeeklyChart from './weekly-chart';
 export default function AnalyticsContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -18,6 +20,31 @@ export default function AnalyticsContent() {
     } catch {} finally { setLoading(false); }
   };
 
+  const handleSyncMeta = async () => {
+    try {
+      setSyncing(true);
+      setSyncMessage(null);
+
+      // Thử gọi sync Meta trước (hoặc sync Facebook Post)
+      const resMeta = await fetch('/api/marketing/sync/meta', { method: 'POST' });
+      const jsonMeta = await resMeta.json();
+
+      // Đồng thời kích hoạt sync bài viết Facebook Page nếu chưa gộp
+      await fetch('/api/facebook/posts', { method: 'POST' }).catch(() => {});
+
+      if (jsonMeta?.success) {
+        setSyncMessage({ type: 'success', text: jsonMeta?.message || 'Đồng bộ Meta & Instagram thành công!' });
+      } else {
+        setSyncMessage({ type: 'error', text: jsonMeta?.error || 'Đồng bộ không thành công. Vui lòng kiểm tra lại Token ở trang Kết Nối.' });
+      }
+      await fetchData();
+    } catch (err: any) {
+      setSyncMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra khi đồng bộ' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => { fetchData(); }, []);
 
   const tests = data?.abTests ?? [];
@@ -26,11 +53,30 @@ export default function AnalyticsContent() {
     const va = parseInt(String(a?.views ?? '0')?.replace?.(/[^0-9]/g, '') ?? '0') || 0;
     const vb = parseInt(String(b?.views ?? '0')?.replace?.(/[^0-9]/g, '') ?? '0') || 0;
     return vb - va;
-  })?.slice?.(0, 5) ?? [];
+  })?.slice?.(0, 10) ?? [];
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bảng Phân Tích" description="Kết quả A/B Test, hiệu suất chiến dịch và phân tích chi tiết" icon={BarChart3} onRefresh={fetchData} />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader title="Bảng Phân Tích" description="Kết quả A/B Test, hiệu suất chiến dịch và phân tích chi tiết" icon={BarChart3} onRefresh={fetchData} />
+        <button
+          onClick={handleSyncMeta}
+          disabled={syncing}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors"
+        >
+          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Đang đồng bộ...' : 'Đồng bộ Meta & Instagram'}
+        </button>
+      </div>
+
+      {syncMessage && (
+        <div className={`p-4 rounded-xl text-sm flex items-center gap-2 ${
+          syncMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {syncMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+          <span>{syncMessage.text}</span>
+        </div>
+      )}
 
       {/* A/B Test Table */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -97,7 +143,7 @@ export default function AnalyticsContent() {
 
       {/* Top Content */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b">
+        <div className="p-5 border-b flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
             <TrendingUp size={16} className="text-indigo-500" />
             Nội Dung Hiệu Suất Cao Nhất
@@ -111,27 +157,31 @@ export default function AnalyticsContent() {
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Loại</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Kênh</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Lượt xem</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Lượt lưu</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Lượt lưu/thích</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Tương tác</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">ROAS</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Đề xuất AI</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Nội dung / Đề xuất AI</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {(topContent ?? [])?.map?.((c: any) => (
                 <tr key={c?.contentId ?? c?.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{c?.contentId ?? ''}</td>
-                  <td className="px-4 py-3">{c?.contentType ?? ''}</td>
+                  <td className="px-4 py-3 font-mono text-xs max-w-[120px] truncate">{c?.contentId ?? ''}</td>
+                  <td className="px-4 py-3">{c?.contentType ?? 'BÀI VIẾT'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      (c?.channel ?? '') === 'Instagram' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-700'
-                    }`}>{c?.channel ?? ''}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      (c?.channel ?? '') === 'Instagram' ? 'bg-pink-100 text-pink-700 border border-pink-200' :
+                      (c?.channel ?? '') === 'Facebook Page' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {c?.channel ?? 'N/A'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-semibold">{c?.views ?? '0'}</td>
                   <td className="px-4 py-3">{c?.saves ?? '0'}</td>
-                  <td className="px-4 py-3">{c?.engageRate ?? '0'}</td>
+                  <td className="px-4 py-3">{c?.engageRate ?? '0%'}</td>
                   <td className="px-4 py-3 font-semibold text-indigo-600">{c?.roas ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs">{c?.aiSuggestion ?? ''}</td>
+                  <td className="px-4 py-3 text-xs max-w-[250px] truncate">{c?.aiSuggestion ?? ''}</td>
                 </tr>
               )) ?? []}
             </tbody>
@@ -141,3 +191,4 @@ export default function AnalyticsContent() {
     </div>
   );
 }
+

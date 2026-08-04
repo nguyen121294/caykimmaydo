@@ -4,9 +4,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const [abTests, content] = await Promise.all([
+    const [abTests, contentTracking, fbPosts, financeEntries] = await Promise.all([
       prisma.aBTest.findMany({ orderBy: { createdAt: 'desc' } }),
       prisma.contentTracking.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.facebookPost.findMany({ orderBy: { createdTime: 'desc' }, take: 50 }),
+      prisma.financeEntry.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
     // Calculate metrics for each A/B test
@@ -37,10 +39,72 @@ export async function GET() {
       { name: 'BOF', value: Math.round(totalBudget * 0.20), color: '#80D8C3' },
     ] : [];
 
+    // Chuẩn hóa bài viết Facebook Page để gộp với ContentTracking (Instagram / Khác)
+    const formattedFbPosts = (fbPosts ?? []).map((p: any) => {
+      const totalEngage = (p.likesCount || 0) + (p.commentsCount || 0) + (p.sharesCount || 0);
+      const viewsNum = p.viewsCount || 0;
+      const engageRate = viewsNum > 0 ? ((totalEngage / viewsNum) * 100).toFixed(1) + '%' : '0.0%';
+
+      return {
+        id: p.id,
+        contentId: p.postId || `fb_${p.id}`,
+        contentType: 'BÀI VIẾT',
+        channel: 'Facebook Page',
+        postDate: p.createdTime ? new Date(p.createdTime).toISOString().slice(0, 10) : '',
+        views: String(viewsNum),
+        saves: String(p.likesCount || 0),
+        comments: String(p.commentsCount || 0),
+        shares: String(p.sharesCount || 0),
+        engageRate,
+        roas: '—',
+        aiSuggestion: p.message ? (p.message.length > 50 ? p.message.slice(0, 50) + '...' : p.message) : 'Bài viết từ Fanpage',
+        createdAt: p.createdTime || p.createdAt,
+      };
+    });
+
+    const mergedContent = [...(contentTracking ?? []), ...formattedFbPosts];
+
+    // Tính toán Xu Hướng Tuần (weeklyTrend) dựa trên FinanceEntry & ABTest
+    // Khởi tạo 4 tuần gần nhất
+    const now = new Date();
+    const weeks: { week: string; revenue: number; spend: number }[] = [
+      { week: 'Tuần 1', revenue: 0, spend: 0 },
+      { week: 'Tuần 2', revenue: 0, spend: 0 },
+      { week: 'Tuần 3', revenue: 0, spend: 0 },
+      { week: 'Tuần 4', revenue: 0, spend: 0 },
+    ];
+
+    // Phân bổ thu chi từ FinanceEntry theo thời gian
+    (financeEntries ?? []).forEach((entry: any) => {
+      if (!entry.date) return;
+      const entryDate = new Date(entry.date);
+      const diffDays = Math.floor((now.getTime() - entryDate.getTime()) / (1000 * 3600 * 24));
+      
+      let weekIndex = 3; // Mặc định Tuần 4 (gần đây nhất)
+      if (diffDays >= 21) weekIndex = 0; // Tuần 1
+      else if (diffDays >= 14) weekIndex = 1; // Tuần 2
+      else if (diffDays >= 7) weekIndex = 2; // Tuần 3
+
+      if (entry.type === 'Thu') {
+        weeks[weekIndex].revenue += Number(entry.amount) || 0;
+      } else if (entry.type === 'Chi') {
+        weeks[weekIndex].spend += Number(entry.amount) || 0;
+      }
+    });
+
+    // Cộng thêm doanh thu/ngân sách từ A/B Tests nếu có
+    (abTests ?? []).forEach((t: any) => {
+      const rev = (t.revenueA || 0) + (t.revenueB || 0);
+      const budget = (t.budgetA || 0) + (t.budgetB || 0);
+      weeks[3].revenue += rev;
+      weeks[3].spend += budget;
+    });
+
     return NextResponse.json({
       abTests: testsWithMetrics,
-      content: content ?? [],
+      content: mergedContent,
       budgetAllocation,
+      weeklyTrend: weeks,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message ?? 'Error' }, { status: 500 });

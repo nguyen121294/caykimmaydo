@@ -13,6 +13,7 @@ interface PlatformConn {
   pageName?: string;
   adAccountId?: string;
   adAccountName?: string;
+  igAccountId?: string;
   tokenError?: string;
   hasToken?: boolean;
   needsVerification?: boolean;
@@ -28,10 +29,10 @@ interface SyncResult {
 
 type SyncVia = 'meta' | 'telegram' | 'instagram' | 'manychat' | 'unsupported';
 
-const platforms: { key: string; icon: string; color: string; desc: string; syncDesc: string; syncVia: SyncVia; hasAdAccountId?: boolean; isOAuth?: boolean }[] = [
+const platforms: { key: string; icon: string; color: string; desc: string; syncDesc: string; syncVia: SyncVia; hasAdAccountId?: boolean; hasIgAccountId?: boolean; isOAuth?: boolean }[] = [
   { key: 'Facebook Page', icon: '📘', color: 'bg-blue-50 border-blue-200', desc: 'Quản lý trang Facebook, tin nhắn, bình luận', syncDesc: 'Inbox + Khách hàng', syncVia: 'meta' },
   { key: 'Facebook Ads', icon: '💰', color: 'bg-blue-50 border-blue-200', desc: 'Quản lý Quảng cáo Facebook, chi phí, leads', syncDesc: 'Campaign + Spend + Leads', syncVia: 'meta', hasAdAccountId: true },
-  { key: 'Instagram', icon: '📷', color: 'bg-pink-50 border-pink-200', desc: 'Quản lý Instagram, thống kê bài đăng', syncDesc: 'Content Tracking', syncVia: 'instagram' },
+  { key: 'Instagram', icon: '📷', color: 'bg-pink-50 border-pink-200', desc: 'Quản lý Instagram, thống kê bài đăng', syncDesc: 'Content Tracking', syncVia: 'instagram', hasIgAccountId: true },
   { key: 'TikTok', icon: '🎵', color: 'bg-gray-50 border-gray-200', desc: 'Kênh TikTok, video analytics', syncDesc: 'Content Tracking', syncVia: 'unsupported' },
   { key: 'Zalo', icon: '💬', color: 'bg-blue-50 border-blue-200', desc: 'Zalo OA, tin nhắn tự động', syncDesc: 'InboxKpi + Khách hàng', syncVia: 'unsupported', isOAuth: true },
   { key: 'ManyChat', icon: '🤖', color: 'bg-purple-50 border-purple-200', desc: 'Chatbot tự động, flow automation', syncDesc: 'InboxKpi', syncVia: 'manychat' },
@@ -51,6 +52,7 @@ export default function ConnectionsContent() {
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [tokens, setTokens] = useState<Record<string, string>>({});
   const [adAccountIds, setAdAccountIds] = useState<Record<string, string>>({});
+  const [igAccountIds, setIgAccountIds] = useState<Record<string, string>>({});
   const [apiIsAdmin, setApiIsAdmin] = useState(false);
 
   // State Meta Account Selector Modal
@@ -175,6 +177,7 @@ export default function ConnectionsContent() {
       };
       if (token) bodyData.token = token;
       if (adAccountIds[platformKey]) bodyData.adAccountId = adAccountIds[platformKey];
+      if (igAccountIds[platformKey]) bodyData.igAccountId = igAccountIds[platformKey];
 
       const res = await fetch('/api/connections', {
         method: 'POST',
@@ -495,6 +498,13 @@ export default function ConnectionsContent() {
                 </div>
               )}
 
+              {p.key === 'Instagram' && conn?.igAccountId && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-700 space-y-0.5">
+                  <p className="font-medium text-slate-900">📷 Tài Khoản Instagram Business Đã Chọn:</p>
+                  <p className="font-semibold text-pink-600">ID: {conn.igAccountId}</p>
+                </div>
+              )}
+
               {p.isOAuth && (
                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                   <p className="text-xs text-indigo-700 flex items-center gap-1.5">
@@ -520,6 +530,16 @@ export default function ConnectionsContent() {
                   placeholder="Ad Account ID (ví dụ: 123456789 hoặc act_123456789)"
                   value={adAccountIds[p.key] || ''}
                   onChange={e => setAdAccountIds(prev => ({ ...prev, [p.key]: e.target.value }))}
+                />
+              )}
+
+              {p.hasIgAccountId && (
+                <input
+                  disabled={!isAdmin}
+                  className="w-full px-3 py-2 rounded-lg border text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                  placeholder="Instagram Business Account ID (Ví dụ: 17841400000000000)"
+                  value={igAccountIds[p.key] || ''}
+                  onChange={e => setIgAccountIds(prev => ({ ...prev, [p.key]: e.target.value }))}
                 />
               )}
 

@@ -12,12 +12,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Lấy token từ DB
-    const credential = await prisma.platformCredential.findUnique({ where: { platform: 'Instagram' } });
+    // Lấy token từ DB (thử Instagram trước, fallback về Facebook Page)
+    let credential = await prisma.platformCredential.findUnique({ where: { platform: 'Instagram' } });
+    if (!credential || !credential.isConnected) {
+      credential = await prisma.platformCredential.findUnique({ where: { platform: 'Facebook Page' } });
+    }
+
     if (!credential || !credential.isConnected) {
       return NextResponse.json({
         success: false,
-        error: 'Instagram chưa được kết nối. Vui lòng nhập token và kiểm tra trước.',
+        error: 'Instagram hoặc Facebook Page chưa được kết nối. Vui lòng nhập token và kiểm tra ở trang Kết Nối.',
       }, { status: 400 });
     }
 

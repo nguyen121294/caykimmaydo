@@ -14,7 +14,13 @@ interface SyncLog {
 }
 
 async function getTokenForPlatform(platform: string): Promise<{ token: string | null; pageId?: string; adAccountId?: string; igAccountId?: string }> {
-  const credential = await prisma.platformCredential.findUnique({ where: { platform } });
+  let credential = await prisma.platformCredential.findUnique({ where: { platform } });
+  
+  // Fallback: Nếu platform là Instagram nhưng chưa kết nối riêng, thử dùng token của Facebook Page
+  if ((!credential || !credential.isConnected) && platform === 'Instagram') {
+    credential = await prisma.platformCredential.findUnique({ where: { platform: 'Facebook Page' } });
+  }
+
   if (!credential || !credential.isConnected) return { token: null };
   try {
     const decrypted = decrypt(credential.credentials);
@@ -323,8 +329,15 @@ async function syncInstagram(token: string, igAccountId?: string): Promise<SyncL
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+
+    // Cho phép sync nếu có session HOẶC nếu hệ thống đã có credential kết nối sẵn trong DB
     if (!session) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      const existingConn = await prisma.platformCredential.findFirst({
+        where: { isConnected: true, platform: { in: ['Facebook Page', 'Facebook Ads', 'Instagram'] } }
+      });
+      if (!existingConn) {
+        return NextResponse.json({ success: false, error: 'Chưa đăng nhập hoặc chưa cấu hình kết nối Meta/Instagram.' }, { status: 401 });
+      }
     }
 
     const body = await req.json().catch(() => ({}));

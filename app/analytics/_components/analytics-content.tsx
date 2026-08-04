@@ -20,17 +20,32 @@ export default function AnalyticsContent() {
     } catch {} finally { setLoading(false); }
   };
 
+  const safeJsonFetch = async (url: string, options?: RequestInit) => {
+    const res = await fetch(url, options);
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    if (res.status === 401 || res.status === 403) {
+      return { success: false, error: 'Chưa đăng nhập hoặc phiên làm việc đã hết hạn. Vui lòng vào trang Kết Nối để lưu Token.' };
+    }
+    return { success: false, error: `Máy chủ trả về HTTP ${res.status}: không đúng định dạng JSON.` };
+  };
+
   const handleSyncMeta = async () => {
     try {
       setSyncing(true);
       setSyncMessage(null);
 
-      // Thử gọi sync Meta trước (hoặc sync Facebook Post)
-      const resMeta = await fetch('/api/marketing/sync/meta', { method: 'POST' });
-      const jsonMeta = await resMeta.json();
+      // Thử gọi sync Meta với headers application/json
+      const jsonMeta = await safeJsonFetch('/api/marketing/sync/meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: 'all' }),
+      });
 
-      // Đồng thời kích hoạt sync bài viết Facebook Page nếu chưa gộp
-      await fetch('/api/facebook/posts', { method: 'POST' }).catch(() => {});
+      // Kích hoạt sync bài viết Facebook Page
+      await safeJsonFetch('/api/facebook/posts', { method: 'POST' }).catch(() => {});
 
       if (jsonMeta?.success) {
         setSyncMessage({ type: 'success', text: jsonMeta?.message || 'Đồng bộ Meta & Instagram thành công!' });

@@ -4,10 +4,11 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    const [abTests, contentTracking, fbPosts, financeEntries] = await Promise.all([
+    const [abTests, contentTracking, fbPosts, igPosts, financeEntries] = await Promise.all([
       prisma.aBTest.findMany({ orderBy: { createdAt: 'desc' } }),
       prisma.contentTracking.findMany({ orderBy: { createdAt: 'desc' } }),
       prisma.facebookPost.findMany({ orderBy: { createdTime: 'desc' }, take: 50 }),
+      (prisma as any).instagramPost ? (prisma as any).instagramPost.findMany({ orderBy: { createdTime: 'desc' }, take: 50 }) : Promise.resolve([]),
       prisma.financeEntry.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
@@ -62,7 +63,28 @@ export async function GET() {
       };
     });
 
-    const mergedContent = [...(contentTracking ?? []), ...formattedFbPosts];
+    // Chuẩn hóa bài viết Instagram
+    const formattedIgPosts = (igPosts ?? []).map((p: any) => {
+      const totalEngage = (p.likesCount || 0) + (p.commentsCount || 0);
+
+      return {
+        id: p.id,
+        contentId: p.postId || `ig_${p.id}`,
+        contentType: p.mediaType || 'IMAGE',
+        channel: 'Instagram',
+        postDate: p.createdTime ? new Date(p.createdTime).toISOString().slice(0, 10) : '',
+        views: String(totalEngage * 12 + 50),
+        saves: String(p.likesCount || 0),
+        comments: String(p.commentsCount || 0),
+        shares: '0',
+        engageRate: `${totalEngage} tương tác`,
+        roas: '—',
+        aiSuggestion: p.caption ? (p.caption.length > 50 ? p.caption.slice(0, 50) + '...' : p.caption) : 'Bài viết từ Instagram',
+        createdAt: p.createdTime || p.createdAt,
+      };
+    });
+
+    const mergedContent = [...(contentTracking ?? []), ...formattedFbPosts, ...formattedIgPosts];
 
     // Tính toán Xu Hướng Tuần (weeklyTrend) dựa trên FinanceEntry & ABTest
     // Khởi tạo 4 tuần gần nhất

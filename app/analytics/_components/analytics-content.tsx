@@ -37,25 +37,21 @@ export default function AnalyticsContent() {
       setSyncing(true);
       setSyncMessage(null);
 
-      // Gọi đồng bộ Meta tổng thể (Inbox, Campaign, Meta)
+      // Gọi đồng bộ Meta tổng thể (Inbox, Ads, Posts, IG)
       const jsonMeta = await safeJsonFetch('/api/marketing/sync/meta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: 'all' }),
       });
 
-      // Gọi đồng bộ bài viết Facebook Page & Instagram Posts trực tiếp
-      const resFb = await safeJsonFetch('/api/facebook/posts', { method: 'POST' }).catch(() => ({}));
-      const resIg = await safeJsonFetch('/api/instagram/posts', { method: 'POST' }).catch(() => ({}));
-
-      const totalSaved = (jsonMeta?.recordsSaved || 0) + (resFb?.syncedCount || 0) + (resIg?.syncedCount || 0);
+      const totalSaved = jsonMeta?.recordsSaved || 0;
 
       if (totalSaved > 0) {
-        setSyncMessage({ type: 'success', text: `Đã đồng bộ thành công ${totalSaved} bài viết và dữ liệu mới từ Facebook & Instagram!` });
-      } else if (jsonMeta?.success || resFb?.success || resIg?.success) {
-        setSyncMessage({ type: 'success', text: jsonMeta?.message || resFb?.message || resIg?.message || 'Đã đồng bộ dữ liệu mới nhất!' });
+        setSyncMessage({ type: 'success', text: `Đã đồng bộ thành công ${totalSaved} bản ghi mới từ Facebook & Instagram!` });
+      } else if (jsonMeta?.success) {
+        setSyncMessage({ type: 'success', text: jsonMeta?.message || 'Đã đồng bộ dữ liệu mới nhất!' });
       } else {
-        setSyncMessage({ type: 'error', text: jsonMeta?.error || resFb?.error || resIg?.error || 'Đồng bộ không thành công. Vui lòng kiểm tra lại Token ở trang Kết Nối.' });
+        setSyncMessage({ type: 'error', text: jsonMeta?.error || 'Đồng bộ không thành công. Vui lòng kiểm tra lại Token ở trang Kết Nối.' });
       }
       await fetchData();
     } catch (err: any) {

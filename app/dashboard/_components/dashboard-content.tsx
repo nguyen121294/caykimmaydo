@@ -35,18 +35,20 @@ export default function DashboardContent() {
     try {
       setSyncing(true);
       setSyncMsg(null);
-      const [resMeta, resFb, resIg] = await Promise.all([
-        fetch('/api/marketing/sync/meta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: 'all' }) }).then(r => r.json()).catch(() => ({})),
-        fetch('/api/facebook/posts', { method: 'POST' }).then(r => r.json()).catch(() => ({})),
-        fetch('/api/instagram/posts', { method: 'POST' }).then(r => r.json()).catch(() => ({})),
-      ]);
-      const total = (resMeta?.recordsSaved || 0) + (resFb?.syncedCount || 0) + (resIg?.syncedCount || 0);
+      
+      const resMeta = await fetch('/api/marketing/sync/meta', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ platform: 'all' }) 
+      }).then(r => r.json()).catch(() => ({}));
+
+      const total = resMeta?.recordsSaved || 0;
       if (total > 0) {
         setSyncMsg({ type: 'success', text: `Đã đồng bộ ${total} bản ghi mới từ Facebook & Instagram!` });
-      } else if (resMeta?.success || resFb?.success || resIg?.success) {
+      } else if (resMeta?.success) {
         setSyncMsg({ type: 'success', text: 'Đã đồng bộ — không có dữ liệu mới.' });
       } else {
-        setSyncMsg({ type: 'error', text: resMeta?.error || resFb?.error || resIg?.error || 'Đồng bộ thất bại. Kiểm tra Token ở trang Kết Nối.' });
+        setSyncMsg({ type: 'error', text: resMeta?.error || 'Đồng bộ thất bại. Kiểm tra Token ở trang Kết Nối.' });
       }
       await fetchData();
     } catch { setSyncMsg({ type: 'error', text: 'Lỗi kết nối khi đồng bộ.' }); }

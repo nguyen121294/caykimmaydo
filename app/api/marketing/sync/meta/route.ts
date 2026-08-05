@@ -401,75 +401,73 @@ export async function POST(req: NextRequest) {
     let totalSaved = 0;
     const errors: string[] = [];
 
+    const tasks: Promise<SyncLog | null>[] = [];
+
     // ===== Facebook Page =====
     if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Facebook Page') {
-      const { token, pageId } = await getTokenForPlatform('Facebook Page');
-      if (!token) {
-        results.push({
-          platform: 'Facebook Page',
-          recordsFetched: 0, recordsSaved: 0,
-          syncedAt: new Date().toISOString(),
-          error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
-        });
-        errors.push('Facebook Page: Chưa có token hợp lệ');
-      } else {
-        const pageLog = await syncFacebookPage(token, pageId);
-        results.push(pageLog);
-        totalFetched += pageLog.recordsFetched;
-        totalSaved += pageLog.recordsSaved;
-        if (pageLog.error) errors.push(`Facebook Page: ${pageLog.error}`);
-        await prisma.platformCredential.update({
-          where: { platform: 'Facebook Page' },
-          data: { lastTested: new Date() },
-        }).catch(() => {});
-      }
+      tasks.push(
+        getTokenForPlatform('Facebook Page').then(async ({ token, pageId }) => {
+          if (!token) {
+            errors.push('Facebook Page: Chưa có token hợp lệ');
+            return {
+              platform: 'Facebook Page', recordsFetched: 0, recordsSaved: 0,
+              syncedAt: new Date().toISOString(), error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
+            };
+          }
+          const log = await syncFacebookPage(token, pageId);
+          if (log.error) errors.push(`Facebook Page: ${log.error}`);
+          await prisma.platformCredential.update({ where: { platform: 'Facebook Page' }, data: { lastTested: new Date() } }).catch(() => {});
+          return log;
+        })
+      );
     }
 
     // ===== Facebook Ads =====
     if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Facebook Ads') {
-      const { token, adAccountId } = await getTokenForPlatform('Facebook Ads');
-      if (!token) {
-        results.push({
-          platform: 'Facebook Ads',
-          recordsFetched: 0, recordsSaved: 0,
-          syncedAt: new Date().toISOString(),
-          error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
-        });
-        errors.push('Facebook Ads: Chưa có token hợp lệ');
-      } else {
-        const adsLog = await syncFacebookAds(token, adAccountId);
-        results.push(adsLog);
-        totalFetched += adsLog.recordsFetched;
-        totalSaved += adsLog.recordsSaved;
-        if (adsLog.error) errors.push(`Facebook Ads: ${adsLog.error}`);
-        await prisma.platformCredential.update({
-          where: { platform: 'Facebook Ads' },
-          data: { lastTested: new Date() },
-        }).catch(() => {});
-      }
+      tasks.push(
+        getTokenForPlatform('Facebook Ads').then(async ({ token, adAccountId }) => {
+          if (!token) {
+            errors.push('Facebook Ads: Chưa có token hợp lệ');
+            return {
+              platform: 'Facebook Ads', recordsFetched: 0, recordsSaved: 0,
+              syncedAt: new Date().toISOString(), error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
+            };
+          }
+          const log = await syncFacebookAds(token, adAccountId);
+          if (log.error) errors.push(`Facebook Ads: ${log.error}`);
+          await prisma.platformCredential.update({ where: { platform: 'Facebook Ads' }, data: { lastTested: new Date() } }).catch(() => {});
+          return log;
+        })
+      );
     }
 
     // ===== Instagram =====
     if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Instagram') {
-      const { token, igAccountId } = await getTokenForPlatform('Instagram');
-      if (token) {
-        const igLog = await syncInstagram(token, igAccountId);
-        results.push(igLog);
-        totalFetched += igLog.recordsFetched;
-        totalSaved += igLog.recordsSaved;
-        if (igLog.error) errors.push(`Instagram: ${igLog.error}`);
-        await prisma.platformCredential.update({
-          where: { platform: 'Instagram' },
-          data: { lastTested: new Date() },
-        }).catch(() => {});
-      } else if (requestedPlatform === 'Instagram') {
-        results.push({
-          platform: 'Instagram',
-          recordsFetched: 0, recordsSaved: 0,
-          syncedAt: new Date().toISOString(),
-          error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
-        });
-        errors.push('Instagram: Chưa có token hợp lệ');
+      tasks.push(
+        getTokenForPlatform('Instagram').then(async ({ token, igAccountId }) => {
+          if (token) {
+            const log = await syncInstagram(token, igAccountId);
+            if (log.error) errors.push(`Instagram: ${log.error}`);
+            await prisma.platformCredential.update({ where: { platform: 'Instagram' }, data: { lastTested: new Date() } }).catch(() => {});
+            return log;
+          } else if (requestedPlatform === 'Instagram') {
+            errors.push('Instagram: Chưa có token hợp lệ');
+            return {
+              platform: 'Instagram', recordsFetched: 0, recordsSaved: 0,
+              syncedAt: new Date().toISOString(), error: 'Chưa có token hợp lệ. Vui lòng kết nối trước.',
+            };
+          }
+          return null; // Ignore if not explicitly requested
+        })
+      );
+    }
+
+    const settledResults = await Promise.all(tasks);
+    for (const r of settledResults) {
+      if (r) {
+        results.push(r);
+        totalFetched += r.recordsFetched;
+        totalSaved += r.recordsSaved;
       }
     }
 

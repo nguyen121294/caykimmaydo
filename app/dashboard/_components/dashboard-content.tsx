@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { DollarSign, ShoppingCart, TrendingUp, Megaphone, Percent, Film, Calendar, MessageSquare, AlertTriangle, CheckCircle, XCircle, Info, CloudOff } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Megaphone, Percent, Film, Calendar, MessageSquare, AlertTriangle, CheckCircle, XCircle, Info, CloudOff, RefreshCw } from 'lucide-react';
 import KpiCard from '@/app/components/kpi-card';
 import PageHeader from '@/app/components/page-header';
 import { LayoutDashboard } from 'lucide-react';
@@ -10,6 +10,8 @@ import FunnelChart from './funnel-chart';
 export default function DashboardContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -28,6 +30,28 @@ export default function DashboardContent() {
     const interval = setInterval(fetchData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      setSyncMsg(null);
+      const [resMeta, resFb, resIg] = await Promise.all([
+        fetch('/api/marketing/sync/meta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ platform: 'all' }) }).then(r => r.json()).catch(() => ({})),
+        fetch('/api/facebook/posts', { method: 'POST' }).then(r => r.json()).catch(() => ({})),
+        fetch('/api/instagram/posts', { method: 'POST' }).then(r => r.json()).catch(() => ({})),
+      ]);
+      const total = (resMeta?.recordsSaved || 0) + (resFb?.syncedCount || 0) + (resIg?.syncedCount || 0);
+      if (total > 0) {
+        setSyncMsg({ type: 'success', text: `Đã đồng bộ ${total} bản ghi mới từ Facebook & Instagram!` });
+      } else if (resMeta?.success || resFb?.success || resIg?.success) {
+        setSyncMsg({ type: 'success', text: 'Đã đồng bộ — không có dữ liệu mới.' });
+      } else {
+        setSyncMsg({ type: 'error', text: resMeta?.error || resFb?.error || resIg?.error || 'Đồng bộ thất bại. Kiểm tra Token ở trang Kết Nối.' });
+      }
+      await fetchData();
+    } catch { setSyncMsg({ type: 'error', text: 'Lỗi kết nối khi đồng bộ.' }); }
+    finally { setSyncing(false); }
+  };
 
   const getAlertIcon = (type: string) => {
     switch (type) {
@@ -94,12 +118,31 @@ export default function DashboardContent() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Tổng Quan"
-        description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
-        icon={LayoutDashboard}
-        onRefresh={fetchData}
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader
+          title="Tổng Quan"
+          description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
+          icon={LayoutDashboard}
+          onRefresh={fetchData}
+        />
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors"
+        >
+          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Đang đồng bộ...' : 'Đồng bộ Meta & Instagram'}
+        </button>
+      </div>
+
+      {syncMsg && (
+        <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
+          syncMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {syncMsg.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
+          <span>{syncMsg.text}</span>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

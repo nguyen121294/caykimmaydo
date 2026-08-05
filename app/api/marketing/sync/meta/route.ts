@@ -402,7 +402,7 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
 
     // ===== Facebook Page =====
-    if (!requestedPlatform || requestedPlatform === 'Facebook Page') {
+    if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Facebook Page') {
       const { token, pageId } = await getTokenForPlatform('Facebook Page');
       if (!token) {
         results.push({
@@ -426,7 +426,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ===== Facebook Ads =====
-    if (!requestedPlatform || requestedPlatform === 'Facebook Ads') {
+    if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Facebook Ads') {
       const { token, adAccountId } = await getTokenForPlatform('Facebook Ads');
       if (!token) {
         results.push({
@@ -450,7 +450,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ===== Instagram =====
-    if (!requestedPlatform || requestedPlatform === 'Instagram') {
+    if (!requestedPlatform || requestedPlatform === 'all' || requestedPlatform === 'Instagram') {
       const { token, igAccountId } = await getTokenForPlatform('Instagram');
       if (token) {
         const igLog = await syncInstagram(token, igAccountId);

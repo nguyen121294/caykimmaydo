@@ -227,7 +227,14 @@ export default function MarketingContent() {
             <div>
               <h3 className="font-semibold text-sm text-white mb-1">Những người đã xem quảng cáo của bạn</h3>
               <p className="text-slate-400 text-xs mb-3">Phân bổ nhân khẩu học khán giả tiếp cận</p>
-              
+
+              {!demographics?.isLive && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 mb-3 text-[11px] text-amber-300 flex items-center gap-1.5">
+                  <Info size={13} className="shrink-0" />
+                  Dữ liệu mẫu — Kết nối Facebook Ads ở trang <a href="/connections" className="underline font-medium hover:text-amber-200">Kết Nối</a> để xem data thật.
+                </div>
+              )}
+
               {/* Tabs */}
               <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-lg text-xs mb-4">
                 <button

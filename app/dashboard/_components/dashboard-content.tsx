@@ -12,11 +12,12 @@ export default function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [timeRange, setTimeRange] = useState('30');
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/dashboard');
+      const res = await fetch(`/api/dashboard?days=${timeRange}`);
       const json = await res?.json?.();
       setData(json ?? {});
     } catch {
@@ -29,30 +30,54 @@ export default function DashboardContent() {
     fetchData();
     const interval = setInterval(fetchData, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [timeRange]);
 
   const handleSync = async () => {
     try {
       setSyncing(true);
       setSyncMsg(null);
-      
-      const resMeta = await fetch('/api/marketing/sync/meta', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ platform: 'all' }) 
-      }).then(r => r.json()).catch(() => ({}));
 
-      const total = resMeta?.recordsSaved || 0;
-      if (total > 0) {
-        setSyncMsg({ type: 'success', text: `Đã đồng bộ ${total} bản ghi mới từ Facebook & Instagram!` });
-      } else if (resMeta?.success) {
-        setSyncMsg({ type: 'success', text: 'Đã đồng bộ — không có dữ liệu mới.' });
+      const platformsToSync: string[] = ['Facebook Page', 'Facebook Ads', 'Instagram'];
+
+      if (platformsToSync.length === 0) return;
+
+      const results = await Promise.allSettled(
+        platformsToSync.map(platform =>
+          fetch('/api/marketing/sync/meta', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform }),
+          })
+            .then(r => r.json())
+            .catch(() => ({}))
+        )
+      );
+
+      const details: string[] = [];
+      let hasSuccess = false;
+
+      results.forEach((r, i) => {
+        const name = platformsToSync[i];
+        if (r.status === 'fulfilled' && r.value?.success) {
+          hasSuccess = true;
+          const saved = r.value?.log?.recordsSaved ?? 0;
+          details.push(`${name}: ${saved} bản ghi`);
+        } else {
+          details.push(`${name}: thất bại`);
+        }
+      });
+
+      if (hasSuccess) {
+        setSyncMsg({ type: 'success', text: `Đã đồng bộ — ${details.join(' | ')}` });
       } else {
-        setSyncMsg({ type: 'error', text: resMeta?.error || 'Đồng bộ thất bại. Kiểm tra Token ở trang Kết Nối.' });
+        setSyncMsg({ type: 'error', text: `Đồng bộ thất bại. ${details.join(' | ')}. Kiểm tra Token ở trang Kết Nối.` });
       }
       await fetchData();
-    } catch { setSyncMsg({ type: 'error', text: 'Lỗi kết nối khi đồng bộ.' }); }
-    finally { setSyncing(false); }
+    } catch {
+      setSyncMsg({ type: 'error', text: 'Lỗi kết nối khi đồng bộ.' });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const getAlertIcon = (type: string) => {
@@ -118,24 +143,47 @@ export default function DashboardContent() {
     );
   }
 
+  // KPI Cards
+  const renderKpis = () => {
+    const kpiData = data?.kpis ?? {};
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard title="Tổng Doanh Thu" value={kpiData?.totalRevenue ?? 0} prefix="" suffix="đ" icon={DollarSign} color="from-emerald-500 to-teal-600" />
+        <KpiCard title="Tổng Đơn Hàng" value={kpiData?.totalOrders ?? 0} icon={ShoppingCart} color="from-blue-500 to-indigo-600" />
+        <KpiCard title="ROAS" value={kpiData?.roas ?? 0} suffix="x" icon={TrendingUp} color="from-purple-500 to-violet-600" />
+        <KpiCard title="Chi Phí Quảng Cáo" value={kpiData?.totalAdSpend ?? 0} prefix="" suffix="đ" icon={Megaphone} color="from-orange-500 to-red-500" />
+        <KpiCard title="Tỷ Lệ Chuyển Đổi" value={kpiData?.conversionRate ?? 0} suffix="%" icon={Percent} color="from-pink-500 to-rose-600" />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <PageHeader
-          title="Tổng Quan"
-          description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
-          icon={LayoutDashboard}
-          onRefresh={fetchData}
-        />
+      <PageHeader
+        title="Tổng Quan"
+        description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
+        icon={LayoutDashboard}
+        onRefresh={fetchData}
+      >
+        <select
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value)}
+          className="px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer"
+        >
+          <option value="7">7 ngày qua</option>
+          <option value="30">30 ngày qua</option>
+          <option value="90">90 ngày qua</option>
+          <option value="all">Tất cả thời gian</option>
+        </select>
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all font-medium disabled:opacity-60"
         >
-          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Đang đồng bộ...' : 'Đồng bộ Meta & Instagram'}
+          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+          Đồng bộ Meta Ads
         </button>
-      </div>
+      </PageHeader>
 
       {syncMsg && (
         <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
@@ -147,13 +195,7 @@ export default function DashboardContent() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <KpiCard title="Tổng Doanh Thu" value={kpis?.totalRevenue ?? 0} prefix="" suffix="đ" icon={DollarSign} color="from-emerald-500 to-teal-600" />
-        <KpiCard title="Tổng Đơn Hàng" value={kpis?.totalOrders ?? 0} icon={ShoppingCart} color="from-blue-500 to-indigo-600" />
-        <KpiCard title="ROAS" value={kpis?.roas ?? 0} suffix="x" icon={TrendingUp} color="from-purple-500 to-violet-600" />
-        <KpiCard title="Chi Phí Quảng Cáo" value={kpis?.totalAdSpend ?? 0} prefix="" suffix="đ" icon={Megaphone} color="from-orange-500 to-red-500" />
-        <KpiCard title="Tỷ Lệ Chuyển Đổi" value={kpis?.conversionRate ?? 0} suffix="%" icon={Percent} color="from-pink-500 to-rose-600" />
-      </div>
+      {renderKpis()}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -173,6 +215,155 @@ export default function DashboardContent() {
             <div className="h-72 flex items-center justify-center text-gray-400 text-sm">Chưa có dữ liệu chiến dịch</div>
           )}
         </div>
+      </div>
+
+      {/* Tables Section - Full Width */}
+      <div className="space-y-6">
+        
+        {/* Detailed Records Table (Daily) */}
+        <div className="bg-white rounded-xl p-5 shadow-sm overflow-hidden flex flex-col h-[400px]">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4 shrink-0">Chi Tiết Theo Ngày</h3>
+          <div className="overflow-auto flex-1 custom-scrollbar">
+            <table className="w-full text-left text-sm text-gray-500">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-3 rounded-tl-lg">Ngày</th>
+                  <th className="px-4 py-3">Doanh Thu</th>
+                  <th className="px-4 py-3">Chi Phí Ads</th>
+                  <th className="px-4 py-3 rounded-tr-lg">ROAS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.detailedRecords?.length > 0 ? (
+                  data?.detailedRecords?.map((record: any, index: number) => (
+                    <tr key={index} className="bg-white border-b hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900">{record.date}</td>
+                      <td className="px-4 py-3 text-emerald-600 font-medium whitespace-nowrap">
+                        {record.revenue > 0 ? `${record.revenue.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-red-600 font-medium whitespace-nowrap">
+                        {record.adSpend > 0 ? `${record.adSpend.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${record.roas >= 2 ? 'bg-emerald-100 text-emerald-700' : record.roas > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {record.roas > 0 ? `${record.roas}x` : 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                      Chưa có dữ liệu chi tiết
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Campaign Records Table */}
+        <div className="bg-white rounded-xl p-5 shadow-sm overflow-hidden flex flex-col h-[400px]">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4 shrink-0">Hiệu Suất Từng Chiến Dịch</h3>
+          <div className="overflow-auto flex-1 custom-scrollbar">
+            <table className="w-full text-left text-sm text-gray-500">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-3 rounded-tl-lg">Tên Chiến Dịch</th>
+                  <th className="px-4 py-3">Chi Phí</th>
+                  <th className="px-4 py-3">Doanh Thu</th>
+                  <th className="px-4 py-3">CPA (Giá/Chuyển đổi)</th>
+                  <th className="px-4 py-3">%CTR</th>
+                  <th className="px-4 py-3 rounded-tr-lg">Chuyển Đổi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.campaignRecords?.length > 0 ? (
+                  data?.campaignRecords?.map((record: any, index: number) => (
+                    <tr key={index} className="bg-white border-b hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900 max-w-[150px] truncate" title={record.name}>
+                        {record.name}
+                      </td>
+                      <td className="px-4 py-3 text-red-600 font-medium whitespace-nowrap">
+                        {record.spend > 0 ? `${record.spend.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-emerald-600 font-medium whitespace-nowrap">
+                        {record.revenue > 0 ? `${record.revenue.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 font-medium whitespace-nowrap">
+                        {record.cpa > 0 ? `${record.cpa.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${record.ctr >= 1 ? 'bg-emerald-100 text-emerald-700' : record.ctr > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {record.ctr > 0 ? `${record.ctr}%` : 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-gray-700">{record.conversions}</span>
+                        <span className="text-xs text-gray-400 ml-1">({record.clicks} click)</span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                      Chưa có dữ liệu chiến dịch
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Legend Table */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 shadow-sm">
+          <h4 className="text-xs font-semibold text-blue-800 uppercase mb-2 flex items-center gap-1">
+            <Info size={14} /> Chú giải chỉ số
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="bg-white p-3 rounded shadow-sm border border-blue-50">
+              <span className="font-semibold text-gray-800 block">ROAS</span>
+              <span className="text-gray-500 text-xs">Return On Ad Spend</span>
+              <div className="mt-1 text-xs text-blue-600 bg-blue-50 py-1 px-2 rounded inline-block">Doanh thu / Chi phí</div>
+            </div>
+            <div className="bg-white p-3 rounded shadow-sm border border-blue-50">
+              <span className="font-semibold text-gray-800 block">%CTR</span>
+              <span className="text-gray-500 text-xs">Click-Through Rate</span>
+              <div className="mt-1 text-xs text-blue-600 bg-blue-50 py-1 px-2 rounded inline-block">(Click / Hiển thị) x 100</div>
+            </div>
+            <div className="bg-white p-3 rounded shadow-sm border border-blue-50">
+              <span className="font-semibold text-gray-800 block">CPA</span>
+              <span className="text-gray-500 text-xs">Cost Per Action</span>
+              <div className="mt-1 text-xs text-blue-600 bg-blue-50 py-1 px-2 rounded inline-block">Chi phí / Chuyển đổi</div>
+            </div>
+            
+            {/* Phễu Funnel spans all columns */}
+            <div className="bg-white p-3 rounded shadow-sm border border-blue-50 md:col-span-3">
+              <span className="font-semibold text-gray-800 block mb-1">Phân loại Phễu chiến dịch (Funnel)</span>
+              <span className="text-gray-500 text-xs mb-2 block">Hệ thống tự động phân loại số liệu dựa theo từ khóa có trong Tên Chiến Dịch quảng cáo của bạn.</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-600">
+                <div className="bg-blue-50/50 p-2.5 rounded border border-blue-100/50">
+                  <strong className="text-blue-700 block mb-0.5">TOF (Tập Lạnh)</strong>
+                  Nhận diện, tiếp cận khách hàng mới. 
+                  <div className="mt-1.5 text-gray-500">Từ khóa: <code className="bg-gray-100 px-1 py-0.5 rounded">tof</code> <code className="bg-gray-100 px-1 py-0.5 rounded">reach</code> <code className="bg-gray-100 px-1 py-0.5 rounded">view</code> <code className="bg-gray-100 px-1 py-0.5 rounded">tương tác</code></div>
+                </div>
+                <div className="bg-blue-50/50 p-2.5 rounded border border-blue-100/50">
+                  <strong className="text-blue-700 block mb-0.5">MOF (Tập Ấm)</strong>
+                  Thu hút, kéo tin nhắn (Mặc định).
+                  <div className="mt-1.5 text-gray-500">Từ khóa: <code className="bg-gray-100 px-1 py-0.5 rounded">mof</code> <code className="bg-gray-100 px-1 py-0.5 rounded">mess</code> <code className="bg-gray-100 px-1 py-0.5 rounded">tin nhắn</code> <code className="bg-gray-100 px-1 py-0.5 rounded">lead</code></div>
+                </div>
+                <div className="bg-blue-50/50 p-2.5 rounded border border-blue-100/50">
+                  <strong className="text-blue-700 block mb-0.5">BOF (Tập Nóng)</strong>
+                  Chốt sale, bám đuổi (Retargeting).
+                  <div className="mt-1.5 text-gray-500">Từ khóa: <code className="bg-gray-100 px-1 py-0.5 rounded">bof</code> <code className="bg-gray-100 px-1 py-0.5 rounded">retarget</code> <code className="bg-gray-100 px-1 py-0.5 rounded">chuyển đổi</code> <code className="bg-gray-100 px-1 py-0.5 rounded">purchase</code></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
       </div>
 
       {/* Alerts + Quick Actions */}

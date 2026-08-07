@@ -2,16 +2,36 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const daysParam = url.searchParams.get('days') || '30';
+    
+    let dateFrom: string | undefined;
+    if (daysParam !== 'all') {
+      const days = parseInt(daysParam, 10);
+      if (!isNaN(days)) {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        dateFrom = d.toISOString().slice(0, 10);
+      }
+    }
+
+    const orderWhere = dateFrom ? { createdAt: { gte: new Date(dateFrom) } } : {};
+    const financeWhere = dateFrom ? { date: { gte: dateFrom } } : {};
+    const abTestWhere = dateFrom ? { dateStarted: { gte: dateFrom } } : {};
+
     const [orders, content, abTests, kpi, calendar, customers, financeEntries, inboxKpis, automationLogs] = await Promise.all([
-      prisma.order.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.order.findMany({ where: orderWhere, orderBy: { createdAt: 'desc' } }),
       prisma.contentTracking.findMany({ orderBy: { createdAt: 'desc' } }),
-      prisma.aBTest.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.aBTest.findMany({ where: abTestWhere, orderBy: { createdAt: 'desc' } }),
       prisma.kpiSnapshot.findFirst({ orderBy: { date: 'desc' } }),
       prisma.contentCalendar.findMany({ orderBy: { createdAt: 'asc' } }),
       prisma.customer.count(),
-      prisma.financeEntry.findMany({ orderBy: { createdAt: 'desc' }, take: 30 }),
+      prisma.financeEntry.findMany({
+        where: financeWhere,
+        orderBy: { createdAt: 'desc' },
+      }),
       prisma.inboxKpi.count(),
       prisma.automationLog.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
     ]);
@@ -21,9 +41,31 @@ export async function GET() {
     const totalOrders = kpi?.totalOrders ?? orders.length;
     const totalRevenue = kpi?.totalRevenue ?? orderRevenue;
     const adSpendEntries = financeEntries.filter(f => f.type === 'Chi' && f.category?.includes('Quảng cáo'));
-    const totalAdSpend = kpi?.totalAdSpend ?? adSpendEntries.reduce((s, f) => s + (f.amount ?? 0), 0);
-    const roas = kpi?.roas ?? (totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0);
+    const totalAdSpend = adSpendEntries.reduce((s, f) => s + (f.amount ?? 0), 0);
+    const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
     const conversionRate = kpi?.conversionRate ?? (totalOrders > 0 && inboxKpis > 0 ? Math.round((totalOrders / inboxKpis) * 100 * 10) / 10 : 0);
+
+    // Tính KPI riêng cho Facebook (chỉ dùng category)
+    const facebookOrders = orders.filter(o => o.source === 'Facebook' || o.source === 'Facebook Page');
+    const fbOrderRevenue = facebookOrders.reduce((s, o) => s + (o.total ?? 0), 0);
+    const fbAdSpendEntries = adSpendEntries.filter(f => f.category?.includes('Facebook'));
+    const fbTotalAdSpend = fbAdSpendEntries.reduce((s, f) => s + (f.amount ?? 0), 0);
+    const fbRoas = fbTotalAdSpend > 0 ? fbOrderRevenue / fbTotalAdSpend : 0;
+    
+    // Tính KPI riêng cho Instagram (chỉ dùng category)
+    const instagramOrders = orders.filter(o => o.source === 'Instagram');
+    const igOrderRevenue = instagramOrders.reduce((s, o) => s + (o.total ?? 0), 0);
+    const igAdSpendEntries = adSpendEntries.filter(f => f.category?.includes('Instagram'));
+    const igTotalAdSpend = igAdSpendEntries.reduce((s, f) => s + (f.amount ?? 0), 0);
+    const igRoas = igTotalAdSpend > 0 ? igOrderRevenue / igTotalAdSpend : 0;
+
+    const kpis = {
+      totalOrders, 
+      totalRevenue, 
+      totalAdSpend, 
+      roas: Number(roas?.toFixed?.(1) ?? 0), 
+      conversionRate 
+    };
 
     // Revenue trend: tính từ dữ liệu finance thật (nếu có), nếu không thì trả mảng rỗng
     const revenueTrend: { date: string; revenue: number; adSpend: number }[] = [];
@@ -43,7 +85,8 @@ export async function GET() {
         }
       }
       const sortedDates = Object.keys(dateMap).sort();
-      for (const d of sortedDates.slice(-30)) {
+      const sliceCount = daysParam === 'all' ? sortedDates.length : parseInt(daysParam, 10);
+      for (const d of sortedDates.slice(-sliceCount)) {
         const parts = d.split('-');
         revenueTrend.push({
           date: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}`,
@@ -53,21 +96,80 @@ export async function GET() {
       }
     }
 
-    // Funnel data: tính từ ABTest thật
-    const funnelData: { stage: string; impressions: number; clicks: number; conversions: number; spend: number; revenue: number }[] = [];
-    if (abTests.length > 0) {
-      const totalImp = abTests.reduce((s, t) => s + (t.impressionsA ?? 0) + (t.impressionsB ?? 0), 0);
-      const totalClk = abTests.reduce((s, t) => s + (t.clicksA ?? 0) + (t.clicksB ?? 0), 0);
-      const totalConv = abTests.reduce((s, t) => s + (t.conversionsA ?? 0) + (t.conversionsB ?? 0), 0);
-      const totalSpend = abTests.reduce((s, t) => s + (t.budgetA ?? 0) + (t.budgetB ?? 0), 0);
-      const totalRev = abTests.reduce((s, t) => s + (t.revenueA ?? 0) + (t.revenueB ?? 0), 0);
-      // Phân bổ theo tỷ lệ ước lượng TOF/MOF/BOF
-      funnelData.push(
-        { stage: 'TOF', impressions: Math.round(totalImp * 0.52), clicks: Math.round(totalClk * 0.45), conversions: Math.round(totalConv * 0.35), spend: Math.round(totalSpend * 0.45), revenue: Math.round(totalRev * 0.34) },
-        { stage: 'MOF', impressions: Math.round(totalImp * 0.30), clicks: Math.round(totalClk * 0.30), conversions: Math.round(totalConv * 0.35), spend: Math.round(totalSpend * 0.30), revenue: Math.round(totalRev * 0.39) },
-        { stage: 'BOF', impressions: Math.round(totalImp * 0.18), clicks: Math.round(totalClk * 0.25), conversions: Math.round(totalConv * 0.30), spend: Math.round(totalSpend * 0.25), revenue: Math.round(totalRev * 0.27) },
-      );
+    // Detailed records cho bảng: lấy từ revenueTrend nhưng giữ ngày đầy đủ để hiển thị, và tính roas
+    const detailedRecords = (revenueTrend ?? []).map(r => ({
+      date: r.date,
+      revenue: r.revenue,
+      adSpend: r.adSpend,
+      roas: r.adSpend > 0 ? Number((r.revenue / r.adSpend).toFixed(2)) : 0
+    })).reverse(); // Đảo ngược để hiện ngày mới nhất lên đầu
+
+    // Campaign records: cộng dồn số liệu từ abTests theo từng chiến dịch
+    const campaignsMap = new Map<string, any>();
+    for (const test of abTests) {
+      if (!test.testName) continue;
+      const existing = campaignsMap.get(test.testName) || {
+        name: test.testName,
+        spend: 0,
+        revenue: 0,
+        clicks: 0,
+        impressions: 0,
+        conversions: 0,
+        roas: 0,
+        ctr: 0,
+        cpa: 0
+      };
+      
+      existing.spend += test.budgetA ?? 0;
+      existing.revenue += test.revenueA ?? 0;
+      existing.clicks += test.clicksA ?? 0;
+      existing.impressions += test.impressionsA ?? 0;
+      existing.conversions += test.conversionsA ?? 0;
+      
+      campaignsMap.set(test.testName, existing);
     }
+    
+    for (const camp of campaignsMap.values()) {
+      camp.roas = camp.spend > 0 ? Number((camp.revenue / camp.spend).toFixed(2)) : 0;
+      camp.ctr = camp.impressions > 0 ? Number(((camp.clicks / camp.impressions) * 100).toFixed(2)) : 0;
+      camp.cpa = camp.conversions > 0 ? Math.round(camp.spend / camp.conversions) : 0;
+    }
+    
+    const campaignRecords = Array.from(campaignsMap.values());
+
+    // Funnel data: tính từ ABTest thật dựa trên Tên chiến dịch
+    const funnelStages = {
+      TOF: { impressions: 0, clicks: 0, conversions: 0, spend: 0, revenue: 0 },
+      MOF: { impressions: 0, clicks: 0, conversions: 0, spend: 0, revenue: 0 },
+      BOF: { impressions: 0, clicks: 0, conversions: 0, spend: 0, revenue: 0 }
+    };
+    
+    if (abTests.length > 0) {
+      for (const test of abTests) {
+        const name = (test.testName || '').toLowerCase();
+        let stage: 'TOF' | 'MOF' | 'BOF' = 'MOF'; // Default
+        
+        if (name.includes('tof') || name.includes('reach') || name.includes('view') || name.includes('tuong tac') || name.includes('awareness')) {
+          stage = 'TOF';
+        } else if (name.includes('bof') || name.includes('retarget') || name.includes('remarket') || name.includes('chuyen doi') || name.includes('purchase')) {
+          stage = 'BOF';
+        } else if (name.includes('mof') || name.includes('mess') || name.includes('tin nhan') || name.includes('lead')) {
+          stage = 'MOF';
+        }
+        
+        funnelStages[stage].impressions += (test.impressionsA ?? 0) + (test.impressionsB ?? 0);
+        funnelStages[stage].clicks += (test.clicksA ?? 0) + (test.clicksB ?? 0);
+        funnelStages[stage].conversions += (test.conversionsA ?? 0) + (test.conversionsB ?? 0);
+        funnelStages[stage].spend += (test.budgetA ?? 0) + (test.budgetB ?? 0);
+        funnelStages[stage].revenue += (test.revenueA ?? 0) + (test.revenueB ?? 0);
+      }
+    }
+
+    const funnelData = [
+      { stage: 'TOF', ...funnelStages.TOF },
+      { stage: 'MOF', ...funnelStages.MOF },
+      { stage: 'BOF', ...funnelStages.BOF }
+    ];
 
     // Alerts: tạo từ dữ liệu thật (automation logs gần nhất)
     const alerts = automationLogs.slice(0, 5).map(log => ({
@@ -81,8 +183,10 @@ export async function GET() {
 
     return NextResponse.json({
       hasData,
-      kpis: { totalOrders, totalRevenue, totalAdSpend, roas: Number(roas?.toFixed?.(1) ?? 0), conversionRate },
+      kpis,
       revenueTrend,
+      detailedRecords,
+      campaignRecords,
       funnelData,
       alerts,
       recentOrders: (orders ?? []).slice(0, 5),

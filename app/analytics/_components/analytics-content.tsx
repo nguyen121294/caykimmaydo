@@ -10,6 +10,7 @@ export default function AnalyticsContent() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [platformTab, setPlatformTab] = useState<'all' | 'facebook' | 'instagram'>('all');
 
   const fetchData = async () => {
     try {
@@ -37,23 +38,22 @@ export default function AnalyticsContent() {
       setSyncing(true);
       setSyncMessage(null);
 
-      // Gọi đồng bộ Meta tổng thể (Inbox, Ads, Posts, IG)
-      const jsonMeta = await safeJsonFetch('/api/marketing/sync/meta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: 'all' }),
-      });
+      const platforms = ['Facebook Page', 'Facebook Ads', 'Instagram'];
+      const results = await Promise.allSettled(
+        platforms.map(platform => safeJsonFetch('/api/marketing/sync/meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform }),
+        }))
+      );
 
-      const totalSaved = jsonMeta?.recordsSaved || 0;
-
-      if (totalSaved > 0) {
-        setSyncMessage({ type: 'success', text: `Đã đồng bộ thành công ${totalSaved} bản ghi mới từ Facebook & Instagram!` });
-      } else if (jsonMeta?.success) {
-        setSyncMessage({ type: 'success', text: jsonMeta?.message || 'Đã đồng bộ dữ liệu mới nhất!' });
+      const successes = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+      if (successes > 0) {
+        setSyncMessage({ type: 'success', text: `Đã đồng bộ thành công ${successes}/${platforms.length} nền tảng.` });
+        await fetchData();
       } else {
-        setSyncMessage({ type: 'error', text: jsonMeta?.error || 'Đồng bộ không thành công. Vui lòng kiểm tra lại Token ở trang Kết Nối.' });
+        setSyncMessage({ type: 'error', text: 'Đồng bộ không thành công. Vui lòng kiểm tra lại cấu hình.' });
       }
-      await fetchData();
     } catch (err: any) {
       setSyncMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra khi đồng bộ' });
     } finally {
@@ -65,7 +65,19 @@ export default function AnalyticsContent() {
 
   const tests = data?.abTests ?? [];
   const content = data?.content ?? [];
-  const topContent = [...(content ?? [])]?.sort?.((a: any, b: any) => {
+  
+  // Lọc bài viết theo nền tảng
+  const filteredContent = content.filter((c: any) => {
+    if (platformTab === 'all') return true;
+    if (platformTab === 'facebook') return c?.channel === 'Facebook Page';
+    if (platformTab === 'instagram') return c?.channel === 'Instagram';
+    return true;
+  });
+
+  // Lọc A/B Test theo nền tảng (Mặc định A/B Test thường chạy từ Facebook Ads)
+  const filteredTests = platformTab === 'instagram' ? [] : tests;
+
+  const topContent = [...filteredContent]?.sort?.((a: any, b: any) => {
     const va = parseInt(String(a?.views ?? '0')?.replace?.(/[^0-9]/g, '') ?? '0') || 0;
     const vb = parseInt(String(b?.views ?? '0')?.replace?.(/[^0-9]/g, '') ?? '0') || 0;
     return vb - va;
@@ -75,14 +87,38 @@ export default function AnalyticsContent() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <PageHeader title="Bảng Phân Tích" description="Kết quả A/B Test, hiệu suất chiến dịch và phân tích chi tiết" icon={BarChart3} onRefresh={fetchData} />
-        <button
-          onClick={handleSyncMeta}
-          disabled={syncing}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors"
-        >
-          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? 'Đang đồng bộ...' : 'Đồng bộ Meta & Instagram'}
-        </button>
+        
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+            <button
+              onClick={() => setPlatformTab('all')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${platformTab === 'all' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Tất Cả
+            </button>
+            <button
+              onClick={() => setPlatformTab('facebook')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${platformTab === 'facebook' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Facebook
+            </button>
+            <button
+              onClick={() => setPlatformTab('instagram')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${platformTab === 'instagram' ? 'bg-white shadow-sm text-pink-600' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Instagram
+            </button>
+          </div>
+          
+          <button
+            onClick={handleSyncMeta}
+            disabled={syncing}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors"
+          >
+            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Đang đồng bộ...' : 'Đồng bộ'}
+          </button>
+        </div>
       </div>
 
       {syncMessage && (
@@ -95,55 +131,57 @@ export default function AnalyticsContent() {
       )}
 
       {/* A/B Test Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Trophy size={16} className="text-amber-500" />
-            Kết Quả A/B Test
-          </h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Mã Test</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Tên Test</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">CTR A</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">CTR B</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">ROAS A</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">ROAS B</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Người thắng</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Độ tin cậy</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {(tests ?? [])?.map?.((t: any) => (
-                <tr key={t?.testId ?? t?.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{t?.testId ?? ''}</td>
-                  <td className="px-4 py-3 max-w-[200px] truncate">{t?.testName ?? ''}</td>
-                  <td className="px-4 py-3">{t?.ctrA ?? 0}%</td>
-                  <td className="px-4 py-3">{t?.ctrB ?? 0}%</td>
-                  <td className="px-4 py-3 font-semibold">{t?.roasA ?? 0}x</td>
-                  <td className="px-4 py-3 font-semibold">{t?.roasB ?? 0}x</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      (t?.winner ?? '')?.includes?.('A') ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                    }`}>
-                      {t?.winner ?? ''}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${
-                      (t?.confidence ?? '')?.includes?.('High') ? 'text-emerald-600' :
-                      (t?.confidence ?? '')?.includes?.('Medium') ? 'text-amber-600' : 'text-gray-500'
-                    }`}>{t?.confidence ?? ''}</span>
-                  </td>
+      {filteredTests.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="p-5 border-b">
+            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Trophy size={16} className="text-amber-500" />
+              Kết Quả A/B Test {platformTab === 'facebook' ? '(Facebook Ads)' : ''}
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Mã Test</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Tên Test</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">CTR A</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">CTR B</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">ROAS A</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">ROAS B</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Người thắng</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-600">Độ tin cậy</th>
                 </tr>
-              )) ?? []}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {(filteredTests ?? [])?.map?.((t: any) => (
+                  <tr key={t?.testId ?? t?.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs">{t?.testId ?? ''}</td>
+                    <td className="px-4 py-3 max-w-[200px] truncate">{t?.testName ?? ''}</td>
+                    <td className="px-4 py-3">{t?.ctrA ?? 0}%</td>
+                    <td className="px-4 py-3">{t?.ctrB ?? 0}%</td>
+                    <td className="px-4 py-3 font-semibold">{t?.roasA ?? 0}x</td>
+                    <td className="px-4 py-3 font-semibold">{t?.roasB ?? 0}x</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        (t?.winner ?? '')?.includes?.('A') ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {t?.winner ?? ''}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium ${
+                        (t?.confidence ?? '')?.includes?.('High') ? 'text-emerald-600' :
+                        (t?.confidence ?? '')?.includes?.('Medium') ? 'text-amber-600' : 'text-gray-500'
+                      }`}>{t?.confidence ?? ''}</span>
+                    </td>
+                  </tr>
+                )) ?? []}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

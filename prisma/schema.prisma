@@ -5,6 +5,7 @@ generator client {
 datasource db {
     provider = "postgresql"
     url      = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -80,6 +81,7 @@ model Order {
   mediaLink   String?
   notes       String?
   action      String?
+  source      String?  @default("Khác")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

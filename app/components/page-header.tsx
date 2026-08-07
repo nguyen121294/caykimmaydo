@@ -7,9 +7,10 @@ interface PageHeaderProps {
   description?: string;
   icon?: LucideIcon;
   onRefresh?: () => void;
+  children?: React.ReactNode;
 }
 
-export default function PageHeader({ title, description, icon: Icon, onRefresh }: PageHeaderProps) {
+export default function PageHeader({ title, description, icon: Icon, onRefresh, children }: PageHeaderProps) {
   const [spinning, setSpinning] = useState(false);
 
   const handleRefresh = () => {
@@ -31,16 +32,19 @@ export default function PageHeader({ title, description, icon: Icon, onRefresh }
           {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
         </div>
       </div>
-      {onRefresh && (
-        <button
-          onClick={handleRefresh}
-          className={`flex items-center gap-2 px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:shadow-md transition-all text-gray-700 font-medium ${spinning ? 'opacity-60' : ''}`}
-          disabled={spinning}
-        >
-          <RefreshCw size={14} className={spinning ? 'animate-spin' : ''} />
-          Làm mới
-        </button>
-      )}
+      <div className="flex items-center gap-3">
+        {children}
+        {onRefresh && (
+          <button
+            onClick={handleRefresh}
+            className={`flex items-center gap-2 px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:shadow-md border border-gray-200 transition-all text-gray-700 font-medium ${spinning ? 'opacity-60' : ''}`}
+            disabled={spinning}
+          >
+            <RefreshCw size={14} className={spinning ? 'animate-spin' : ''} />
+            Làm mới
+          </button>
+        )}
+      </div>
     </div>
   );
 }

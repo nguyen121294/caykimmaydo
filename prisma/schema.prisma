@@ -201,9 +201,11 @@ model ABTest {
   budgetB        Float?   @default(0)
   impressionsA   Float?   @default(0)
   impressionsB   Float?   @default(0)
-  clicksA        Float?   @default(0)
-  clicksB        Float?   @default(0)
-  conversionsA   Float?   @default(0)
+  clicksA          Float?   @default(0)
+  clicksB          Float?   @default(0)
+  linkClicksA      Float?   @default(0)
+  landingPageViewsA Float?  @default(0)
+  conversionsA     Float?   @default(0)
   conversionsB   Float?   @default(0)
   revenueA       Float?   @default(0)
   revenueB       Float?   @default(0)
@@ -368,6 +370,14 @@ model FacebookPost {
   viewsCount    Int       @default(0)
   commentsCount Int       @default(0)
   sharesCount   Int       @default(0)
+  
+  // Ad Insights fields
+  adSpend       Float?
+  adReach       Int?
+  adVisits      Int?
+  adStatus      String?
+  demographics  Json?
+
   syncedAt      DateTime  @default(now())
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -384,6 +394,14 @@ model InstagramPost {
   createdTime   DateTime?
   likesCount    Int       @default(0)
   commentsCount Int       @default(0)
+  
+  // Ad Insights fields
+  adSpend       Float?
+  adReach       Int?
+  adVisits      Int?
+  adStatus      String?
+  demographics  Json?
+
   syncedAt      DateTime  @default(now())
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

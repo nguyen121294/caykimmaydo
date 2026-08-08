@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/crypto';
+import { getTokenForPlatform, syncPostAdsInsights } from '@/lib/sync-meta-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -110,30 +111,56 @@ export async function POST() {
 
     const targetId = pageId || 'me';
 
-    // 3. Gọi Facebook Graph API lấy danh sách bài viết đã xuất bản
+    // 3. Gọi Facebook Graph API lấy danh sách bài viết đã xuất bản (Tự động phân trang 60 ngày)
     const fields = 'id,message,full_picture,permalink_url,created_time,reactions.summary(true),comments.summary(true),shares,insights.metric(post_impressions_unique)';
-    const fbRes = await fetch(
-      `https://graph.facebook.com/v19.0/${targetId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`
-    );
-    const fbData = await fbRes.json();
+    let url = `https://graph.facebook.com/v19.0/${targetId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`;
+    let fallbackUrl = `https://graph.facebook.com/v19.0/${targetId}/feed?fields=id,message,full_picture,permalink_url,created_time,reactions.summary(true),comments.summary(true),shares&limit=50&access_token=${encodeURIComponent(effectiveToken)}`;
+    
+    let hasNextPage = true;
+    let postsList: any[] = [];
+    const date60DaysAgo = new Date();
+    date60DaysAgo.setDate(date60DaysAgo.getDate() - 60);
+    let isUsingFallback = false;
 
-    if (fbData.error) {
-      // Nếu thử endpoint /published_posts bị lỗi (do thiếu permission), thử endpoint /feed làm fallback
-      const fallbackRes = await fetch(
-        `https://graph.facebook.com/v19.0/${targetId}/feed?fields=id,message,full_picture,permalink_url,created_time,reactions.summary(true),comments.summary(true),shares&limit=50&access_token=${encodeURIComponent(effectiveToken)}`
-      );
-      const fallbackData = await fallbackRes.json();
+    while (hasNextPage && postsList.length < 1000) { // Giới hạn an toàn tối đa 1000 bài
+      const currentUrl = isUsingFallback ? fallbackUrl : url;
+      const fbRes = await fetch(currentUrl, { signal: AbortSignal.timeout(15000) });
+      let fbData = await fbRes.json();
 
-      if (fallbackData.error) {
+      if (fbData.error && !isUsingFallback) {
+        isUsingFallback = true;
+        const fallbackRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(15000) });
+        fbData = await fallbackRes.json();
+      }
+
+      if (fbData.error) {
         return NextResponse.json({
-          error: `Lỗi kết nối Facebook Graph API: ${fallbackData.error?.message || fbData.error?.message}`,
+          error: `Lỗi kết nối Facebook Graph API: ${fbData.error?.message}`,
         }, { status: 400 });
       }
 
-      fbData.data = fallbackData.data;
-    }
+      const currentPosts = fbData.data || [];
+      if (currentPosts.length === 0) break;
 
-    const postsList = fbData.data || [];
+      postsList.push(...currentPosts);
+
+      const lastPost = currentPosts[currentPosts.length - 1];
+      const lastPostDate = lastPost.created_time ? new Date(lastPost.created_time) : new Date();
+      if (lastPostDate < date60DaysAgo) {
+        hasNextPage = false;
+        break;
+      }
+
+      if (fbData.paging && fbData.paging.next) {
+        if (isUsingFallback) {
+          fallbackUrl = fbData.paging.next;
+        } else {
+          url = fbData.paging.next;
+        }
+      } else {
+        hasNextPage = false;
+      }
+    }
     let syncedCount = 0;
 
     for (const post of postsList) {
@@ -195,6 +222,16 @@ export async function POST() {
       });
 
       syncedCount++;
+    }
+
+    // 4. Đồng bộ thêm dữ liệu Quảng cáo (Ads Insights) nếu có Token Facebook Ads
+    try {
+      const { token: adsToken, adAccountId } = await getTokenForPlatform('Facebook Ads');
+      if (adsToken && adAccountId) {
+        await syncPostAdsInsights(adsToken, adAccountId);
+      }
+    } catch (e) {
+      console.error('Lỗi khi đồng bộ ads insights:', e);
     }
 
     return NextResponse.json({

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/crypto';
+import { getTokenForPlatform, syncPostAdsInsights } from '@/lib/sync-meta-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -132,20 +133,43 @@ export async function POST() {
       }, { status: 400 });
     }
 
-    // 3. Gọi Instagram Graph API lấy danh sách bài viết
+    // 3. Gọi Instagram Graph API lấy danh sách bài viết (Tự động phân trang 60 ngày)
     const fields = 'id,caption,timestamp,like_count,comments_count,media_type,permalink,media_url,thumbnail_url';
-    const igRes = await fetch(
-      `https://graph.facebook.com/v19.0/${igAccountId}/media?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`
-    );
-    const igData = await igRes.json();
+    let url = `https://graph.facebook.com/v19.0/${igAccountId}/media?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`;
+    
+    let hasNextPage = true;
+    let postsList: any[] = [];
+    const date60DaysAgo = new Date();
+    date60DaysAgo.setDate(date60DaysAgo.getDate() - 60);
 
-    if (igData.error) {
-      return NextResponse.json({
-        error: `Lỗi kết nối Instagram API: ${igData.error?.message || 'Token lỗi hoặc không đủ quyền'}`,
-      }, { status: 400 });
+    while (hasNextPage && postsList.length < 1000) {
+      const igRes = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const igData = await igRes.json();
+
+      if (igData.error) {
+        return NextResponse.json({
+          error: `Lỗi kết nối Instagram API: ${igData.error?.message || 'Token lỗi hoặc không đủ quyền'}`,
+        }, { status: 400 });
+      }
+
+      const currentPosts = igData.data || [];
+      if (currentPosts.length === 0) break;
+
+      postsList.push(...currentPosts);
+
+      const lastPost = currentPosts[currentPosts.length - 1];
+      const lastPostDate = lastPost.timestamp ? new Date(lastPost.timestamp) : new Date();
+      if (lastPostDate < date60DaysAgo) {
+        hasNextPage = false;
+        break;
+      }
+
+      if (igData.paging && igData.paging.next) {
+        url = igData.paging.next;
+      } else {
+        hasNextPage = false;
+      }
     }
-
-    const postsList = igData.data || [];
     let syncedCount = 0;
     const hasIgModel = !!(prisma as any).instagramPost;
 
@@ -227,6 +251,16 @@ export async function POST() {
       }
 
       syncedCount++;
+    }
+
+    // 4. Đồng bộ thêm dữ liệu Quảng cáo (Ads Insights) nếu có Token Facebook Ads
+    try {
+      const { token: adsToken, adAccountId } = await getTokenForPlatform('Facebook Ads');
+      if (adsToken && adAccountId) {
+        await syncPostAdsInsights(adsToken, adAccountId);
+      }
+    } catch (e) {
+      console.error('Lỗi khi đồng bộ ads insights cho Instagram:', e);
     }
 
     return NextResponse.json({

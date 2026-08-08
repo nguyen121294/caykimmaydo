@@ -37,7 +37,7 @@ export default function PageHeader({ title, description, icon: Icon, onRefresh, 
         {onRefresh && (
           <button
             onClick={handleRefresh}
-            className={`flex items-center gap-2 px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:shadow-md border border-gray-200 transition-all text-gray-700 font-medium ${spinning ? 'opacity-60' : ''}`}
+            className={`flex items-center gap-2 px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:shadow-md border border-gray-200 transition-all text-gray-700 font-medium whitespace-nowrap ${spinning ? 'opacity-60' : ''}`}
             disabled={spinning}
           >
             <RefreshCw size={14} className={spinning ? 'animate-spin' : ''} />

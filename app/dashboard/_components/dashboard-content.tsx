@@ -6,6 +6,7 @@ import PageHeader from '@/app/components/page-header';
 import { LayoutDashboard } from 'lucide-react';
 import RevenueChart from './revenue-chart';
 import FunnelChart from './funnel-chart';
+import CampaignManager from '../campaigns/_components/campaign-manager';
 
 export default function DashboardContent() {
   const [data, setData] = useState<any>(null);
@@ -13,6 +14,7 @@ export default function DashboardContent() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [timeRange, setTimeRange] = useState('30');
+  const [lastUpdate, setLastUpdate] = useState('');
 
   const fetchData = async () => {
     try {
@@ -171,18 +173,24 @@ export default function DashboardContent() {
           className="px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-lg shadow-sm text-gray-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all cursor-pointer"
         >
           <option value="7">7 ngày qua</option>
+          <option value="14">14 ngày qua</option>
           <option value="30">30 ngày qua</option>
+          <option value="60">60 ngày qua</option>
           <option value="90">90 ngày qua</option>
+          <option value="180">6 tháng qua</option>
           <option value="all">Tất cả thời gian</option>
         </select>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all font-medium disabled:opacity-60"
-        >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          Đồng bộ Meta Ads
-        </button>
+        
+        <div className="flex flex-col items-end">
+          <a
+            href="/sync-hub"
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all font-medium whitespace-nowrap"
+          >
+            <RefreshCw size={14} />
+            Đồng bộ dữ liệu (Sync Hub)
+          </a>
+          <span className="text-[10px] text-gray-400 mt-1">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
+        </div>
       </PageHeader>
 
       {syncMsg && (
@@ -268,22 +276,55 @@ export default function DashboardContent() {
           <h3 className="text-sm font-semibold text-gray-700 mb-4 shrink-0">Hiệu Suất Từng Chiến Dịch</h3>
           <div className="overflow-auto flex-1 custom-scrollbar">
             <table className="w-full text-left text-sm text-gray-500">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0 z-10 whitespace-nowrap">
                 <tr>
                   <th className="px-4 py-3 rounded-tl-lg">Tên Chiến Dịch</th>
+                  <th className="px-4 py-3">CPM</th>
+                  <th className="px-4 py-3">Click liên kết</th>
+                  <th className="px-4 py-3">CPC (liên kết)</th>
+                  <th className="px-4 py-3">%CTR (liên kết)</th>
+                  <th className="px-4 py-3">Click (tất cả)</th>
+                  <th className="px-4 py-3">CPC (tất cả)</th>
+                  <th className="px-4 py-3">%CTR (tất cả)</th>
+                  <th className="px-4 py-3">Xem trang đích</th>
                   <th className="px-4 py-3">Chi Phí</th>
                   <th className="px-4 py-3">Doanh Thu</th>
-                  <th className="px-4 py-3">CPA (Giá/Chuyển đổi)</th>
-                  <th className="px-4 py-3">%CTR</th>
+                  <th className="px-4 py-3">CPA</th>
                   <th className="px-4 py-3 rounded-tr-lg">Chuyển Đổi</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {data?.campaignRecords?.length > 0 ? (
-                  data?.campaignRecords?.map((record: any, index: number) => (
-                    <tr key={index} className="bg-white border-b hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-900 max-w-[150px] truncate" title={record.name}>
+                  data.campaignRecords.map((record: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-900 min-w-[200px] break-words" title={record.name}>
                         {record.name}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {record.cpm > 0 ? `${record.cpm.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 font-medium">
+                        {record.linkClicks.toLocaleString('vi-VN')}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {record.cpcLink > 0 ? `${record.cpcLink.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3 font-medium">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${record.ctrLink >= 1 ? 'bg-emerald-100 text-emerald-700' : record.ctrLink > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {record.ctrLink > 0 ? `${record.ctrLink}%` : 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {record.clicks.toLocaleString('vi-VN')}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {record.cpc > 0 ? `${record.cpc.toLocaleString('vi-VN')} đ` : '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {record.ctr > 0 ? `${record.ctr}%` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 font-medium">
+                        {record.landingPageViews.toLocaleString('vi-VN')}
                       </td>
                       <td className="px-4 py-3 text-red-600 font-medium whitespace-nowrap">
                         {record.spend > 0 ? `${record.spend.toLocaleString('vi-VN')} đ` : '-'}
@@ -294,20 +335,14 @@ export default function DashboardContent() {
                       <td className="px-4 py-3 text-gray-700 font-medium whitespace-nowrap">
                         {record.cpa > 0 ? `${record.cpa.toLocaleString('vi-VN')} đ` : '-'}
                       </td>
-                      <td className="px-4 py-3 font-medium">
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${record.ctr >= 1 ? 'bg-emerald-100 text-emerald-700' : record.ctr > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
-                          {record.ctr > 0 ? `${record.ctr}%` : 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-semibold text-gray-700">{record.conversions}</span>
-                        <span className="text-xs text-gray-400 ml-1">({record.clicks} click)</span>
+                      <td className="px-4 py-3 font-semibold text-gray-700">
+                        {record.conversions}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={13} className="px-4 py-8 text-center text-gray-400">
                       Chưa có dữ liệu chiến dịch
                     </td>
                   </tr>
@@ -410,6 +445,13 @@ export default function DashboardContent() {
               <span className="text-sm font-medium text-emerald-700">Quản Lý Đơn Hàng</span>
             </a>
           </div>
+        </div>
+      </div>
+
+      {/* Campaigns Section */}
+      <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6">
+          <CampaignManager timeRange={timeRange === 'all' ? '0' : timeRange} />
         </div>
       </div>
     </div>

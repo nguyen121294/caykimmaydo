@@ -90,15 +90,16 @@ export async function GET(request: Request) {
         const parts = d.split('-');
         revenueTrend.push({
           date: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}`,
+          fullDate: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}/${parts[0]}`,
           revenue: dateMap[d].revenue,
           adSpend: dateMap[d].adSpend,
-        });
+        } as any);
       }
     }
 
     // Detailed records cho bảng: lấy từ revenueTrend nhưng giữ ngày đầy đủ để hiển thị, và tính roas
-    const detailedRecords = (revenueTrend ?? []).map(r => ({
-      date: r.date,
+    const detailedRecords = (revenueTrend ?? []).map((r: any) => ({
+      date: r.fullDate || r.date,
       revenue: r.revenue,
       adSpend: r.adSpend,
       roas: r.adSpend > 0 ? Number((r.revenue / r.adSpend).toFixed(2)) : 0
@@ -113,16 +114,24 @@ export async function GET(request: Request) {
         spend: 0,
         revenue: 0,
         clicks: 0,
+        linkClicks: 0,
+        landingPageViews: 0,
         impressions: 0,
         conversions: 0,
         roas: 0,
-        ctr: 0,
+        ctr: 0, // CTR (tất cả)
+        cpc: 0, // CPC (tất cả)
+        ctrLink: 0, // CTR (click vào liên kết)
+        cpcLink: 0, // CPC (click vào liên kết)
+        cpm: 0,
         cpa: 0
       };
       
       existing.spend += test.budgetA ?? 0;
       existing.revenue += test.revenueA ?? 0;
       existing.clicks += test.clicksA ?? 0;
+      existing.linkClicks += test.linkClicksA ?? 0;
+      existing.landingPageViews += test.landingPageViewsA ?? 0;
       existing.impressions += test.impressionsA ?? 0;
       existing.conversions += test.conversionsA ?? 0;
       
@@ -132,7 +141,11 @@ export async function GET(request: Request) {
     for (const camp of campaignsMap.values()) {
       camp.roas = camp.spend > 0 ? Number((camp.revenue / camp.spend).toFixed(2)) : 0;
       camp.ctr = camp.impressions > 0 ? Number(((camp.clicks / camp.impressions) * 100).toFixed(2)) : 0;
+      camp.ctrLink = camp.impressions > 0 ? Number(((camp.linkClicks / camp.impressions) * 100).toFixed(2)) : 0;
       camp.cpa = camp.conversions > 0 ? Math.round(camp.spend / camp.conversions) : 0;
+      camp.cpc = camp.clicks > 0 ? Math.round(camp.spend / camp.clicks) : 0;
+      camp.cpcLink = camp.linkClicks > 0 ? Math.round(camp.spend / camp.linkClicks) : 0;
+      camp.cpm = camp.impressions > 0 ? Math.round((camp.spend / camp.impressions) * 1000) : 0;
     }
     
     const campaignRecords = Array.from(campaignsMap.values());

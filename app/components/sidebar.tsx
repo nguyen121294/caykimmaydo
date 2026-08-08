@@ -6,7 +6,7 @@ import {
   LayoutDashboard, BarChart3, Film, Package, MessageSquare,
   Users, Bell, Settings, BookOpen, Menu, X, LogOut, Scissors,
   UserCheck, Kanban, Megaphone, MessageCircle, Wallet,
-  FileSpreadsheet, Plug, ChevronDown, ChevronRight, ShieldCheck, Share2, Camera
+  FileSpreadsheet, Plug, ChevronDown, ChevronRight, ShieldCheck, Share2, Camera, RefreshCw
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,8 +30,7 @@ const navGroups = [
     label: 'Vận hành',
     items: [
       { href: '/team', label: 'Quy Trình Team', icon: Users },
-      { href: '/facebook-posts', label: 'Bài Đăng Fanpage', icon: Share2 },
-      { href: '/instagram-posts', label: 'Bài Đăng Instagram', icon: Camera },
+      { href: '/posts', label: 'Quản Lý Bài Đăng', icon: Share2 },
       { href: '/content', label: 'Kho Nội Dung', icon: Film },
       { href: '/inbox', label: 'Kịch Bản Inbox', icon: MessageSquare },
     ]
@@ -46,6 +45,7 @@ const navGroups = [
   {
     label: 'Hệ thống',
     items: [
+      { href: '/sync-hub', label: 'Đồng Bộ Hub', icon: RefreshCw },
       { href: '/finance', label: 'Tài Chính', icon: Wallet },
       { href: '/import-export', label: 'Import / Export', icon: FileSpreadsheet },
       { href: '/connections', label: 'Kết Nối', icon: Plug },

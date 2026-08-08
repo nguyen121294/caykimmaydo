@@ -77,8 +77,9 @@ export default function ManyChatContent() {
               {p === 'week' ? '7 ngày' : p === 'month' ? '30 ngày' : 'Tất cả'}
             </button>
           ))}
-          <button onClick={fetchData} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm">
-            <RefreshCw size={14} />
+          <button onClick={fetchData} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm whitespace-nowrap">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Làm mới
           </button>
         </div>
       </div>

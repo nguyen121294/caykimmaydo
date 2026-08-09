@@ -255,6 +255,30 @@ model AutomationLog {
   createdAt DateTime @default(now())
 }
 
+model SyncJob {
+  id             String    @id @default(cuid())
+  groupId        String
+  platform       String
+  days           String
+  sequence       Int       @default(0)
+  status         String    @default("QUEUED")
+  stage          String    @default("START")
+  cursor         String?
+  recordsFetched Int       @default(0)
+  recordsSaved   Int       @default(0)
+  attempts       Int       @default(0)
+  revision       Int       @default(0)
+  messageId      String?
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([groupId, sequence])
+  @@index([status, createdAt])
+}
+
 model KpiSnapshot {
   id              String   @id @default(cuid())
   date            DateTime @default(now())

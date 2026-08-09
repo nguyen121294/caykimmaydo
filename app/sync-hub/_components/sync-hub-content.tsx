@@ -17,6 +17,16 @@ interface SyncItem {
   message?: string;
 }
 
+interface SyncJobStatus {
+  id: string;
+  platform: string;
+  status: 'QUEUED' | 'RUNNING' | 'CONTINUING' | 'SUCCESS' | 'FAILED';
+  stage: string;
+  recordsFetched: number;
+  recordsSaved: number;
+  error?: string | null;
+}
+
 const SYNC_CONFIG: SyncItem[] = [
   { id: 'fb_page', name: 'Facebook Page (Organic)', apiRoute: '/api/marketing/sync/meta', payload: { platform: 'Facebook Page' }, status: 'idle', lastSync: null },
   { id: 'fb_ads', name: 'Facebook Ads (Dark Posts)', apiRoute: '/api/marketing/sync/meta', payload: { platform: 'Facebook Ads' }, status: 'idle', lastSync: null },
@@ -32,11 +42,68 @@ export default function SyncHubContent() {
   const [lastUpdate, setLastUpdate] = useState('');
   const [syncDays, setSyncDays] = useState<SyncDays>('7');
 
+  const readJsonResponse = async (res: Response) => {
+    const text = await res.text();
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch {
+      const contentType = res.headers.get('content-type') || 'không xác định';
+      const preview = text.replace(/\s+/g, ' ').slice(0, 160);
+      throw new Error(`API trả về ${res.status} (${contentType}), không phải JSON: ${preview}`);
+    }
+  };
+
+  const applyJobStatuses = (jobs: SyncJobStatus[]) => {
+    setItems(prev => prev.map(item => {
+      const job = jobs.find(candidate => candidate.platform === item.payload?.platform);
+      if (!job) return item;
+      if (job.status === 'SUCCESS') {
+        return {
+          ...item,
+          status: 'success',
+          lastSync: new Date().toLocaleTimeString('vi-VN'),
+          message: `Đã lấy ${job.recordsFetched}, lưu ${job.recordsSaved}`,
+        };
+      }
+      if (job.status === 'FAILED') {
+        return { ...item, status: 'error', message: job.error || 'Job đồng bộ thất bại' };
+      }
+      return { ...item, status: 'syncing', message: `${job.status} · ${job.stage}` };
+    }));
+  };
+
+  const pollSyncGroup = async (groupId: string) => {
+    for (let attempt = 0; attempt < 360; attempt++) {
+      const res = await fetch(`/api/marketing/sync/jobs?groupId=${encodeURIComponent(groupId)}`, { cache: 'no-store' });
+      const data = await readJsonResponse(res);
+      if (!res.ok) throw new Error(data.error || `Không đọc được trạng thái job (${res.status})`);
+      const jobs: SyncJobStatus[] = data.jobs || [];
+      applyJobStatuses(jobs);
+      if (jobs.length > 0 && jobs.every(job => job.status === 'SUCCESS' || job.status === 'FAILED')) {
+        await fetchLogs();
+        return jobs;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2500));
+    }
+    throw new Error('Job vẫn đang chạy nền sau 15 phút. Bạn có thể tải lại trang để xem log mới nhất.');
+  };
+
+  const dispatchSync = async (platforms: string[]) => {
+    const res = await fetch('/api/marketing/sync/meta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platforms, days: syncDays }),
+    });
+    const data = await readJsonResponse(res);
+    if (!res.ok || !data.success) throw new Error(data.error || `Không thể xếp hàng đồng bộ (${res.status})`);
+    return data.groupId as string;
+  };
+
   const fetchLogs = async () => {
     try {
       setLoadingLogs(true);
       const res = await fetch('/api/automation');
-      const data = await res.json();
+      const data = await readJsonResponse(res);
       setLogs(data?.logs?.slice(0, 30) || []); // Get last 30 logs as requested
     } catch (error) {
       console.error('Error fetching logs', error);
@@ -52,30 +119,31 @@ export default function SyncHubContent() {
 
   const handleSyncItem = async (index: number) => {
     const item = items[index];
-    const newItems = [...items];
-    newItems[index].status = 'syncing';
-    setItems(newItems);
+    setItems(prev => prev.map((candidate, candidateIndex) => candidateIndex === index
+      ? { ...candidate, status: 'syncing', message: 'QUEUED' }
+      : candidate));
 
     try {
-      const res = await fetch(item.apiRoute, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(item.payload || {}), days: syncDays })
-      });
-      const data = await res.json();
-      
-      setItems(prev => {
-        const arr = [...prev];
-        if (res.ok && data.success) {
-          arr[index].status = 'success';
-          arr[index].lastSync = new Date().toLocaleTimeString('vi-VN');
-          arr[index].message = data.message || 'Thành công';
-        } else {
-          arr[index].status = 'error';
-          arr[index].message = data.error || 'Lỗi không xác định';
-        }
-        return arr;
-      });
+      if (item.payload?.platform) {
+        const groupId = await dispatchSync([item.payload.platform]);
+        await pollSyncGroup(groupId);
+      } else {
+        const res = await fetch(item.apiRoute, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: syncDays }),
+        });
+        const data = await readJsonResponse(res);
+        if (!res.ok || !data.success) throw new Error(data.error || `Đồng bộ thất bại (${res.status})`);
+        setItems(prev => prev.map((candidate, candidateIndex) => candidateIndex === index
+          ? {
+              ...candidate,
+              status: 'success',
+              lastSync: new Date().toLocaleTimeString('vi-VN'),
+              message: data.message || 'Thành công',
+            }
+          : candidate));
+      }
     } catch (e: any) {
       setItems(prev => {
         const arr = [...prev];
@@ -89,19 +157,31 @@ export default function SyncHubContent() {
   const handleSyncAll = async () => {
     if (isSyncingAll) return;
     setIsSyncingAll(true);
-    toast.info('Bắt đầu đồng bộ tất cả nền tảng...');
-    
-    // Đặt tất cả về trạng thái chờ
-    setItems(items.map(i => ({ ...i, status: 'idle', message: '' })));
+    toast.info('Đang xếp hàng đồng bộ Meta tuần tự...');
+    const metaItems = items.filter(item => item.payload?.platform);
+    setItems(prev => prev.map(item => item.payload?.platform
+      ? { ...item, status: 'syncing', message: 'QUEUED' }
+      : item));
 
-    // Đồng bộ tuần tự để tránh nghẽn
-    for (let i = 0; i < items.length; i++) {
-      await handleSyncItem(i);
+    try {
+      const groupId = await dispatchSync(metaItems.map(item => item.payload.platform));
+      const jobs = await pollSyncGroup(groupId);
+      const directIndexes = items
+        .map((item, index) => item.payload?.platform ? -1 : index)
+        .filter(index => index >= 0);
+      for (const index of directIndexes) await handleSyncItem(index);
+      const failed = jobs.filter(job => job.status === 'FAILED');
+      if (failed.length > 0) toast.error(`${failed.length} nền tảng đồng bộ thất bại.`);
+      else toast.success('Đã hoàn tất chuỗi đồng bộ Meta!');
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể đồng bộ Meta.');
+      setItems(prev => prev.map(item => item.status === 'syncing'
+        ? { ...item, status: 'error', message: error?.message || 'Lỗi đồng bộ' }
+        : item));
+    } finally {
+      setIsSyncingAll(false);
+      fetchLogs();
     }
-
-    toast.success('Đã hoàn tất chuỗi đồng bộ!');
-    setIsSyncingAll(false);
-    fetchLogs(); // Làm mới log sau khi xong
   };
 
   const getStatusIcon = (status: PlatformStatus) => {

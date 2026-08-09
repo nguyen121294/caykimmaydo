@@ -12,7 +12,23 @@ export interface SyncLog {
     saved: number;
     complete: boolean;
     hasMore: boolean;
+    cursor?: string;
   };
+}
+
+export interface MetaBatchOptions {
+  batch?: boolean;
+  cursor?: string;
+  pageLimit?: number;
+  skipPostAds?: boolean;
+}
+
+export interface PostAdsProgress {
+  fetched: number;
+  saved: number;
+  complete: boolean;
+  hasMore: boolean;
+  cursor?: string;
 }
 
 export type SyncDays = '7' | '30' | '90' | 'all';
@@ -228,7 +244,7 @@ export async function syncFacebookPage(token: string, pageId?: string, days?: un
 }
 
 // ===== FACEBOOK ADS SYNC =====
-export async function syncFacebookAds(token: string, adAccountId?: string, days?: unknown): Promise<SyncLog> {
+export async function syncFacebookAds(token: string, adAccountId?: string, days?: unknown, options?: MetaBatchOptions): Promise<SyncLog> {
   const log: SyncLog = { platform: 'Facebook Ads', recordsFetched: 0, recordsSaved: 0, syncedAt: new Date().toISOString() };
   const today = new Date().toISOString().slice(0, 10);
 
@@ -283,12 +299,15 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
 
     // Lấy campaigns + insights theo từng ngày (time_increment=1)
     const dateFilter = getMetaDateFilter(days);
-    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&${dateFilter}&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
+    const after = options?.cursor ? `&after=${encodeURIComponent(options.cursor)}` : '';
+    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&${dateFilter}&time_increment=1&level=campaign&limit=100${after}&access_token=${encodeURIComponent(token)}`;
     let hasNextPage = true;
     let pagesFetched = 0;
+    let nextCursor: string | undefined;
     const allRows: any[] = [];
 
-    while (hasNextPage && url && pagesFetched < 10) {
+    const campaignPageLimit = options?.pageLimit ?? (options?.batch ? 1 : 10);
+    while (hasNextPage && url && pagesFetched < campaignPageLimit) {
       const campRes = await fetch(url, { signal: AbortSignal.timeout(20000) });
       if (!campRes.ok) {
         const err = await campRes.json().catch(() => ({}));
@@ -301,10 +320,12 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
       
       if (campData?.paging?.next) {
         url = campData.paging.next;
-        pagesFetched++;
+        nextCursor = campData?.paging?.cursors?.after;
       } else {
         hasNextPage = false;
+        nextCursor = undefined;
       }
+      pagesFetched++;
     }
 
     log.recordsFetched = allRows.length;
@@ -312,7 +333,7 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
     // Nếu đây là lần đầu tiên chạy bản mới, wipe dữ liệu ABTest và FinanceEntry cũ
     // (Bởi vì data cũ lưu tổng 30 ngày vào 1 ngày).
     // Xoá tất cả ABTest và FinanceEntry tự động.
-    if (hasOldData) {
+    if (hasOldData && !options?.cursor) {
       await prisma.aBTest.deleteMany({});
       await prisma.financeEntry.deleteMany({
         where: { description: { contains: 'fb_spend_' } }
@@ -400,9 +421,18 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
       log.recordsSaved++;
     }
 
-    // Sau khi sync ads campaign, sync ads post insights
-    const postAdsProgress = await syncPostAdsInsights(token, actId, days);
-    if (postAdsProgress) log.progress = postAdsProgress;
+    if (options?.batch) {
+      log.progress = {
+        fetched: log.recordsFetched,
+        saved: log.recordsSaved,
+        complete: !nextCursor,
+        hasMore: Boolean(nextCursor),
+        cursor: nextCursor,
+      };
+    } else if (!options?.skipPostAds) {
+      const postAdsProgress = await syncPostAdsInsights(token, actId, days);
+      if (postAdsProgress) log.progress = postAdsProgress;
+    }
 
     return log;
   } catch (error: any) {
@@ -511,7 +541,7 @@ export async function syncInstagram(token: string, igAccountId?: string, days?: 
 }
 
 // ===== POST ADS INSIGHTS SYNC =====
-export async function syncPostAdsInsights(token: string, adAccountId?: string, days?: unknown) {
+export async function syncPostAdsInsights(token: string, adAccountId?: string, days?: unknown, options?: MetaBatchOptions): Promise<PostAdsProgress | undefined> {
   try {
     let actId = adAccountId ? (adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`) : '';
     if (!actId) {
@@ -519,10 +549,13 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
         `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,account_status&limit=100&access_token=${encodeURIComponent(token)}`,
         { signal: AbortSignal.timeout(15000) }
       );
-      if (!accountsRes.ok) return;
+      if (!accountsRes.ok) {
+        const errorData = await accountsRes.json().catch(() => ({}));
+        throw new Error(errorData?.error?.message || `Không lấy được Meta Ad Account (${accountsRes.status}).`);
+      }
       const accountsData = await accountsRes.json();
       const account = (accountsData?.data || []).find((item: any) => item.account_status === 1) || accountsData?.data?.[0];
-      if (!account?.id) return;
+      if (!account?.id) throw new Error('Không tìm thấy Meta Ad Account hoạt động.');
       actId = account.id;
     }
 
@@ -538,8 +571,10 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
     // losing progress when Meta rate-limits a request or the server reaches its timeout.
     const selectedDays = normalizeSyncDays(days);
     const checkpointKey = `instagram_ads_full_sync_v2_${actId}`;
-    let checkpoint: { cursor?: string; fetched?: number; saved?: number; complete?: boolean } = {};
-    if (selectedDays === 'all') {
+    let checkpoint: { cursor?: string; fetched?: number; saved?: number; complete?: boolean } = options?.cursor
+      ? { cursor: options.cursor }
+      : {};
+    if (selectedDays === 'all' && !options?.batch) {
       const stored = await prisma.appSetting.findUnique({ where: { key: checkpointKey } });
       if (stored) checkpoint = JSON.parse(stored.value);
       if (checkpoint.complete) {
@@ -549,14 +584,15 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
 
     const dateFilter = getMetaDateFilter(days);
     const after = checkpoint.cursor ? `&after=${encodeURIComponent(checkpoint.cursor)}` : '';
-    let insightsUrl = `https://graph.facebook.com/v19.0/${actId}/insights?level=ad&${dateFilter}&breakdowns=publisher_platform&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,reach,actions,outbound_clicks&limit=25${after}&access_token=${encodeURIComponent(token)}`;
+    const insightsLimit = options?.batch ? 5 : 25;
+    let insightsUrl = `https://graph.facebook.com/v19.0/${actId}/insights?level=ad&${dateFilter}&breakdowns=publisher_platform&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,reach,actions,outbound_clicks&limit=${insightsLimit}${after}&access_token=${encodeURIComponent(token)}`;
     const adInsightsMap = new Map<string, any>();
     
     let hasNextInsights = true;
     let pagesInsightsFetched = 0;
 
     let nextCursor: string | undefined;
-    const pageLimit = selectedDays === 'all' ? 1 : 20;
+    const pageLimit = options?.pageLimit ?? (options?.batch ? 1 : (selectedDays === 'all' ? 1 : 20));
     let rowsFetched = 0;
 
     while (hasNextInsights && insightsUrl && pagesInsightsFetched < pageLimit) {
@@ -591,7 +627,7 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
 
     if (adInsightsMap.size === 0 && !nextCursor) {
       const result = { fetched: (checkpoint.fetched || 0) + rowsFetched, saved: checkpoint.saved || 0, complete: true, hasMore: false };
-      if (selectedDays === 'all') {
+      if (selectedDays === 'all' && !options?.batch) {
         await prisma.appSetting.upsert({ where: { key: checkpointKey }, update: { value: JSON.stringify({ ...result, cursor: null }) }, create: { key: checkpointKey, value: JSON.stringify({ ...result, cursor: null }) } });
       }
       return result;
@@ -604,7 +640,8 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
     let hasNextAds = true;
     let pagesAdsFetched = 0;
 
-    while (hasNextAds && adsUrl && pagesAdsFetched < 10) {
+    const adsPageLimit = options?.batch ? 2 : 10;
+    while (hasNextAds && adsUrl && pagesAdsFetched < adsPageLimit) {
       const res = await fetch(adsUrl, { signal: AbortSignal.timeout(20000) });
       if (!res.ok) break;
       const data = await res.json();
@@ -794,8 +831,9 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
       saved: (checkpoint.saved || 0) + adInsightsMap.size,
       complete: !nextCursor,
       hasMore: Boolean(nextCursor),
+      cursor: nextCursor,
     };
-    if (selectedDays === 'all') {
+    if (selectedDays === 'all' && !options?.batch) {
       await prisma.appSetting.upsert({
         where: { key: checkpointKey },
         update: { value: JSON.stringify({ ...result, cursor: nextCursor || null }) },

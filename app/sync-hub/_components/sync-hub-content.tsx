@@ -5,6 +5,7 @@ import PageHeader from '@/app/components/page-header';
 import { toast } from 'sonner';
 
 type PlatformStatus = 'idle' | 'syncing' | 'success' | 'error';
+type SyncDays = '7' | '30' | '90' | 'all';
 
 interface SyncItem {
   id: string;
@@ -29,6 +30,7 @@ export default function SyncHubContent() {
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('');
+  const [syncDays, setSyncDays] = useState<SyncDays>('7');
 
   const fetchLogs = async () => {
     try {
@@ -58,7 +60,7 @@ export default function SyncHubContent() {
       const res = await fetch(item.apiRoute, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: item.payload ? JSON.stringify(item.payload) : undefined
+        body: JSON.stringify({ ...(item.payload || {}), days: syncDays })
       });
       const data = await res.json();
       
@@ -128,7 +130,22 @@ export default function SyncHubContent() {
           description="Quản lý và đồng bộ dữ liệu từ các nền tảng"
           icon={RefreshCw} 
         />
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+            Khoảng thời gian đồng bộ
+            <select
+              value={syncDays}
+              onChange={(event) => setSyncDays(event.target.value as SyncDays)}
+              disabled={isSyncingAll || items.some(item => item.status === 'syncing')}
+              className="min-w-44 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+            >
+              <option value="7">7 ngày gần nhất</option>
+              <option value="30">30 ngày gần nhất</option>
+              <option value="90">90 ngày gần nhất</option>
+              <option value="all">Toàn bộ thời gian</option>
+            </select>
+          </label>
+          <div className="flex flex-col items-end">
           <button
             onClick={handleSyncAll}
             disabled={isSyncingAll}
@@ -138,6 +155,7 @@ export default function SyncHubContent() {
             Đồng bộ tất cả nền tảng
           </button>
           <span className="text-xs text-gray-500 mt-2 font-medium">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
+          </div>
         </div>
       </div>
 

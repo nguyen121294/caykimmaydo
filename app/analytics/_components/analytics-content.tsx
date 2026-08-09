@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { BarChart3, Trophy, TrendingUp, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, Trophy, TrendingUp, RefreshCw } from 'lucide-react';
 import PageHeader from '@/app/components/page-header';
 import BudgetChart from './budget-chart';
 import WeeklyChart from './weekly-chart';
@@ -8,9 +9,9 @@ import WeeklyChart from './weekly-chart';
 export default function AnalyticsContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [platformTab, setPlatformTab] = useState<'all' | 'facebook' | 'instagram'>('all');
+
+  const [lastUpdate, setLastUpdate] = useState('');
 
   const fetchData = async () => {
     try {
@@ -18,47 +19,8 @@ export default function AnalyticsContent() {
       const res = await fetch('/api/analytics');
       const json = await res?.json?.();
       setData(json ?? {});
+      setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
     } catch {} finally { setLoading(false); }
-  };
-
-  const safeJsonFetch = async (url: string, options?: RequestInit) => {
-    const res = await fetch(url, options);
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return await res.json();
-    }
-    if (res.status === 401 || res.status === 403) {
-      return { success: false, error: 'Chưa đăng nhập hoặc phiên làm việc đã hết hạn. Vui lòng vào trang Kết Nối để lưu Token.' };
-    }
-    return { success: false, error: `Máy chủ trả về HTTP ${res.status}: không đúng định dạng JSON.` };
-  };
-
-  const handleSyncMeta = async () => {
-    try {
-      setSyncing(true);
-      setSyncMessage(null);
-
-      const platforms = ['Facebook Page', 'Facebook Ads', 'Instagram'];
-      const results = await Promise.allSettled(
-        platforms.map(platform => safeJsonFetch('/api/marketing/sync/meta', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform }),
-        }))
-      );
-
-      const successes = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
-      if (successes > 0) {
-        setSyncMessage({ type: 'success', text: `Đã đồng bộ thành công ${successes}/${platforms.length} nền tảng.` });
-        await fetchData();
-      } else {
-        setSyncMessage({ type: 'error', text: 'Đồng bộ không thành công. Vui lòng kiểm tra lại cấu hình.' });
-      }
-    } catch (err: any) {
-      setSyncMessage({ type: 'error', text: err?.message || 'Có lỗi xảy ra khi đồng bộ' });
-    } finally {
-      setSyncing(false);
-    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -85,10 +47,10 @@ export default function AnalyticsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <PageHeader title="Bảng Phân Tích" description="Kết quả A/B Test, hiệu suất chiến dịch và phân tích chi tiết" icon={BarChart3} onRefresh={fetchData} />
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-start gap-3">
           <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
             <button
               onClick={() => setPlatformTab('all')}
@@ -110,25 +72,21 @@ export default function AnalyticsContent() {
             </button>
           </div>
           
-          <button
-            onClick={handleSyncMeta}
-            disabled={syncing}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium text-sm rounded-lg shadow-sm transition-colors whitespace-nowrap"
-          >
-            <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Đang đồng bộ...' : 'Đồng bộ'}
-          </button>
+          <div className="flex flex-col items-center justify-start">
+            <Link
+              href="/sync-hub"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]"
+            >
+              <RefreshCw size={14} /> Đến Sync Hub
+            </Link>
+            {lastUpdate && (
+              <span className="text-[10px] text-slate-400 mt-1 text-center tracking-tight block">
+                Cập nhật: {lastUpdate}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-
-      {syncMessage && (
-        <div className={`p-4 rounded-xl text-sm flex items-center gap-2 ${
-          syncMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
-          {syncMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-          <span>{syncMessage.text}</span>
-        </div>
-      )}
 
       {/* A/B Test Table */}
       {filteredTests.length > 0 && (
@@ -245,4 +203,3 @@ export default function AnalyticsContent() {
     </div>
   );
 }
-

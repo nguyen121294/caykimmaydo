@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const requestedPlatform = body?.platform; // Expected: 'Facebook Page', 'Facebook Ads', or 'Instagram'
+    const days = body?.days;
 
     if (!requestedPlatform) {
       return NextResponse.json({ success: false, error: 'Thiếu tham số platform' }, { status: 400 });
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       if (!token) {
         errors.push('Facebook Page: Chưa có token hợp lệ');
       } else {
-        log = await syncFacebookPage(token, pageId);
+        log = await syncFacebookPage(token, pageId, days);
         if (log.error) errors.push(`Facebook Page: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Facebook Page' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
       if (!token) {
         errors.push('Facebook Ads: Chưa có token hợp lệ');
       } else {
-        log = await syncFacebookAds(token, adAccountId);
+        log = await syncFacebookAds(token, adAccountId, days);
         if (log.error) errors.push(`Facebook Ads: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Facebook Ads' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       if (!token) {
         errors.push('Instagram: Chưa có token hợp lệ');
       } else {
-        log = await syncInstagram(token, igAccountId);
+        log = await syncInstagram(token, igAccountId, days);
         if (log.error) errors.push(`Instagram: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Instagram' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -78,7 +79,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: errors.join(' | '), log }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, log, message: `Đồng bộ ${requestedPlatform} thành công` });
+    const progressMessage = log?.progress
+      ? log.progress.complete
+        ? `Đã lấy đủ lịch sử: ${log.progress.saved} quảng cáo Instagram`
+        : `Đã lấy ${log.progress.saved} quảng cáo Instagram, vẫn còn dữ liệu. Chạy lại để tiếp tục.`
+      : `Đồng bộ ${requestedPlatform} thành công`;
+    return NextResponse.json({ success: true, log, message: progressMessage });
 
   } catch (error: any) {
     try {
@@ -97,4 +103,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

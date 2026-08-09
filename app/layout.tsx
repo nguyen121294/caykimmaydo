@@ -4,6 +4,8 @@ import './globals.css';
 import Providers from './providers';
 import { Toaster } from 'sonner';
 import { GoogleAnalytics } from '@next/third-parties/google';
+import Script from 'next/script';
+import AppShell from './components/app-shell';
 
 const inter = Inter({
   subsets: ['latin', 'latin-ext', 'vietnamese'],
@@ -34,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
-        <script src="https://apps.abacus.ai/chatllm/appllm-lib.js"></script>
+        <Script src="https://apps.abacus.ai/chatllm/appllm-lib.js" strategy="afterInteractive" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <div
@@ -46,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         >
           <Providers>
-            {children}
+            <AppShell>{children}</AppShell>
             <Toaster position="top-right" richColors />
           </Providers>
         </div>

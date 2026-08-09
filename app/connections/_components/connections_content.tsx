@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Plug, CheckCircle, XCircle, RefreshCw, Zap, CloudDownload, Clock, Database, AlertCircle, AlertTriangle, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
@@ -109,9 +110,21 @@ export default function ConnectionsContent() {
 
   useEffect(() => {
     fetchData();
-    if (typeof window !== 'undefined' && window.location.search.includes('select_meta=true')) {
-      setShowMetaModal(true);
-      loadMetaAccounts();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('select_meta') === 'true') {
+        setShowMetaModal(true);
+        loadMetaAccounts();
+      }
+      if (params.get('oauth_success') === 'zalo') {
+        toast.success('Kết nối Zalo OA thành công');
+        window.history.replaceState({}, '', '/connections');
+      }
+      const oauthError = params.get('oauth_error');
+      if (oauthError) {
+        toast.error(`Kết nối Zalo thất bại: ${oauthError}`);
+        window.history.replaceState({}, '', '/connections');
+      }
     }
   }, [fetchData, loadMetaAccounts]);
 
@@ -406,11 +419,10 @@ export default function ConnectionsContent() {
             <Plug size={14} className="text-indigo-600" />
             Tùy Chọn Page & Quảng Cáo
           </button>
-          <button onClick={handleRefreshAll} disabled={syncing !== null || syncingAll}
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 transition-colors">
-            {syncingAll ? <Loader2 size={14} className="animate-spin" /> : <CloudDownload size={14} />}
-            {syncingAll ? 'Đang đồng bộ...' : 'Đồng bộ tất cả'}
-          </button>
+          <Link href="/sync-hub"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]">
+            <RefreshCw size={14} /> Đến Sync Hub
+          </Link>
         </div>
       </div>
 
@@ -427,7 +439,7 @@ export default function ConnectionsContent() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
         <AlertCircle size={18} className="text-blue-600 mt-0.5 shrink-0" />
         <div className="text-sm text-blue-800">
-          <strong>Lưu ý:</strong> Chỉ hỗ trợ dữ liệu từ API. Nhập token thật và nhấn <strong>"Kiểm tra"</strong> để xác minh API. Trạng thái <strong>"Đã kết nối"</strong> chỉ hiển thị khi API test thành công. Nút <strong>"Đồng bộ dữ liệu"</strong> gọi API để lấy dữ liệu.
+          <strong>Lưu ý:</strong> Chỉ hỗ trợ dữ liệu từ API. Nhập token thật và nhấn <strong>&quot;Kiểm tra&quot;</strong> để xác minh API. Trạng thái <strong>&quot;Đã kết nối&quot;</strong> chỉ hiển thị khi API test thành công. Nút <strong>&quot;Đồng bộ dữ liệu&quot;</strong> gọi API để lấy dữ liệu.
         </div>
       </div>
 
@@ -509,19 +521,19 @@ export default function ConnectionsContent() {
                 <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
                   <p className="text-xs text-indigo-700 flex items-center gap-1.5">
                     <Plug size={14} className="text-indigo-500" />
-                    Được ủy quyền tự động qua OAuth. Quản lý trong <a href="/settings" className="font-semibold underline ml-1">Cài Đặt</a>.
+                    Kết nối an toàn qua Zalo OAuth; access token và refresh token được lưu tự động.
                   </p>
                 </div>
               )}
 
-              <input
+              {!p.isOAuth && <input
                 disabled={!isAdmin}
                 className="w-full px-3 py-2 rounded-lg border text-sm bg-white disabled:bg-slate-100 disabled:text-slate-500"
                 placeholder={stored && !tokens[p.key] ? 'Token đã lưu — nhập mới để thay thế' : `Nhập API Token / Key cho ${p.key}`}
                 type="password"
                 value={tokens[p.key] || ''}
                 onChange={e => setTokens(prev => ({ ...prev, [p.key]: e.target.value }))}
-              />
+              />}
 
               {p.hasAdAccountId && (
                 <input
@@ -557,7 +569,7 @@ export default function ConnectionsContent() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {(p.isOAuth || p.syncVia === 'meta') && (
+                {p.syncVia === 'meta' && (
                   <button
                     onClick={() => {
                       setShowMetaModal(true);
@@ -569,7 +581,22 @@ export default function ConnectionsContent() {
                   </button>
                 )}
 
-                {!connected && stored && unverified && !tokens[p.key] ? (
+                {p.isOAuth && !connected && (
+                  isAdmin ? (
+                    <a
+                      href="/api/oauth/zalo/authorize"
+                      className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-1.5 transition-colors"
+                    >
+                      <Plug size={12} /> Kết nối Zalo OA
+                    </a>
+                  ) : (
+                    <button disabled className="px-3 py-2 rounded-lg bg-slate-100 text-slate-500 text-sm cursor-not-allowed">
+                      Cần quyền Admin để kết nối
+                    </button>
+                  )
+                )}
+
+                {!p.isOAuth && (!connected && stored && unverified && !tokens[p.key] ? (
                   <button onClick={() => handleTest(p.key)} disabled={!isAdmin || isTesting || isSyncing}
                     className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
                     {isTesting ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
@@ -581,14 +608,13 @@ export default function ConnectionsContent() {
                     {isTesting ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
                     Kiểm tra
                   </button>
-                )}
+                ))}
 
                 {connected && p.syncVia !== 'unsupported' && (
-                  <button onClick={() => handleSync(p.key)} disabled={isSyncing || isTesting}
-                    className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50 transition-colors">
-                    {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <CloudDownload size={12} />}
-                    Đồng bộ dữ liệu
-                  </button>
+                  <Link href="/sync-hub"
+                    className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center gap-1.5 transition-all shadow-sm">
+                    <RefreshCw size={12} /> Đến Sync Hub
+                  </Link>
                 )}
                 {connected && p.syncVia === 'unsupported' && (
                   <span className="px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-sm flex items-center gap-1.5 border border-amber-200">
@@ -630,8 +656,8 @@ export default function ConnectionsContent() {
 
         <h3 className="font-semibold text-slate-900 mt-6 mb-3">Quy trình kiểm tra & đồng bộ chung</h3>
         <div className="text-sm text-slate-600 space-y-2">
-          <p>• <strong>Bước 1:</strong> Nhập API Token thật của nền tảng và nhấn <strong>"Kiểm tra"</strong>. Hệ thống sẽ gọi API thật để xác minh token.</p>
-          <p>• <strong>Bước 2:</strong> Sau khi kiểm tra thành công (badge xanh "Đã kết nối"), nhấn <strong>"Đồng bộ dữ liệu"</strong> để lấy dữ liệu thật và lưu vào database.</p>
+          <p>• <strong>Bước 1:</strong> Nhập API Token thật của nền tảng và nhấn <strong>&quot;Kiểm tra&quot;</strong>. Hệ thống sẽ gọi API thật để xác minh token.</p>
+          <p>• <strong>Bước 2:</strong> Sau khi kiểm tra thành công (badge xanh &quot;Đã kết nối&quot;), nhấn <strong>&quot;Đồng bộ dữ liệu&quot;</strong> để lấy dữ liệu thật và lưu vào database.</p>
           <p>• <strong>Bước 3:</strong> Dữ liệu thật được lưu vào database → hiển thị trên Dashboard & Marketing.</p>
           <p>• <strong>Facebook Ads:</strong> Cần token + Ad Account ID hợp lệ (quyền <code>ads_read</code>). Dữ liệu từ <code>actions</code> và <code>action_values</code> được map thành Leads, Purchases, Revenue.</p>
           <p>• <strong>Instagram:</strong> Token cần quyền <code>instagram_basic</code> + <code>pages_show_list</code>.</p>
@@ -687,7 +713,7 @@ export default function ConnectionsContent() {
                     </select>
                   ) : (
                     <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                      Không tìm thấy Fanpage nào hoặc chưa kết nối tài khoản. Vui lòng nhấn <strong>"Kết Nối Facebook"</strong> trong Cài Đặt.
+                      Không tìm thấy Fanpage nào hoặc chưa kết nối tài khoản. Vui lòng nhấn <strong>&quot;Kết Nối Facebook&quot;</strong> trong Cài Đặt.
                     </p>
                   )}
                 </div>

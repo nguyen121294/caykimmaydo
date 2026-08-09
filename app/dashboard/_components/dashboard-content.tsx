@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { DollarSign, ShoppingCart, TrendingUp, Megaphone, Percent, Film, Calendar, MessageSquare, AlertTriangle, CheckCircle, XCircle, Info, CloudOff, RefreshCw } from 'lucide-react';
 import KpiCard from '@/app/components/kpi-card';
 import PageHeader from '@/app/components/page-header';
@@ -11,8 +12,6 @@ import CampaignManager from '../campaigns/_components/campaign-manager';
 export default function DashboardContent() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [timeRange, setTimeRange] = useState('30');
   const [lastUpdate, setLastUpdate] = useState('');
 
@@ -22,6 +21,7 @@ export default function DashboardContent() {
       const res = await fetch(`/api/dashboard?days=${timeRange}`);
       const json = await res?.json?.();
       setData(json ?? {});
+      setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
     } catch {
     } finally {
       setLoading(false);
@@ -33,54 +33,6 @@ export default function DashboardContent() {
     const interval = setInterval(fetchData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [timeRange]);
-
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      setSyncMsg(null);
-
-      const platformsToSync: string[] = ['Facebook Page', 'Facebook Ads', 'Instagram'];
-
-      if (platformsToSync.length === 0) return;
-
-      const results = await Promise.allSettled(
-        platformsToSync.map(platform =>
-          fetch('/api/marketing/sync/meta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ platform }),
-          })
-            .then(r => r.json())
-            .catch(() => ({}))
-        )
-      );
-
-      const details: string[] = [];
-      let hasSuccess = false;
-
-      results.forEach((r, i) => {
-        const name = platformsToSync[i];
-        if (r.status === 'fulfilled' && r.value?.success) {
-          hasSuccess = true;
-          const saved = r.value?.log?.recordsSaved ?? 0;
-          details.push(`${name}: ${saved} bản ghi`);
-        } else {
-          details.push(`${name}: thất bại`);
-        }
-      });
-
-      if (hasSuccess) {
-        setSyncMsg({ type: 'success', text: `Đã đồng bộ — ${details.join(' | ')}` });
-      } else {
-        setSyncMsg({ type: 'error', text: `Đồng bộ thất bại. ${details.join(' | ')}. Kiểm tra Token ở trang Kết Nối.` });
-      }
-      await fetchData();
-    } catch {
-      setSyncMsg({ type: 'error', text: 'Lỗi kết nối khi đồng bộ.' });
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const getAlertIcon = (type: string) => {
     switch (type) {
@@ -181,26 +133,21 @@ export default function DashboardContent() {
           <option value="all">Tất cả thời gian</option>
         </select>
         
-        <div className="flex flex-col items-end">
-          <a
+        <div className="flex flex-col items-center justify-start">
+          <Link
             href="/sync-hub"
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm hover:shadow-md transition-all font-medium whitespace-nowrap"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]"
           >
             <RefreshCw size={14} />
-            Đồng bộ dữ liệu (Sync Hub)
-          </a>
-          <span className="text-[10px] text-gray-400 mt-1">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
+            Đến Sync Hub
+          </Link>
+          {lastUpdate && (
+            <span className="text-[10px] text-slate-400 mt-1 text-center tracking-tight block">
+              Cập nhật: {lastUpdate}
+            </span>
+          )}
         </div>
       </PageHeader>
-
-      {syncMsg && (
-        <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
-          syncMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
-        }`}>
-          {syncMsg.type === 'success' ? <CheckCircle size={16} /> : <XCircle size={16} />}
-          <span>{syncMsg.text}</span>
-        </div>
-      )}
 
       {/* KPI Cards */}
       {renderKpis()}

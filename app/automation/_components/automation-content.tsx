@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Bell, Clock, CheckCircle, XCircle, AlertTriangle, Play, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, Clock, CheckCircle, XCircle, AlertTriangle, Play, FileText, RefreshCw } from 'lucide-react';
 import PageHeader from '@/app/components/page-header';
-import { toast } from 'sonner';
 
 export default function AutomationContent() {
   const [data, setData] = useState<any>({ logs: [], rawLogs: '', lastSync: null, totalLogs: 0 });
@@ -19,14 +19,6 @@ export default function AutomationContent() {
   };
 
   useEffect(() => { fetchData(); }, []);
-
-  const triggerSync = () => {
-    toast.info('Đang đồng bộ dữ liệu...');
-    setTimeout(() => {
-      toast.success('Đồng bộ hoàn tất!');
-      fetchData();
-    }, 2000);
-  };
 
   const getLevelIcon = (level: string) => {
     switch (level?.toLowerCase?.()) {
@@ -88,12 +80,12 @@ export default function AutomationContent() {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={triggerSync}
-          className="flex items-center gap-2 px-4 py-2 text-sm gradient-bg text-white rounded-lg shadow-sm hover:opacity-90 transition font-medium"
+        <Link
+          href="/sync-hub"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]"
         >
-          <Play size={14} /> Đồng Bộ Ngay
-        </button>
+          <RefreshCw size={14} /> Đến Sync Hub
+        </Link>
         <button
           onClick={() => setShowRaw(!showRaw)}
           className="flex items-center gap-2 px-4 py-2 text-sm bg-white rounded-lg shadow-sm hover:shadow-md transition text-gray-700 font-medium"

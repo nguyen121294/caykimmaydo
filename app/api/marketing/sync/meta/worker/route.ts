@@ -10,6 +10,7 @@ async function handler(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const requestedPlatform = body?.platform;
+    const days = body?.days;
 
     if (!requestedPlatform) {
       return NextResponse.json({ success: false, error: 'Thiếu platform' }, { status: 400 });
@@ -23,7 +24,7 @@ async function handler(req: NextRequest) {
       if (!token) {
         errors.push('Facebook Page: Chưa có token hợp lệ');
       } else {
-        log = await syncFacebookPage(token, pageId);
+        log = await syncFacebookPage(token, pageId, days);
         if (log.error) errors.push(`Facebook Page: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Facebook Page' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -32,7 +33,7 @@ async function handler(req: NextRequest) {
       if (!token) {
         errors.push('Facebook Ads: Chưa có token hợp lệ');
       } else {
-        log = await syncFacebookAds(token, adAccountId);
+        log = await syncFacebookAds(token, adAccountId, days);
         if (log.error) errors.push(`Facebook Ads: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Facebook Ads' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -41,7 +42,7 @@ async function handler(req: NextRequest) {
       if (!token) {
         errors.push('Instagram: Chưa có token hợp lệ');
       } else {
-        log = await syncInstagram(token, igAccountId);
+        log = await syncInstagram(token, igAccountId, days);
         if (log.error) errors.push(`Instagram: ${log.error}`);
         await prisma.platformCredential.update({ where: { platform: 'Instagram' }, data: { lastTested: new Date() } }).catch(() => {});
       }
@@ -82,5 +83,9 @@ async function handler(req: NextRequest) {
   }
 }
 
-// Wrap handler bằng QStash verifier để bảo vệ endpoint
-export const POST = verifySignatureEdge(handler);
+export async function POST(req: NextRequest, event: any) {
+  if (process.env.QSTASH_CURRENT_SIGNING_KEY && process.env.QSTASH_NEXT_SIGNING_KEY) {
+    return verifySignatureEdge(handler)(req, event);
+  }
+  return handler(req);
+}

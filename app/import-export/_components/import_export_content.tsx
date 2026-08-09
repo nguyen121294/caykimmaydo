@@ -171,7 +171,7 @@ export default function ImportExportContent() {
       <div className="bg-white rounded-xl shadow-sm border p-6">
         <h3 className="font-semibold text-slate-900 mb-3">Hướng dẫn Import/Export</h3>
         <div className="text-sm text-slate-600 space-y-2">
-          <p><strong>1. Xuất dữ liệu:</strong> Bấm "Xuất CSV" để tải file. Mở bằng Excel hoặc Google Sheets.</p>
+          <p><strong>1. Xuất dữ liệu:</strong> Bấm &quot;Xuất CSV&quot; để tải file. Mở bằng Excel hoặc Google Sheets.</p>
           <p><strong>2. Chỉnh sửa:</strong> Sửa dữ liệu trong Excel/Google Sheets. Giữ nguyên header.</p>
           <p><strong>3. Nhập lại:</strong> Lưu lại dạng CSV (UTF-8), rồi upload lên lại.</p>
           <p><strong>Lưu ý:</strong> Hệ thống sẽ tự động bỏ qua cột id, createdAt, updatedAt khi import.</p>

@@ -20,7 +20,7 @@ export default function PageHeader({ title, description, icon: Icon, onRefresh, 
   };
 
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex items-start justify-between mb-6">
       <div className="flex items-center gap-3">
         {Icon && (
           <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-sm">
@@ -32,7 +32,7 @@ export default function PageHeader({ title, description, icon: Icon, onRefresh, 
           {description && <p className="text-sm text-muted-foreground mt-0.5">{description}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         {children}
         {onRefresh && (
           <button

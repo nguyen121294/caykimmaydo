@@ -65,9 +65,9 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.redirect(new URL('/settings?oauth_success=zalo', request.url));
+    return NextResponse.redirect(new URL('/connections?oauth_success=zalo', request.url));
   } catch (error: any) {
     console.error('Zalo OAuth Error:', error);
-    return NextResponse.redirect(new URL(`/settings?error=${encodeURIComponent(error.message)}`, request.url));
+    return NextResponse.redirect(new URL(`/connections?oauth_error=${encodeURIComponent(error.message)}`, request.url));
   }
 }

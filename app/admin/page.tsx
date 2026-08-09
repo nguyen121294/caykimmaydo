@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../components/sidebar';
 import PageHeader from '../components/page-header';
 import { UserPlus, Users, KeyRound, Mail, User, ShieldCheck, RefreshCw, Search, Key, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -121,10 +120,8 @@ export default function AdminManagementPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
-      <Sidebar />
-
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 -m-4 md:-m-6 lg:-m-8 p-4 lg:p-8">
+      <main className="space-y-6">
         <PageHeader
           title="Quản Trị Người Dùng"
           description="Tạo tài khoản mới & Quản lý phân quyền nhân viên hệ thống"

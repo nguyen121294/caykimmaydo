@@ -1,15 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { 
   Camera, Heart, MessageCircle, RefreshCw, 
   Search, Filter, Calendar, ExternalLink, Sparkles, TrendingUp,
-  Clock, Loader2, Image as ImageIcon, Video, Layers
+  Clock, Loader2, Image as ImageIcon, Video, Layers, Share2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface InstagramPost {
   id: string;
+  adId?: string;
+  adName?: string;
+  campaignName?: string;
+  adSetName?: string;
   postId: string;
   igAccountId?: string;
   caption?: string;
@@ -19,6 +24,8 @@ interface InstagramPost {
   createdTime?: string;
   likesCount: number;
   commentsCount: number;
+  sharesCount?: number;
+  engagementCount?: number;
   adSpend?: number;
   adReach?: number;
   adVisits?: number;
@@ -33,7 +40,7 @@ interface SummaryStats {
   totalComments: number;
 }
 
-export default function InstagramPostsContent() {
+export default function InstagramPostsContent({ filterType = 'organic' }: { filterType?: 'organic' | 'ads' }) {
   const [posts, setPosts] = useState<InstagramPost[]>([]);
   const [summary, setSummary] = useState<SummaryStats>({
     totalPosts: 0,
@@ -41,22 +48,31 @@ export default function InstagramPostsContent() {
     totalComments: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(filterType === 'ads' ? 'table' : 'grid');
   const [lastUpdate, setLastUpdate] = useState('');
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
 
   // Filters
   const [search, setSearch] = useState('');
   const [days, setDays] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
-  const [filterType, setFilterType] = useState<'all' | 'ads'>('all');
 
   const filteredPosts = posts.filter(post => {
-    if (filterType === 'ads') {
-      return post.adStatus !== undefined || (post.adSpend && post.adSpend > 0);
-    }
-    return true;
+    if (filterType === 'ads') return true;
+    const isAd = Boolean(post.adStatus) || Boolean(post.adSpend && post.adSpend > 0);
+    return !isAd; // organic
   });
+
+  const totalPostsCount = filteredPosts.length;
+  const totalLikesCount = filteredPosts.reduce((sum, p) => sum + (p.likesCount || 0), 0);
+  const totalCommentsCount = filteredPosts.reduce((sum, p) => sum + (p.commentsCount || 0), 0);
+  const totalInteractions = totalLikesCount + totalCommentsCount;
+  const totalAdSpend = filteredPosts.reduce((sum, post) => sum + (post.adSpend || 0), 0);
+  const totalAdReach = filteredPosts.reduce((sum, post) => sum + (post.adReach || 0), 0);
+  const totalAdVisits = filteredPosts.reduce((sum, post) => sum + (post.adVisits || 0), 0);
+  const avgEngagementRate = totalPostsCount > 0
+    ? (totalInteractions / totalPostsCount).toFixed(1)
+    : '0.0';
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -66,7 +82,8 @@ export default function InstagramPostsContent() {
       if (days !== 'all') params.append('days', days);
       if (sortBy) params.append('sortBy', sortBy);
 
-      const res = await fetch(`/api/instagram/posts?${params.toString()}`);
+      const endpoint = filterType === 'ads' ? '/api/instagram/ads' : '/api/instagram/posts';
+      const res = await fetch(`${endpoint}?${params.toString()}`);
       const data = await res.json();
 
       if (res.ok && data.success) {
@@ -81,37 +98,11 @@ export default function InstagramPostsContent() {
     } finally {
       setLoading(false);
     }
-  }, [search, days, sortBy]);
+  }, [search, days, sortBy, filterType]);
 
   useEffect(() => {
     fetchPosts();
   }, [fetchPosts]);
-
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      const res = await fetch('/api/instagram/posts', {
-        method: 'POST',
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success(data.message || 'Đồng bộ bài viết Instagram thành công!');
-        fetchPosts();
-      } else {
-        toast.error(data.error || 'Đồng bộ thất bại. Vui lòng kiểm tra lại Token Instagram.');
-      }
-    } catch {
-      toast.error('Lỗi khi gửi yêu cầu đồng bộ');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const totalInteractions = summary.totalLikes + summary.totalComments;
-  const avgEngagementRate = summary.totalPosts > 0
-    ? (totalInteractions / summary.totalPosts).toFixed(1)
-    : '0.0';
 
   const renderMediaTypeBadge = (type?: string) => {
     if (type === 'VIDEO') {
@@ -138,51 +129,66 @@ export default function InstagramPostsContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <div className="p-2.5 bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 text-white rounded-2xl shadow-sm">
               <Camera size={24} />
             </div>
-            Bài Đăng Instagram Business
+            {filterType === 'ads' ? 'Quảng Cáo Instagram' : 'Bài Đăng Instagram (Tự Nhiên)'}
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Theo dõi danh sách và số liệu tương tác (Lượt Thích, Lượt Bình Luận) các bài đăng Instagram
+            {filterType === 'ads'
+              ? 'Theo dõi hiệu suất và chi phí của các bài viết được chạy quảng cáo'
+              : 'Theo dõi danh sách và số liệu tương tác các bài đăng tự nhiên'}
           </p>
         </div>
 
-        <div className="flex flex-col items-end justify-center">
-          <span className="text-xs text-gray-400">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
-          <a href="/sync-hub" className="text-sm text-pink-600 hover:text-pink-800 font-medium mt-1 flex items-center gap-1">
-            <RefreshCw size={12} />
+        <div className="flex flex-col items-center justify-start">
+          <Link
+            href="/sync-hub"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]"
+          >
+            <RefreshCw size={14} />
             Đến Sync Hub
-          </a>
+          </Link>
+          {lastUpdate && (
+            <span className="text-[10px] text-slate-400 mt-1 text-center tracking-tight block">
+              Cập nhật: {lastUpdate}
+            </span>
+          )}
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-1">
-          <p className="text-xs text-slate-500 font-medium">Tổng số bài viết</p>
-          <p className="text-2xl font-bold text-slate-900">{summary.totalPosts}</p>
+          <p className="text-xs text-slate-500 font-medium">{filterType === 'ads' ? 'Tổng số quảng cáo' : 'Tổng số bài viết'}</p>
+          <p className="text-2xl font-bold text-slate-900">{totalPostsCount}</p>
         </div>
         <div className="bg-pink-50/70 p-4 rounded-2xl border border-pink-100 shadow-sm space-y-1">
           <p className="text-xs text-pink-700 font-medium flex items-center gap-1">
-            <Heart size={12} className="fill-pink-500 text-pink-500" /> Tổng lượt Thích
+            <Heart size={12} className="fill-pink-500 text-pink-500" /> {filterType === 'ads' ? 'Tổng chi tiêu' : 'Tổng lượt Thích'}
           </p>
-          <p className="text-2xl font-bold text-pink-900">{summary.totalLikes.toLocaleString('vi-VN')}</p>
+          <p className="text-2xl font-bold text-pink-900">
+            {filterType === 'ads' ? `${totalAdSpend.toLocaleString('vi-VN')} đ` : totalLikesCount.toLocaleString('vi-VN')}
+          </p>
         </div>
         <div className="bg-purple-50/70 p-4 rounded-2xl border border-purple-100 shadow-sm space-y-1">
           <p className="text-xs text-purple-700 font-medium flex items-center gap-1">
-            <MessageCircle size={12} /> Tổng lượt Bình luận
+            <MessageCircle size={12} /> {filterType === 'ads' ? 'Tổng tiếp cận' : 'Tổng lượt Bình luận'}
           </p>
-          <p className="text-2xl font-bold text-purple-900">{summary.totalComments.toLocaleString('vi-VN')}</p>
+          <p className="text-2xl font-bold text-purple-900">
+            {filterType === 'ads' ? totalAdReach.toLocaleString('vi-VN') : totalCommentsCount.toLocaleString('vi-VN')}
+          </p>
         </div>
         <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-100 shadow-sm space-y-1">
           <p className="text-xs text-amber-700 font-medium flex items-center gap-1">
-            <TrendingUp size={12} /> Tương tác TB / Bài
+            <TrendingUp size={12} /> {filterType === 'ads' ? 'Tổng truy cập' : 'Tương tác TB / Bài'}
           </p>
-          <p className="text-2xl font-bold text-amber-900">{avgEngagementRate}</p>
+          <p className="text-2xl font-bold text-amber-900">
+            {filterType === 'ads' ? totalAdVisits.toLocaleString('vi-VN') : avgEngagementRate}
+          </p>
         </div>
       </div>
 
@@ -193,7 +199,7 @@ export default function InstagramPostsContent() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo nội dung Caption..."
+            placeholder={filterType === 'ads' ? 'Tìm theo tên Ads, Campaign...' : 'Tìm theo nội dung Caption...'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
@@ -201,26 +207,6 @@ export default function InstagramPostsContent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-          {/* Filter Type Toggle */}
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button
-              onClick={() => setFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                filterType === 'all' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Tất cả bài viết
-            </button>
-            <button
-              onClick={() => setFilterType('ads')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                filterType === 'ads' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Bài chạy Ads
-            </button>
-          </div>
-
           {/* View Toggle */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
             <button
@@ -264,8 +250,18 @@ export default function InstagramPostsContent() {
               className="bg-transparent focus:outline-none font-semibold text-slate-800"
             >
               <option value="newest">Mới nhất</option>
-              <option value="likes">Nhiều Like nhất</option>
-              <option value="comments">Nhiều Comment nhất</option>
+              {filterType === 'ads' ? (
+                <>
+                  <option value="spend">Chi tiêu cao nhất</option>
+                  <option value="reach">Tiếp cận cao nhất</option>
+                  <option value="visits">Truy cập cao nhất</option>
+                </>
+              ) : (
+                <>
+                  <option value="likes">Nhiều Like nhất</option>
+                  <option value="comments">Nhiều Comment nhất</option>
+                </>
+              )}
               <option value="oldest">Cũ nhất</option>
             </select>
           </div>
@@ -286,16 +282,15 @@ export default function InstagramPostsContent() {
           <div className="space-y-1">
             <h3 className="text-base font-bold text-slate-900">Chưa có bài viết Instagram nào</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Nhấn nút <strong>"Đồng bộ bài viết mới"</strong> ở góc trên để kết nối với Instagram API và cập nhật danh sách bài đăng.
+              Đến Sync Hub để kết nối Instagram API và cập nhật danh sách bài đăng.
             </p>
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
+          <Link
+            href="/sync-hub"
             className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
           >
-            <RefreshCw size={14} /> Đồng bộ ngay
-          </button>
+            <RefreshCw size={14} /> Đến Sync Hub
+          </Link>
         </div>
       ) : viewMode === 'table' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">
@@ -305,14 +300,14 @@ export default function InstagramPostsContent() {
                 <th className="px-4 py-3">Bài viết</th>
                 <th className="px-4 py-3 text-center">Truy cập trang</th>
                 <th className="px-4 py-3 text-center">Chi phí / Truy cập</th>
-                <th className="px-4 py-3">Chi tiết (Ads Mock)</th>
+                <th className="px-4 py-3">Chi tiết quảng cáo</th>
                 <th className="px-4 py-3">Nhân khẩu học</th>
                 <th className="px-4 py-3 text-center">Tương tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredPosts.map((post, idx) => {
-                const postInteractions = post.likesCount + post.commentsCount;
+                const postInteractions = post.engagementCount || post.likesCount + post.commentsCount + (post.sharesCount || 0);
 
                 // Real Ads Data
                 const adVisits = post.adVisits || 0;
@@ -322,22 +317,24 @@ export default function InstagramPostsContent() {
                 const adStatus = post.adStatus || 'Không chạy Ads';
                 
                 // Real Demographics
-                let hcmPercent = 0;
-                let hnPercent = 0;
-                let femalePercent = 0;
-                let age1824 = 0;
-                let age2534 = 0;
+                let femalePercent: number | null = null;
+                let regions: Array<{ name: string; reach: number; percent: number }> = [];
+                let ageGroups: Array<{ name: string; reach: number; percent: number }> = [];
+                let demographicsAvailable = false;
 
                 if (post.demographics) {
                   try {
                     const demo = typeof post.demographics === 'string' ? JSON.parse(post.demographics) : post.demographics;
-                    hcmPercent = demo.hcmPercent || 0;
-                    hnPercent = demo.hnPercent || 0;
-                    femalePercent = demo.femalePercent || 0;
-                    age1824 = demo.age1824 || 0;
-                    age2534 = demo.age2534 || 0;
+                    demographicsAvailable = demo.available === true;
+                    if (demographicsAvailable) {
+                      femalePercent = typeof demo.femalePercent === 'number' ? demo.femalePercent : null;
+                      regions = Array.isArray(demo.regions) ? demo.regions : [];
+                      ageGroups = Array.isArray(demo.ageGroups) ? demo.ageGroups : [];
+                    }
                   } catch (e) {}
                 }
+                const regionsExpanded = expandedRegions.has(post.id);
+                const visibleRegions = regionsExpanded ? regions : regions.slice(0, 5);
                 
                 return (
                   <tr key={post.id} className="hover:bg-slate-50/50">
@@ -349,10 +346,12 @@ export default function InstagramPostsContent() {
                           <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400">Media</div>
                         )}
                         <div>
-                          <p className="font-medium text-slate-900 line-clamp-2 text-xs">{post.caption || 'Không có mô tả'}</p>
+                          <p className="font-medium text-slate-900 line-clamp-2 text-xs">{post.adName || post.caption || 'Không có mô tả'}</p>
+                          {post.adId && <p className="text-[10px] text-slate-400 mt-1">Ad ID: {post.adId}</p>}
+                          {post.campaignName && <p className="text-[10px] text-slate-500 mt-1 line-clamp-1">Campaign: {post.campaignName}</p>}
                           <p className="text-[10px] text-slate-500 mt-1 flex items-center flex-wrap gap-1">
                             <Clock size={10} /> {post.createdTime ? new Date(post.createdTime).toLocaleDateString('vi-VN') : 'Mới đây'}
-                            {adSpend > 0 && <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 font-bold rounded-[4px] text-[9px] border border-emerald-200 uppercase tracking-wider">Đang chạy Ads</span>}
+                            {adSpend > 0 && <span className={`ml-1 px-1.5 py-0.5 font-bold rounded-[4px] text-[9px] border uppercase tracking-wider ${adStatus === 'Đang chạy' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{adStatus}</span>}
                           </p>
                           {post.permalinkUrl && (
                             <a href={post.permalinkUrl} target="_blank" rel="noreferrer" className="text-[10px] text-pink-600 font-medium hover:underline flex items-center gap-0.5 mt-1">
@@ -372,7 +371,7 @@ export default function InstagramPostsContent() {
                       <div className="flex justify-between"><span>Vị trí:</span> <span className="font-medium text-slate-900">Instagram</span></div>
                       <div className="flex justify-between">
                         <span>Trạng thái:</span> 
-                        <span className={`font-medium ${adStatus === 'ACTIVE' ? 'text-emerald-600' : 'text-slate-600'}`}>
+                        <span className={`font-medium ${adStatus === 'Đang chạy' ? 'text-emerald-600' : 'text-slate-600'}`}>
                           {adStatus}
                         </span>
                       </div>
@@ -380,23 +379,47 @@ export default function InstagramPostsContent() {
                       <div className="flex justify-between"><span>Lượt tiếp cận:</span> <span className="font-medium text-slate-900">{adReach.toLocaleString('vi-VN')}</span></div>
                       <div className="flex justify-between pt-1 mt-1 border-t border-slate-100">
                         <span className="shrink-0 mr-2">Đối tượng:</span> 
-                        <span className="font-medium text-slate-900 text-right line-clamp-2" title="Đối tượng từ API hoặc Nhắm mục tiêu">Dữ liệu từ Meta Insights</span>
+                        <span className="font-medium text-slate-900 text-right line-clamp-2" title="Đối tượng từ Meta Insights">
+                          {demographicsAvailable ? 'Dữ liệu từ Meta Insights' : 'Chưa có dữ liệu từ Meta'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 min-w-[200px] text-xs text-slate-600">
                       <div className="space-y-2">
-                        <div>
-                          <div className="flex justify-between text-[10px] mb-0.5 font-medium"><span>📍 Hồ Chí Minh</span> <span>{hcmPercent}%</span></div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-pink-500 h-1.5 rounded-full" style={{width: `${hcmPercent}%`}}></div></div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-[10px] mb-0.5 font-medium"><span>📍 Hà Nội</span> <span>{hnPercent}%</span></div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5"><div className="bg-purple-500 h-1.5 rounded-full" style={{width: `${hnPercent}%`}}></div></div>
-                        </div>
+                        {visibleRegions.map((region) => (
+                          <div key={region.name}>
+                            <div className="flex justify-between gap-2 text-[10px] mb-0.5 font-medium">
+                              <span className="truncate" title={region.name}>📍 {region.name}</span>
+                              <span>{region.percent}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5">
+                              <div className="bg-pink-500 h-1.5 rounded-full" style={{ width: `${region.percent}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                        {regions.length > 5 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedRegions((current) => {
+                              const next = new Set(current);
+                              if (next.has(post.id)) next.delete(post.id); else next.add(post.id);
+                              return next;
+                            })}
+                            className="text-[10px] font-semibold text-pink-600 hover:text-pink-700"
+                          >
+                            {regionsExpanded ? 'Thu gọn' : `Xem tất cả (${regions.length})`}
+                          </button>
+                        )}
                         <div className="pt-1.5 mt-1.5 border-t border-slate-100 space-y-1">
-                           <div className="flex justify-between text-[10px]"><span>👩 Giới tính Nữ</span> <span className="font-semibold">{femalePercent}%</span></div>
-                           <div className="flex justify-between text-[10px]"><span>👱 Tuổi 18-24</span> <span className="font-semibold">{age1824}%</span></div>
-                           <div className="flex justify-between text-[10px]"><span>🧑 Tuổi 25-34</span> <span className="font-semibold">{age2534}%</span></div>
+                           <div className="flex justify-between text-[10px]"><span>👩 Giới tính Nữ</span> <span className="font-semibold">{femalePercent === null ? '—' : `${femalePercent}%`}</span></div>
+                           {ageGroups.map((group) => (
+                             <div key={group.name} className="flex justify-between text-[10px]">
+                               <span>🧑 Tuổi {group.name}</span>
+                               <span className="font-semibold">{group.percent}%</span>
+                             </div>
+                           ))}
+                           {!demographicsAvailable && <p className="pt-1 text-[10px] text-slate-400">Meta không cung cấp dữ liệu</p>}
+                           {demographicsAvailable && regions.length === 0 && ageGroups.length === 0 && <p className="pt-1 text-[10px] text-slate-400">Đồng bộ lại để lấy dữ liệu động</p>}
                         </div>
                       </div>
                     </td>
@@ -409,6 +432,10 @@ export default function InstagramPostsContent() {
                         <div className="flex justify-between items-center text-xs bg-slate-100 px-2 py-1 rounded">
                           <span className="flex items-center gap-1 text-slate-500"><MessageCircle size={10} className="text-purple-500"/> Cmt</span>
                           <span className="font-semibold text-slate-900">{post.commentsCount}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-xs bg-slate-100 px-2 py-1 rounded">
+                          <span className="flex items-center gap-1 text-slate-500"><Share2 size={10} className="text-blue-500"/> Share</span>
+                          <span className="font-semibold text-slate-900">{post.sharesCount || 0}</span>
                         </div>
                         <div className="flex justify-between items-center text-xs bg-slate-100 px-2 py-1 rounded">
                           <span className="flex items-center gap-1 text-slate-500"><TrendingUp size={10} className="text-amber-500"/> Total</span>

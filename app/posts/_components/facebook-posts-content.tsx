@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { 
   Share2, ThumbsUp, Eye, MessageCircle, Share, RefreshCw, 
   Search, Filter, Calendar, ExternalLink, Sparkles, TrendingUp,
@@ -47,7 +48,6 @@ export default function FacebookPostsContent() {
     totalShares: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [lastUpdate, setLastUpdate] = useState('');
 
@@ -58,9 +58,8 @@ export default function FacebookPostsContent() {
   const [filterType, setFilterType] = useState<'all' | 'ads'>('all');
 
   const filteredPosts = posts.filter(post => {
-    if (filterType === 'ads') {
-      return post.adStatus !== undefined || (post.adSpend && post.adSpend > 0);
-    }
+    const isAd = Boolean(post.adStatus) || Boolean(post.adSpend && post.adSpend > 0);
+    if (filterType === 'ads') return isAd;
     return true;
   });
 
@@ -93,27 +92,6 @@ export default function FacebookPostsContent() {
     fetchPosts();
   }, [fetchPosts]);
 
-  const handleSync = async () => {
-    try {
-      setSyncing(true);
-      const res = await fetch('/api/facebook/posts', {
-        method: 'POST',
-      });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        toast.success(data.message || 'Đồng bộ bài viết thành công!');
-        fetchPosts();
-      } else {
-        toast.error(data.error || 'Đồng bộ thất bại. Vui lòng kiểm tra lại Token Facebook.');
-      }
-    } catch {
-      toast.error('Lỗi khi gửi yêu cầu đồng bộ');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const avgEngagementRate = summary.totalViews > 0
     ? (((summary.totalLikes + summary.totalComments + summary.totalShares) / summary.totalViews) * 100).toFixed(2)
     : '0.00';
@@ -121,7 +99,7 @@ export default function FacebookPostsContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
             <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
@@ -134,12 +112,19 @@ export default function FacebookPostsContent() {
           </p>
         </div>
 
-        <div className="flex flex-col items-end justify-center">
-          <span className="text-xs text-gray-400">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
-          <a href="/sync-hub" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mt-1 flex items-center gap-1">
-            <RefreshCw size={12} />
+        <div className="flex flex-col items-center justify-start">
+          <Link
+            href="/sync-hub"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-sm transition-all whitespace-nowrap min-w-[130px]"
+          >
+            <RefreshCw size={14} />
             Đến Sync Hub
-          </a>
+          </Link>
+          {lastUpdate && (
+            <span className="text-[10px] text-slate-400 mt-1 text-center tracking-tight block">
+              Cập nhật: {lastUpdate}
+            </span>
+          )}
         </div>
       </div>
 
@@ -278,16 +263,15 @@ export default function FacebookPostsContent() {
           <div className="space-y-1">
             <h3 className="text-base font-bold text-slate-900">Chưa có dữ liệu bài viết nào</h3>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Nhấn nút <strong>"Đồng bộ bài viết mới"</strong> ở góc trên để kết nối với Facebook API và cập nhật số liệu mới nhất.
+              Đến Sync Hub để kết nối Facebook API và cập nhật số liệu mới nhất.
             </p>
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
+          <Link
+            href="/sync-hub"
             className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold inline-flex items-center gap-1.5"
           >
-            <RefreshCw size={14} /> Đồng bộ ngay
-          </button>
+            <RefreshCw size={14} /> Đến Sync Hub
+          </Link>
         </div>
       ) : viewMode === 'table' ? (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden overflow-x-auto">

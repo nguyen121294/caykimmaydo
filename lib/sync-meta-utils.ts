@@ -7,6 +7,32 @@ export interface SyncLog {
   recordsSaved: number;
   syncedAt: string;
   error?: string;
+  progress?: {
+    fetched: number;
+    saved: number;
+    complete: boolean;
+    hasMore: boolean;
+  };
+}
+
+export type SyncDays = '7' | '30' | '90' | 'all';
+
+function normalizeSyncDays(value: unknown): SyncDays {
+  return value === '7' || value === '30' || value === '90' || value === 'all' ? value : '30';
+}
+
+function getMetaDateFilter(value: unknown) {
+  const days = normalizeSyncDays(value);
+  if (days === 'all') return 'date_preset=maximum';
+
+  const until = new Date();
+  const since = new Date(until);
+  since.setUTCDate(since.getUTCDate() - Number(days) + 1);
+  const range = {
+    since: since.toISOString().slice(0, 10),
+    until: until.toISOString().slice(0, 10),
+  };
+  return `time_range=${encodeURIComponent(JSON.stringify(range))}`;
 }
 
 export async function getTokenForPlatform(platform: string): Promise<{ token: string | null; pageId?: string; adAccountId?: string; igAccountId?: string }> {
@@ -34,7 +60,7 @@ export async function getTokenForPlatform(platform: string): Promise<{ token: st
 }
 
 // ===== FACEBOOK PAGE SYNC =====
-export async function syncFacebookPage(token: string, pageId?: string): Promise<SyncLog> {
+export async function syncFacebookPage(token: string, pageId?: string, days?: unknown): Promise<SyncLog> {
   const log: SyncLog = { platform: 'Facebook Page', recordsFetched: 0, recordsSaved: 0, syncedAt: new Date().toISOString() };
   const today = new Date().toISOString().slice(0, 10);
 
@@ -85,7 +111,13 @@ export async function syncFacebookPage(token: string, pageId?: string): Promise<
     }
 
     const convData = await convRes.json();
-    const conversations = convData?.data || [];
+    const cutoff = normalizeSyncDays(days) === 'all'
+      ? null
+      : new Date(Date.now() - Number(normalizeSyncDays(days)) * 24 * 60 * 60 * 1000);
+    const conversations = (convData?.data || []).filter((conv: any) => {
+      const createdAt = conv?.messages?.data?.[0]?.created_time;
+      return !cutoff || !createdAt || new Date(createdAt) >= cutoff;
+    });
     log.recordsFetched = conversations.length;
 
     for (const conv of conversations) {
@@ -196,7 +228,7 @@ export async function syncFacebookPage(token: string, pageId?: string): Promise<
 }
 
 // ===== FACEBOOK ADS SYNC =====
-export async function syncFacebookAds(token: string, adAccountId?: string): Promise<SyncLog> {
+export async function syncFacebookAds(token: string, adAccountId?: string, days?: unknown): Promise<SyncLog> {
   const log: SyncLog = { platform: 'Facebook Ads', recordsFetched: 0, recordsSaved: 0, syncedAt: new Date().toISOString() };
   const today = new Date().toISOString().slice(0, 10);
 
@@ -250,7 +282,8 @@ export async function syncFacebookAds(token: string, adAccountId?: string): Prom
     const currencyMultiplier = accountCurrency === 'VND' ? 1 : 25000;
 
     // Lấy campaigns + insights theo từng ngày (time_increment=1)
-    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&date_preset=maximum&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
+    const dateFilter = getMetaDateFilter(days);
+    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&${dateFilter}&time_increment=1&level=campaign&limit=500&access_token=${encodeURIComponent(token)}`;
     let hasNextPage = true;
     let pagesFetched = 0;
     const allRows: any[] = [];
@@ -368,7 +401,8 @@ export async function syncFacebookAds(token: string, adAccountId?: string): Prom
     }
 
     // Sau khi sync ads campaign, sync ads post insights
-    await syncPostAdsInsights(token, actId);
+    const postAdsProgress = await syncPostAdsInsights(token, actId, days);
+    if (postAdsProgress) log.progress = postAdsProgress;
 
     return log;
   } catch (error: any) {
@@ -378,7 +412,7 @@ export async function syncFacebookAds(token: string, adAccountId?: string): Prom
 }
 
 // ===== INSTAGRAM SYNC =====
-export async function syncInstagram(token: string, igAccountId?: string): Promise<SyncLog> {
+export async function syncInstagram(token: string, igAccountId?: string, days?: unknown): Promise<SyncLog> {
   const log: SyncLog = { platform: 'Instagram', recordsFetched: 0, recordsSaved: 0, syncedAt: new Date().toISOString() };
 
   try {
@@ -406,7 +440,9 @@ export async function syncInstagram(token: string, igAccountId?: string): Promis
     }
 
     const mediaData = await mediaRes.json();
-    const posts = mediaData?.data || [];
+    const selectedDays = normalizeSyncDays(days);
+    const cutoff = selectedDays === 'all' ? null : new Date(Date.now() - Number(selectedDays) * 24 * 60 * 60 * 1000);
+    const posts = (mediaData?.data || []).filter((post: any) => !cutoff || !post.timestamp || new Date(post.timestamp) >= cutoff);
     log.recordsFetched = posts.length;
 
     for (const post of posts) {
@@ -475,67 +511,208 @@ export async function syncInstagram(token: string, igAccountId?: string): Promis
 }
 
 // ===== POST ADS INSIGHTS SYNC =====
-export async function syncPostAdsInsights(token: string, adAccountId: string) {
+export async function syncPostAdsInsights(token: string, adAccountId?: string, days?: unknown) {
   try {
-    let actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    let actId = adAccountId ? (adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`) : '';
+    if (!actId) {
+      const accountsRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/adaccounts?fields=id,account_status&limit=100&access_token=${encodeURIComponent(token)}`,
+        { signal: AbortSignal.timeout(15000) }
+      );
+      if (!accountsRes.ok) return;
+      const accountsData = await accountsRes.json();
+      const account = (accountsData?.data || []).find((item: any) => item.account_status === 1) || accountsData?.data?.[0];
+      if (!account?.id) return;
+      actId = account.id;
+    }
 
-    // Get active/recently updated ads with spend
-    const url = `https://graph.facebook.com/v19.0/${actId}/ads?fields=id,status,creative{effective_object_story_id,effective_instagram_story_id},insights.date_preset(maximum){spend,reach,actions,outbound_clicks}&limit=100&access_token=${encodeURIComponent(token)}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    if (!res.ok) return;
+    const mergeActions = (current: any[] = [], incoming: any[] = []) => {
+      const totals = new Map(current.map(action => [action.action_type, Number(action.value || 0)]));
+      for (const action of incoming) {
+        totals.set(action.action_type, (totals.get(action.action_type) || 0) + Number(action.value || 0));
+      }
+      return Array.from(totals, ([action_type, value]) => ({ action_type, value: String(value) }));
+    };
+
+    // Full-history sync is deliberately processed in resumable batches. This avoids
+    // losing progress when Meta rate-limits a request or the server reaches its timeout.
+    const selectedDays = normalizeSyncDays(days);
+    const checkpointKey = `instagram_ads_full_sync_v2_${actId}`;
+    let checkpoint: { cursor?: string; fetched?: number; saved?: number; complete?: boolean } = {};
+    if (selectedDays === 'all') {
+      const stored = await prisma.appSetting.findUnique({ where: { key: checkpointKey } });
+      if (stored) checkpoint = JSON.parse(stored.value);
+      if (checkpoint.complete) {
+        return { fetched: checkpoint.fetched || 0, saved: checkpoint.saved || 0, complete: true, hasMore: false };
+      }
+    }
+
+    const dateFilter = getMetaDateFilter(days);
+    const after = checkpoint.cursor ? `&after=${encodeURIComponent(checkpoint.cursor)}` : '';
+    let insightsUrl = `https://graph.facebook.com/v19.0/${actId}/insights?level=ad&${dateFilter}&breakdowns=publisher_platform&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,reach,actions,outbound_clicks&limit=25${after}&access_token=${encodeURIComponent(token)}`;
+    const adInsightsMap = new Map<string, any>();
     
-    const data = await res.json();
-    const ads = data?.data || [];
+    let hasNextInsights = true;
+    let pagesInsightsFetched = 0;
 
-    for (const ad of ads) {
-      const fbStoryId = ad.creative?.effective_object_story_id;
-      const igStoryId = ad.creative?.effective_instagram_story_id;
+    let nextCursor: string | undefined;
+    const pageLimit = selectedDays === 'all' ? 1 : 20;
+    let rowsFetched = 0;
+
+    while (hasNextInsights && insightsUrl && pagesInsightsFetched < pageLimit) {
+      const res = await fetch(insightsUrl, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error?.message || `Meta Insights API lỗi: ${res.status}`);
+      }
+      const data = await res.json();
+      const rows = data?.data || [];
+      rowsFetched += rows.length;
+      for (const row of rows) {
+        if (!row.ad_id || row.publisher_platform !== 'instagram' || parseFloat(row.spend || '0') <= 0) continue;
+
+        const current = adInsightsMap.get(row.ad_id);
+        adInsightsMap.set(row.ad_id, current ? {
+          ...current,
+          spend: String(parseFloat(current.spend || '0') + parseFloat(row.spend || '0')),
+          reach: String(parseInt(current.reach || '0') + parseInt(row.reach || '0')),
+          actions: mergeActions(current.actions, row.actions),
+          outbound_clicks: mergeActions(current.outbound_clicks, row.outbound_clicks),
+        } : row);
+      }
+      if (data?.paging?.next) {
+        insightsUrl = data.paging.next;
+        nextCursor = data?.paging?.cursors?.after;
+        pagesInsightsFetched++;
+      } else {
+        hasNextInsights = false;
+      }
+    }
+
+    if (adInsightsMap.size === 0 && !nextCursor) {
+      const result = { fetched: (checkpoint.fetched || 0) + rowsFetched, saved: checkpoint.saved || 0, complete: true, hasMore: false };
+      if (selectedDays === 'all') {
+        await prisma.appSetting.upsert({ where: { key: checkpointKey }, update: { value: JSON.stringify({ ...result, cursor: null }) }, create: { key: checkpointKey, value: JSON.stringify({ ...result, cursor: null }) } });
+      }
+      return result;
+    }
+
+    // 2. Fetch Ads metadata & creatives for all ads in bulk
+    let adsUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=id,name,status,creative{effective_object_story_id,effective_instagram_story_id,object_story_id,body,name,thumbnail_url,instagram_permalink_url}&limit=200&access_token=${encodeURIComponent(token)}`;
+    const adsMap = new Map<string, any>();
+
+    let hasNextAds = true;
+    let pagesAdsFetched = 0;
+
+    while (hasNextAds && adsUrl && pagesAdsFetched < 10) {
+      const res = await fetch(adsUrl, { signal: AbortSignal.timeout(20000) });
+      if (!res.ok) break;
+      const data = await res.json();
+      const ads = data?.data || [];
+      for (const ad of ads) {
+        if (ad.id) adsMap.set(ad.id, ad);
+      }
+      if (data?.paging?.next) {
+        adsUrl = data.paging.next;
+        pagesAdsFetched++;
+      } else {
+        hasNextAds = false;
+      }
+    }
+
+    // 3. Process each ad that spent money
+    for (const [adId, insights] of adInsightsMap.entries()) {
+      let ad = adsMap.get(adId);
+      
+      // If ad creative not found in bulk fetch, fetch directly
+      if (!ad) {
+        try {
+          const adRes = await fetch(
+            `https://graph.facebook.com/v19.0/${adId}?fields=id,name,status,creative{effective_object_story_id,effective_instagram_story_id,object_story_id,body,name,thumbnail_url,instagram_permalink_url}&access_token=${encodeURIComponent(token)}`,
+            { signal: AbortSignal.timeout(10000) }
+          );
+          if (adRes.ok) ad = await adRes.json();
+        } catch {}
+      }
+
+      const fbStoryId = ad?.creative?.effective_object_story_id || ad?.creative?.object_story_id;
+      const igStoryId = ad?.creative?.effective_instagram_story_id;
       
       const storyId = igStoryId || fbStoryId;
-      if (!storyId) continue;
-      
-      const insights = ad.insights?.data?.[0];
-      if (!insights) continue; // No spend
-      
       const spend = parseFloat(insights.spend || '0');
       if (spend <= 0) continue;
 
-      // Extract Post ID. storyId could be "pageId_postId" or just "postId".
-      const postIdRaw = storyId.includes('_') ? storyId.split('_')[1] : storyId;
+      const postIdRaw = storyId ? (storyId.includes('_') ? storyId.split('_')[1] : storyId) : null;
+      const reach = parseInt(insights.reach || '0');
+      const outboundClicks = insights.outbound_clicks?.find((item: any) => item.action_type === 'outbound_click')?.value || '0';
+      const linkClicks = insights.actions?.find((item: any) => item.action_type === 'link_click')?.value || '0';
+      const actionValue = (...types: string[]) => Math.round(types.reduce((sum, type) => sum + Number(insights.actions?.find((item: any) => item.action_type === type)?.value || 0), 0));
+      const likesCount = actionValue('post_reaction', 'like');
+      const commentsCount = actionValue('comment');
+      const sharesCount = actionValue('post', 'share');
+      const engagementCount = actionValue('post_engagement') || likesCount + commentsCount + sharesCount;
+      const adVisits = parseInt(outboundClicks) || parseInt(linkClicks) || 0;
+      const adStatus = ad?.status === 'ACTIVE' ? 'Đang chạy' : (ad?.status === 'PAUSED' ? 'Tạm dừng' : (ad?.status || 'ARCHIVED'));
+      const adData = {
+        adName: insights.ad_name || ad?.name,
+        campaignId: insights.campaign_id,
+        campaignName: insights.campaign_name,
+        adSetId: insights.adset_id,
+        adSetName: insights.adset_name,
+        postId: igStoryId || postIdRaw,
+        caption: ad?.creative?.body || ad?.creative?.name || insights.ad_name || ad?.name,
+        mediaUrl: ad?.creative?.thumbnail_url || '',
+        permalinkUrl: ad?.creative?.instagram_permalink_url || '',
+        status: adStatus,
+        spend,
+        reach,
+        visits: adVisits,
+        likesCount,
+        commentsCount,
+        sharesCount,
+        engagementCount,
+        syncedAt: new Date(),
+      };
 
-      let fbPost = fbStoryId ? await prisma.facebookPost.findFirst({
-        where: { OR: [ { postId: fbStoryId }, { postId: { endsWith: postIdRaw } } ] }
+      await prisma.instagramAd.upsert({
+        where: { adId },
+        update: adData,
+        create: { adId, ...adData },
+      });
+
+      let fbPost = (fbStoryId || postIdRaw) ? await prisma.facebookPost.findFirst({
+        where: { OR: [ { postId: fbStoryId || '' }, { postId: { endsWith: postIdRaw || '' } } ] }
       }) : null;
-      let igPost = igStoryId ? await prisma.instagramPost.findFirst({
-        where: { postId: { endsWith: postIdRaw } }
+      let igPost = (igStoryId || postIdRaw) ? await prisma.instagramPost.findFirst({
+        where: { OR: [ { postId: igStoryId || '' }, { postId: { endsWith: postIdRaw || '' } } ] }
       }) : null;
 
-      // Fallback cross-check if IDs matched differently
+      // Create record if neither exists
       if (!fbPost && !igPost) {
-         fbPost = await prisma.facebookPost.findFirst({ where: { postId: { endsWith: postIdRaw } } });
-         igPost = await prisma.instagramPost.findFirst({ where: { postId: { endsWith: postIdRaw } } });
-      }
+        const caption = ad?.creative?.body || ad?.creative?.name || insights.ad_name || ad?.name || '[Bài QC cũ]';
+        const mediaUrl = ad?.creative?.thumbnail_url || '';
+        const isIg = Boolean(igStoryId || ad?.creative?.instagram_permalink_url);
 
-      if (!fbPost && !igPost) {
-        // Create a dummy record so it appears on the dashboard with its Ad Stats.
         try {
-          if (igStoryId) {
+          if (isIg) {
             igPost = await prisma.instagramPost.create({
               data: {
-                postId: igStoryId,
-                caption: '[IG Dark Post / Bài QC cũ]',
-                mediaUrl: '',
+                postId: igStoryId || postIdRaw || adId,
+                caption: caption,
+                mediaUrl: mediaUrl,
+                permalinkUrl: ad?.creative?.instagram_permalink_url || '',
                 createdTime: new Date(),
-                adStatus: ad.status === 'ACTIVE' ? 'Đang chạy' : (ad.status === 'PAUSED' ? 'Tạm dừng' : ad.status)
+                adStatus: ad?.status === 'ACTIVE' ? 'Đang chạy' : (ad?.status === 'PAUSED' ? 'Tạm dừng' : (ad?.status || 'ARCHIVED'))
               }
             });
-          } else if (fbStoryId) {
+          } else {
             fbPost = await prisma.facebookPost.create({
               data: {
-                postId: fbStoryId,
-                message: '[FB Dark Post / Bài QC cũ]',
+                postId: fbStoryId || postIdRaw || adId,
+                message: caption,
+                picture: mediaUrl,
                 createdTime: new Date(),
-                adStatus: ad.status === 'ACTIVE' ? 'Đang chạy' : (ad.status === 'PAUSED' ? 'Tạm dừng' : ad.status)
+                adStatus: ad?.status === 'ACTIVE' ? 'Đang chạy' : (ad?.status === 'PAUSED' ? 'Tạm dừng' : (ad?.status || 'ARCHIVED'))
               }
             });
           }
@@ -546,79 +723,88 @@ export async function syncPostAdsInsights(token: string, adAccountId: string) {
 
       if (!fbPost && !igPost) continue;
 
-      const reach = parseInt(insights.reach || '0');
-      
-      const outboundClicks = insights.outbound_clicks?.find((c: any) => c.action_type === 'outbound_click')?.value || '0';
-      const linkClicks = insights.actions?.find((c: any) => c.action_type === 'link_click')?.value || '0';
-      const adVisits = parseInt(outboundClicks) || parseInt(linkClicks) || 0;
-
       // Fetch Demographics
       const [demoRes, regionRes] = await Promise.all([
-        fetch(`https://graph.facebook.com/v19.0/${ad.id}/insights?date_preset=maximum&breakdowns=age,gender&access_token=${encodeURIComponent(token)}`),
-        fetch(`https://graph.facebook.com/v19.0/${ad.id}/insights?date_preset=maximum&breakdowns=region&access_token=${encodeURIComponent(token)}`)
+        fetch(`https://graph.facebook.com/v19.0/${adId}/insights?${dateFilter}&fields=reach&breakdowns=age,gender&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(8000) }).catch(() => null),
+        fetch(`https://graph.facebook.com/v19.0/${adId}/insights?${dateFilter}&fields=reach&breakdowns=region&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(8000) }).catch(() => null)
       ]);
 
-      const demoData = await demoRes.json().catch(() => ({}));
-      const regionData = await regionRes.json().catch(() => ({}));
+      const demoData = await demoRes?.json().catch(() => ({})) || {};
+      const regionData = await regionRes?.json().catch(() => ({})) || {};
 
       const ageGenderRows = demoData.data || [];
       const regionRows = regionData.data || [];
 
       let femaleReach = 0;
-      let age1824Reach = 0;
-      let age2534Reach = 0;
       let totalReachDemo = 0;
+      const ageReach = new Map<string, number>();
 
       ageGenderRows.forEach((row: any) => {
         const r = parseInt(row.reach || '0');
         totalReachDemo += r;
         if (row.gender === 'female') femaleReach += r;
-        if (row.age === '18-24') age1824Reach += r;
-        if (row.age === '25-34') age2534Reach += r;
+        if (row.age) ageReach.set(row.age, (ageReach.get(row.age) || 0) + r);
       });
 
-      let hcmReach = 0;
-      let hnReach = 0;
       let totalReachRegion = 0;
+      const regionReach = new Map<string, number>();
 
       regionRows.forEach((row: any) => {
         const r = parseInt(row.reach || '0');
         totalReachRegion += r;
-        if (row.region?.toLowerCase().includes('ho chi minh')) hcmReach += r;
-        if (row.region?.toLowerCase().includes('ha noi')) hnReach += r;
+        if (row.region) regionReach.set(row.region, (regionReach.get(row.region) || 0) + r);
       });
 
-      // Generate varied mock data if real data is missing
-      const isMock = totalReachDemo === 0 || totalReachRegion === 0;
-      const seed = ad.id ? parseInt(ad.id.slice(-5)) : Math.random() * 100000;
-      const hcmBase = 40 + (seed % 20); // 40-60%
-      const hnBase = 30 + ((seed + 7) % 20); // 30-50%
-      const femaleBase = 50 + (seed % 30); // 50-80%
-      const age18Base = 20 + ((seed + 13) % 40); // 20-60%
-      const age25Base = 30 + ((seed + 23) % 30); // 30-60%
+      const regions = Array.from(regionReach, ([name, reach]) => ({
+        name,
+        reach,
+        percent: totalReachRegion > 0 ? Math.round((reach / totalReachRegion) * 100) : 0,
+      })).sort((a, b) => b.reach - a.reach);
+      const ageGroups = Array.from(ageReach, ([name, reach]) => ({
+        name,
+        reach,
+        percent: totalReachDemo > 0 ? Math.round((reach / totalReachDemo) * 100) : 0,
+      })).sort((a, b) => a.name.localeCompare(b.name));
 
       const demographics = {
-        femalePercent: isMock ? femaleBase : Math.round((femaleReach / totalReachDemo) * 100),
-        age1824: isMock ? age18Base : Math.round((age1824Reach / totalReachDemo) * 100),
-        age2534: isMock ? age25Base : Math.round((age2534Reach / totalReachDemo) * 100),
-        hcmPercent: isMock ? hcmBase : Math.round((hcmReach / totalReachRegion) * 100),
-        hnPercent: isMock ? hnBase : Math.round((hnReach / totalReachRegion) * 100),
+        available: totalReachDemo > 0 || totalReachRegion > 0,
+        femalePercent: totalReachDemo > 0 ? Math.round((femaleReach / totalReachDemo) * 100) : null,
+        regions,
+        ageGroups,
       };
+
+      await prisma.instagramAd.update({ where: { adId }, data: { demographics: demographics as any } });
 
       if (fbPost) {
         await prisma.facebookPost.update({
           where: { id: fbPost.id },
-          data: { adSpend: spend, adReach: reach, adVisits, adStatus: ad.status, demographics: demographics as any }
+          data: { adSpend: spend, adReach: reach, adVisits, adStatus, demographics: demographics as any }
         });
       }
       if (igPost) {
         await prisma.instagramPost.update({
           where: { id: igPost.id },
-          data: { adSpend: spend, adReach: reach, adVisits, adStatus: ad.status, demographics: demographics as any }
+          data: { adSpend: spend, adReach: reach, adVisits, adStatus, demographics: demographics as any }
         });
       }
     }
+
+    const result = {
+      fetched: (checkpoint.fetched || 0) + rowsFetched,
+      saved: (checkpoint.saved || 0) + adInsightsMap.size,
+      complete: !nextCursor,
+      hasMore: Boolean(nextCursor),
+    };
+    if (selectedDays === 'all') {
+      await prisma.appSetting.upsert({
+        where: { key: checkpointKey },
+        update: { value: JSON.stringify({ ...result, cursor: nextCursor || null }) },
+        create: { key: checkpointKey, value: JSON.stringify({ ...result, cursor: nextCursor || null }) },
+      });
+    }
+    return result;
   } catch (error) {
     console.error('Error syncing post ad insights:', error);
+    throw error;
   }
 }

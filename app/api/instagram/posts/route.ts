@@ -256,7 +256,7 @@ export async function POST() {
     // 4. Đồng bộ thêm dữ liệu Quảng cáo (Ads Insights) nếu có Token Facebook Ads
     try {
       const { token: adsToken, adAccountId } = await getTokenForPlatform('Facebook Ads');
-      if (adsToken && adAccountId) {
+      if (adsToken) {
         await syncPostAdsInsights(adsToken, adAccountId);
       }
     } catch (e) {

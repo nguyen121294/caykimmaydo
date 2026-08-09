@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { publishSyncJob } from '@/lib/qstash-sync';
 
-const STALE_RUNNING_MS = 75_000;
+const STALE_RUNNING_MS = 25_000;
 
 async function recoverStaleJobs(groupId?: string | null, jobId?: string | null) {
   const cutoff = new Date(Date.now() - STALE_RUNNING_MS);
@@ -19,6 +19,26 @@ async function recoverStaleJobs(groupId?: string | null, jobId?: string | null) 
   });
 
   for (const staleJob of staleJobs) {
+    if (staleJob.attempts >= 4) {
+      await prisma.syncJob.update({
+        where: { id: staleJob.id },
+        data: {
+          status: 'FAILED',
+          error: 'Tác vụ bị timeout serverless quá 4 lần; vui lòng thử lại với khoảng thời gian ngắn hơn.',
+          completedAt: new Date(),
+        },
+      });
+      await prisma.automationLog.create({
+        data: {
+          level: 'error',
+          source: `sync-job-recovery/${staleJob.platform}`,
+          message: `Hủy job ${staleJob.id} do timeout quá 4 lần`,
+          details: JSON.stringify({ jobId: staleJob.id, groupId: staleJob.groupId, attempts: staleJob.attempts }),
+        },
+      });
+      continue;
+    }
+
     const claimed = await prisma.syncJob.updateMany({
       where: { id: staleJob.id, status: 'RUNNING', revision: staleJob.revision, updatedAt: staleJob.updatedAt },
       data: {

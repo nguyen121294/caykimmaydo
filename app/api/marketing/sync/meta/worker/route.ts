@@ -152,7 +152,7 @@ async function handler(req: NextRequest) {
     }
     if (existing.status === 'RUNNING') {
       const runningForMs = Date.now() - existing.updatedAt.getTime();
-      if (runningForMs < 75_000) {
+      if (runningForMs < 25_000) {
         return NextResponse.json(
           { success: false, retry: true, status: existing.status, error: 'Job trước vẫn đang giữ worker lock.' },
           { status: 409 }

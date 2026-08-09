@@ -68,7 +68,11 @@ export default function SyncHubContent() {
       if (job.status === 'FAILED') {
         return { ...item, status: 'error', message: job.error || 'Job đồng bộ thất bại' };
       }
-      return { ...item, status: 'syncing', message: `${job.status} · ${job.stage}` };
+      return {
+        ...item,
+        status: 'syncing',
+        message: `${job.status} · ${job.stage}${job.recordsFetched > 0 ? ` (${job.recordsFetched} đã lấy)` : ''}`,
+      };
     }));
   };
 

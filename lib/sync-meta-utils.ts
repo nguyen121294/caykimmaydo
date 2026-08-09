@@ -585,7 +585,7 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
 
     const dateFilter = getMetaDateFilter(days);
     const after = checkpoint.cursor ? `&after=${encodeURIComponent(checkpoint.cursor)}` : '';
-    const insightsLimit = options?.batch ? 5 : 25;
+    const insightsLimit = options?.batch ? 2 : 25;
     let insightsUrl = `https://graph.facebook.com/v19.0/${actId}/insights?level=ad&${dateFilter}&breakdowns=publisher_platform&fields=ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name,spend,reach,actions,outbound_clicks&limit=${insightsLimit}${after}&access_token=${encodeURIComponent(token)}`;
     const adInsightsMap = new Map<string, any>();
     

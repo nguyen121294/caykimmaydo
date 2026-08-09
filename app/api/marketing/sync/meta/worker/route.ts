@@ -150,6 +150,19 @@ async function handler(req: NextRequest) {
       await startNextJob(existing.groupId, existing.sequence);
       return NextResponse.json({ success: true, ignored: true, status: existing.status });
     }
+    if (existing.status === 'RUNNING') {
+      const runningForMs = Date.now() - existing.updatedAt.getTime();
+      if (runningForMs < 75_000) {
+        return NextResponse.json(
+          { success: false, retry: true, status: existing.status, error: 'Job trước vẫn đang giữ worker lock.' },
+          { status: 409 }
+        );
+      }
+      await prisma.syncJob.updateMany({
+        where: { id: existing.id, revision: existing.revision, status: 'RUNNING', updatedAt: existing.updatedAt },
+        data: { status: 'QUEUED', error: 'Worker trước hết thời gian; QStash đang chạy lại batch.' },
+      });
+    }
     if (message.revision !== existing.revision) {
       if (message.revision < existing.revision && existing.status === 'CONTINUING') {
         await publishCurrentRevision(existing.id);

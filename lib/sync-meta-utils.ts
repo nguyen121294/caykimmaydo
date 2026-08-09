@@ -300,7 +300,8 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
     // Lấy campaigns + insights theo từng ngày (time_increment=1)
     const dateFilter = getMetaDateFilter(days);
     const after = options?.cursor ? `&after=${encodeURIComponent(options.cursor)}` : '';
-    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&${dateFilter}&time_increment=1&level=campaign&limit=100${after}&access_token=${encodeURIComponent(token)}`;
+    const campaignLimit = options?.batch ? 20 : 100;
+    let url = `https://graph.facebook.com/v19.0/${actId}/insights?fields=campaign_name,spend,impressions,clicks,reach,actions,action_values&${dateFilter}&time_increment=1&level=campaign&limit=${campaignLimit}${after}&access_token=${encodeURIComponent(token)}`;
     let hasNextPage = true;
     let pagesFetched = 0;
     let nextCursor: string | undefined;

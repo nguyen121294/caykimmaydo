@@ -36,14 +36,14 @@ export async function GET(request: Request) {
       prisma.automationLog.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
     ]);
 
-    // Tính KPI từ dữ liệu thật trong DB
+    // Tính KPI từ dữ liệu thật trong DB theo khoảng thời gian được chọn
     const orderRevenue = orders.reduce((s, o) => s + (o.total ?? 0), 0);
-    const totalOrders = kpi?.totalOrders ?? orders.length;
-    const totalRevenue = kpi?.totalRevenue ?? orderRevenue;
+    const totalOrders = orders.length > 0 ? orders.length : (daysParam === 'all' ? (kpi?.totalOrders ?? 0) : 0);
+    const totalRevenue = orderRevenue > 0 ? orderRevenue : (daysParam === 'all' ? (kpi?.totalRevenue ?? 0) : 0);
     const adSpendEntries = financeEntries.filter(f => f.type === 'Chi' && f.category?.includes('Quảng cáo'));
     const totalAdSpend = adSpendEntries.reduce((s, f) => s + (f.amount ?? 0), 0);
     const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
-    const conversionRate = kpi?.conversionRate ?? (totalOrders > 0 && inboxKpis > 0 ? Math.round((totalOrders / inboxKpis) * 100 * 10) / 10 : 0);
+    const conversionRate = totalOrders > 0 && inboxKpis > 0 ? Math.round((totalOrders / inboxKpis) * 100 * 10) / 10 : (daysParam === 'all' ? (kpi?.conversionRate ?? 0) : 0);
 
     // Tính KPI riêng cho Facebook (chỉ dùng category)
     const facebookOrders = orders.filter(o => o.source === 'Facebook' || o.source === 'Facebook Page');
@@ -85,8 +85,7 @@ export async function GET(request: Request) {
         }
       }
       const sortedDates = Object.keys(dateMap).sort();
-      const sliceCount = daysParam === 'all' ? sortedDates.length : parseInt(daysParam, 10);
-      for (const d of sortedDates.slice(-sliceCount)) {
+      for (const d of sortedDates) {
         const parts = d.split('-');
         revenueTrend.push({
           date: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}`,

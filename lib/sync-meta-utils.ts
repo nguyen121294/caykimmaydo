@@ -287,12 +287,6 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
       } catch { /* fallback to USD */ }
     }
 
-    // Dọn dẹp dữ liệu cũ (chỉ chạy 1 lần nếu phát hiện có dữ liệu cũ chưa được format đúng)
-    // Dữ liệu cũ thường có ID chứa ngày hôm nay thay vì date_start
-    const hasOldData = await prisma.financeEntry.findFirst({
-      where: { description: { contains: 'fb_spend_' } }
-    });
-    
     // Facebook API trả spend theo đơn vị currency của ad account
     // Nếu VND → dùng trực tiếp, nếu USD → nhân tỷ giá
     const currencyMultiplier = accountCurrency === 'VND' ? 1 : 25000;
@@ -331,16 +325,6 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
 
     log.recordsFetched = allRows.length;
 
-    // Nếu đây là lần đầu tiên chạy bản mới, wipe dữ liệu ABTest và FinanceEntry cũ
-    // (Bởi vì data cũ lưu tổng 30 ngày vào 1 ngày).
-    // Xoá tất cả ABTest và FinanceEntry tự động.
-    if (hasOldData && !options?.cursor) {
-      await prisma.aBTest.deleteMany({});
-      await prisma.financeEntry.deleteMany({
-        where: { description: { contains: 'fb_spend_' } }
-      });
-    }
-
     for (const row of allRows) {
       const dateStart = row.date_start; // Ngày thực tế của row data
       if (!dateStart) continue;
@@ -372,10 +356,16 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
       const campNameLower = campName.toLowerCase();
       const isInstagramPlacement = campNameLower.includes('instagram') && !campNameLower.includes('facebook');
       const adCategory = isInstagramPlacement ? 'Quảng cáo Instagram' : 'Quảng cáo Facebook';
+      const variantA = `Reach: ${reach.toLocaleString()} | CPL: ${costPerLeadVnd.toLocaleString()}đ`;
+      const variantB = `Leads: ${leads} | Purchases: ${purchases} | Revenue: ${revenueVnd.toLocaleString()}đ`;
 
       await prisma.aBTest.upsert({
         where: { testId },
         update: {
+          testName: campName,
+          dateStarted: dateStart,
+          variantA,
+          variantB,
           impressionsA: impressions,
           clicksA: clicks,
           linkClicksA: linkClicks,
@@ -389,8 +379,8 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
           testId,
           testName: campName,
           dateStarted: dateStart,
-          variantA: `Reach: ${reach.toLocaleString()} | CPL: ${costPerLeadVnd.toLocaleString()}đ`,
-          variantB: `Leads: ${leads} | Purchases: ${purchases} | Revenue: ${revenueVnd.toLocaleString()}đ`,
+          variantA,
+          variantB,
           impressionsA: impressions,
           clicksA: clicks,
           linkClicksA: linkClicks,
@@ -403,20 +393,19 @@ export async function syncFacebookAds(token: string, adAccountId?: string, days?
 
       if (spend > 0) {
         const financeId = `fb_spend_${campName.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30)}_${dateStart}`;
+        const financeData = {
+          date: dateStart,
+          type: 'Chi',
+          category: adCategory,
+          description: `[${financeId}] ${campName} | Imp:${impressions} Click:${clicks}`,
+          amount: spendVnd,
+        };
         const existingFinance = await prisma.financeEntry.findFirst({
           where: { description: { contains: financeId } },
         });
-        if (!existingFinance) {
-          await prisma.financeEntry.create({
-            data: {
-              date: dateStart,
-              type: 'Chi',
-              category: adCategory,
-              description: `[${financeId}] ${campName} | Imp:${impressions} Click:${clicks}`,
-              amount: spendVnd,
-            },
-          });
-        }
+        await (existingFinance
+          ? prisma.financeEntry.update({ where: { id: existingFinance.id }, data: financeData })
+          : prisma.financeEntry.create({ data: financeData }));
       }
 
       log.recordsSaved++;

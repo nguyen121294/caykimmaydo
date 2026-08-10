@@ -18,7 +18,7 @@ export default function DashboardContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/dashboard?days=${timeRange}`);
+      const res = await fetch(`/api/dashboard?days=${timeRange}&_t=${Date.now()}`, { cache: 'no-store' });
       const json = await res?.json?.();
       setData(json ?? {});
       setLastUpdate(new Date().toLocaleTimeString('vi-VN'));

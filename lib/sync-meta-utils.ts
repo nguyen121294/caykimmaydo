@@ -459,80 +459,118 @@ export async function syncInstagram(token: string, igAccountId?: string, days?: 
       igId = page.instagram_business_account.id;
     }
 
-    // Lấy media gần nhất
-    const mediaRes = await fetch(
-      `https://graph.facebook.com/v19.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,permalink&limit=25&access_token=${encodeURIComponent(token)}`,
-      { signal: AbortSignal.timeout(15000) }
-    );
-
-    if (!mediaRes.ok) {
-      const err = await mediaRes.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `Instagram API lỗi: ${mediaRes.status}`);
-    }
-
-    const mediaData = await mediaRes.json();
     const selectedDays = normalizeSyncDays(days);
     const cutoff = selectedDays === 'all' ? null : new Date(Date.now() - Number(selectedDays) * 24 * 60 * 60 * 1000);
-    const posts = (mediaData?.data || []).filter((post: any) => !cutoff || !post.timestamp || new Date(post.timestamp) >= cutoff);
-    log.recordsFetched = posts.length;
 
-    for (const post of posts) {
-      const trackingId = `ig_${post.id}`;
-      
-      // Update ContentTracking
-      const existing = await prisma.contentTracking.findFirst({ where: { contentId: trackingId } });
-      if (existing) {
-        await prisma.contentTracking.update({
-          where: { id: existing.id },
-          data: {
-            saves: String(post.like_count ?? 0),
-            comments: String(post.comments_count ?? 0),
-            updatedAt: new Date(),
-          },
-        });
-      } else {
-        await prisma.contentTracking.create({
-          data: {
-            contentId: trackingId,
-            channel: 'Instagram',
-            contentType: post.media_type || 'IMAGE',
-            views: '0',
-            saves: String(post.like_count ?? 0),
-            comments: String(post.comments_count ?? 0),
-            shares: '0',
-          },
-        });
+    let nextUrl: string | null = `https://graph.facebook.com/v19.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,permalink&limit=25&access_token=${encodeURIComponent(token)}`;
+    const allPosts: any[] = [];
+    let pageCount = 0;
+    const maxPages = selectedDays === 'all' ? 10 : 5;
+
+    while (nextUrl && pageCount < maxPages) {
+      pageCount++;
+      const mediaRes = await fetch(nextUrl, { signal: AbortSignal.timeout(15000) });
+
+      if (!mediaRes.ok) {
+        const err = await mediaRes.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `Instagram API lỗi: ${mediaRes.status}`);
       }
 
-      // Update InstagramPost
-      await prisma.instagramPost.upsert({
-        where: { postId: post.id },
-        update: {
-          igAccountId: igId,
-          caption: post.caption || '',
-          mediaType: post.media_type || 'IMAGE',
-          mediaUrl: '',
-          permalinkUrl: post.permalink || `https://instagram.com/p/${post.id}`,
-          createdTime: post.timestamp ? new Date(post.timestamp) : new Date(),
-          likesCount: post.like_count || 0,
-          commentsCount: post.comments_count || 0,
-          syncedAt: new Date(),
-        },
-        create: {
-          postId: post.id,
-          igAccountId: igId,
-          caption: post.caption || '',
-          mediaType: post.media_type || 'IMAGE',
-          mediaUrl: '',
-          permalinkUrl: post.permalink || `https://instagram.com/p/${post.id}`,
-          createdTime: post.timestamp ? new Date(post.timestamp) : new Date(),
-          likesCount: post.like_count || 0,
-          commentsCount: post.comments_count || 0,
-        }
-      });
+      const mediaData = await mediaRes.json();
+      const pagePosts = mediaData?.data || [];
+      if (pagePosts.length === 0) break;
 
-      log.recordsSaved++;
+      let reachedCutoff = false;
+      for (const post of pagePosts) {
+        if (cutoff && post.timestamp && new Date(post.timestamp) < cutoff) {
+          reachedCutoff = true;
+          break;
+        }
+        allPosts.push(post);
+      }
+
+      if (reachedCutoff || !mediaData?.paging?.next) {
+        break;
+      }
+      nextUrl = mediaData.paging.next;
     }
+
+    log.recordsFetched = allPosts.length;
+    if (allPosts.length === 0) {
+      return log;
+    }
+
+    // Tối ưu hóa Database Writes bằng Bulk Operations (1 Transaction)
+    const trackingIds = allPosts.map(post => `ig_${post.id}`);
+    const existingTrackings = await prisma.contentTracking.findMany({
+      where: { contentId: { in: trackingIds } },
+    });
+    const existingTrackingMap = new Map(existingTrackings.map(t => [t.contentId, t]));
+
+    const dbOperations: any[] = [];
+
+    for (const post of allPosts) {
+      const trackingId = `ig_${post.id}`;
+      const existing = existingTrackingMap.get(trackingId);
+
+      if (existing) {
+        dbOperations.push(
+          prisma.contentTracking.update({
+            where: { id: existing.id },
+            data: {
+              saves: String(post.like_count ?? 0),
+              comments: String(post.comments_count ?? 0),
+              updatedAt: new Date(),
+            },
+          })
+        );
+      } else {
+        dbOperations.push(
+          prisma.contentTracking.create({
+            data: {
+              contentId: trackingId,
+              channel: 'Instagram',
+              contentType: post.media_type || 'IMAGE',
+              views: '0',
+              saves: String(post.like_count ?? 0),
+              comments: String(post.comments_count ?? 0),
+              shares: '0',
+            },
+          })
+        );
+      }
+
+      dbOperations.push(
+        prisma.instagramPost.upsert({
+          where: { postId: post.id },
+          update: {
+            igAccountId: igId,
+            caption: post.caption || '',
+            mediaType: post.media_type || 'IMAGE',
+            mediaUrl: '',
+            permalinkUrl: post.permalink || `https://instagram.com/p/${post.id}`,
+            createdTime: post.timestamp ? new Date(post.timestamp) : new Date(),
+            likesCount: post.like_count || 0,
+            commentsCount: post.comments_count || 0,
+            syncedAt: new Date(),
+          },
+          create: {
+            postId: post.id,
+            igAccountId: igId,
+            caption: post.caption || '',
+            mediaType: post.media_type || 'IMAGE',
+            mediaUrl: '',
+            permalinkUrl: post.permalink || `https://instagram.com/p/${post.id}`,
+            createdTime: post.timestamp ? new Date(post.timestamp) : new Date(),
+            likesCount: post.like_count || 0,
+            commentsCount: post.comments_count || 0,
+          },
+        })
+      );
+    }
+
+    await prisma.$transaction(dbOperations);
+    log.recordsSaved = allPosts.length;
 
     return log;
   } catch (error: any) {

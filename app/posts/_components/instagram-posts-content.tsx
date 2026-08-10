@@ -81,9 +81,10 @@ export default function InstagramPostsContent({ filterType = 'organic' }: { filt
       if (search) params.append('search', search);
       if (days !== 'all') params.append('days', days);
       if (sortBy) params.append('sortBy', sortBy);
+      params.append('_t', Date.now().toString());
 
       const endpoint = filterType === 'ads' ? '/api/instagram/ads' : '/api/instagram/posts';
-      const res = await fetch(`${endpoint}?${params.toString()}`);
+      const res = await fetch(`${endpoint}?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
 
       if (res.ok && data.success) {

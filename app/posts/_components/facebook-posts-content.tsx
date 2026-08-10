@@ -70,8 +70,9 @@ export default function FacebookPostsContent() {
       if (search) params.append('search', search);
       if (days !== 'all') params.append('days', days);
       if (sortBy) params.append('sortBy', sortBy);
+      params.append('_t', Date.now().toString());
 
-      const res = await fetch(`/api/facebook/posts?${params.toString()}`);
+      const res = await fetch(`/api/facebook/posts?${params.toString()}`, { cache: 'no-store' });
       const data = await res.json();
 
       if (res.ok && data.success) {

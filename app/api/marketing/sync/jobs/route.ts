@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { publishSyncJob } from '@/lib/qstash-sync';
 
-const STALE_RUNNING_MS = 25_000;
+const STALE_RUNNING_MS = 45_000;
 
 async function recoverStaleJobs(groupId?: string | null, jobId?: string | null) {
   const cutoff = new Date(Date.now() - STALE_RUNNING_MS);

@@ -49,9 +49,10 @@ export default function MarketingContent() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      const t = Date.now();
       const [resTests, resDemo] = await Promise.all([
-        fetch('/api/ab-tests'),
-        fetch('/api/marketing/demographics'),
+        fetch(`/api/ab-tests?_t=${t}`, { cache: 'no-store' }),
+        fetch(`/api/marketing/demographics?_t=${t}`, { cache: 'no-store' }),
       ]);
       if (resTests.ok) setTests(await resTests.json());
       if (resDemo.ok) setDemographics(await resDemo.json());

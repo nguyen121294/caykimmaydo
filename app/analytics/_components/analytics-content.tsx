@@ -16,7 +16,7 @@ export default function AnalyticsContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/analytics');
+      const res = await fetch(`/api/analytics?_t=${Date.now()}`, { cache: 'no-store' });
       const json = await res?.json?.();
       setData(json ?? {});
       setLastUpdate(new Date().toLocaleTimeString('vi-VN'));

@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { publishMetaSync } from '@/lib/netlify-async-workloads';
+import { createSyncPeriod } from '@/lib/sync-date-range';
 
 const META_PLATFORMS = ['Facebook Page', 'Facebook Ads', 'Instagram'] as const;
 type MetaPlatform = (typeof META_PLATFORMS)[number];
@@ -28,7 +29,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
     const platforms = normalizePlatforms(body);
-    const days = ['7', '30', '90', 'all'].includes(body?.days) ? body.days : '30';
+    const days = body?.startDate || body?.endDate
+      ? createSyncPeriod(body.startDate, body.endDate)
+      : (['7', '30', '90', 'all'].includes(body?.days) ? body.days : '30');
     const groupId = randomUUID();
 
     const jobs = await prisma.$transaction(

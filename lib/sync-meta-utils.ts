@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/crypto';
+import { getMetaDateFilter, getSyncDateBounds, parseSyncPeriod } from '@/lib/sync-date-range';
 
 export interface SyncLog {
   platform: string;
@@ -29,26 +30,6 @@ export interface PostAdsProgress {
   complete: boolean;
   hasMore: boolean;
   cursor?: string;
-}
-
-export type SyncDays = '7' | '30' | '90' | 'all';
-
-function normalizeSyncDays(value: unknown): SyncDays {
-  return value === '7' || value === '30' || value === '90' || value === 'all' ? value : '30';
-}
-
-function getMetaDateFilter(value: unknown) {
-  const days = normalizeSyncDays(value);
-  if (days === 'all') return 'date_preset=maximum';
-
-  const until = new Date();
-  const since = new Date(until);
-  since.setUTCDate(since.getUTCDate() - Number(days) + 1);
-  const range = {
-    since: since.toISOString().slice(0, 10),
-    until: until.toISOString().slice(0, 10),
-  };
-  return `time_range=${encodeURIComponent(JSON.stringify(range))}`;
 }
 
 export async function getTokenForPlatform(platform: string): Promise<{ token: string | null; pageId?: string; adAccountId?: string; igAccountId?: string }> {
@@ -127,12 +108,12 @@ export async function syncFacebookPage(token: string, pageId?: string, days?: un
     }
 
     const convData = await convRes.json();
-    const cutoff = normalizeSyncDays(days) === 'all'
-      ? null
-      : new Date(Date.now() - Number(normalizeSyncDays(days)) * 24 * 60 * 60 * 1000);
+    const { start, endExclusive } = getSyncDateBounds(days);
     const conversations = (convData?.data || []).filter((conv: any) => {
       const createdAt = conv?.messages?.data?.[0]?.created_time;
-      return !cutoff || !createdAt || new Date(createdAt) >= cutoff;
+      if (!createdAt) return true;
+      const date = new Date(createdAt);
+      return (!start || date >= start) && (!endExclusive || date < endExclusive);
     });
     log.recordsFetched = conversations.length;
 
@@ -187,8 +168,12 @@ export async function syncFacebookPage(token: string, pageId?: string, days?: un
     try {
       const targetId = pageId || 'me';
       const fields = 'id,message,full_picture,permalink_url,created_time,reactions.summary(true),comments.summary(true),shares';
+      const postRange = parseSyncPeriod(days);
+      const postDateParams = postRange
+        ? `&since=${postRange.startDate}&until=${encodeURIComponent(`${postRange.endDate}T23:59:59Z`)}`
+        : '';
       const fbRes = await fetch(
-        `https://graph.facebook.com/v19.0/${targetId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50&access_token=${encodeURIComponent(effectiveToken)}`,
+        `https://graph.facebook.com/v19.0/${targetId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50${postDateParams}&access_token=${encodeURIComponent(effectiveToken)}`,
         { signal: AbortSignal.timeout(15000) }
       );
       if (fbRes.ok) {
@@ -448,13 +433,12 @@ export async function syncInstagram(token: string, igAccountId?: string, days?: 
       igId = page.instagram_business_account.id;
     }
 
-    const selectedDays = normalizeSyncDays(days);
-    const cutoff = selectedDays === 'all' ? null : new Date(Date.now() - Number(selectedDays) * 24 * 60 * 60 * 1000);
+    const { start, endExclusive } = getSyncDateBounds(days);
 
     let nextUrl: string | null = `https://graph.facebook.com/v19.0/${igId}/media?fields=id,caption,timestamp,like_count,comments_count,media_type,permalink&limit=25&access_token=${encodeURIComponent(token)}`;
     const allPosts: any[] = [];
     let pageCount = 0;
-    const maxPages = selectedDays === 'all' ? 10 : 5;
+    const maxPages = 10;
 
     while (nextUrl && pageCount < maxPages) {
       pageCount++;
@@ -471,11 +455,11 @@ export async function syncInstagram(token: string, igAccountId?: string, days?: 
 
       let reachedCutoff = false;
       for (const post of pagePosts) {
-        if (cutoff && post.timestamp && new Date(post.timestamp) < cutoff) {
+        if (start && post.timestamp && new Date(post.timestamp) < start) {
           reachedCutoff = true;
           break;
         }
-        allPosts.push(post);
+        if (!endExclusive || !post.timestamp || new Date(post.timestamp) < endExclusive) allPosts.push(post);
       }
 
       if (reachedCutoff || !mediaData?.paging?.next) {
@@ -597,12 +581,12 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
 
     // Full-history sync is deliberately processed in resumable batches. This avoids
     // losing progress when Meta rate-limits a request or the server reaches its timeout.
-    const selectedDays = normalizeSyncDays(days);
+    const selectedPeriod = parseSyncPeriod(days);
     const checkpointKey = `instagram_ads_full_sync_v2_${actId}`;
     let checkpoint: { cursor?: string; fetched?: number; saved?: number; complete?: boolean } = options?.cursor
       ? { cursor: options.cursor }
       : {};
-    if (selectedDays === 'all' && !options?.batch) {
+    if (!selectedPeriod && !options?.batch) {
       const stored = await prisma.appSetting.findUnique({ where: { key: checkpointKey } });
       if (stored) checkpoint = JSON.parse(stored.value);
       if (checkpoint.complete) {
@@ -620,7 +604,7 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
     let pagesInsightsFetched = 0;
 
     let nextCursor: string | undefined;
-    const pageLimit = options?.pageLimit ?? (options?.batch ? 1 : (selectedDays === 'all' ? 1 : 20));
+    const pageLimit = options?.pageLimit ?? (options?.batch ? 1 : (!selectedPeriod ? 1 : 20));
     let rowsFetched = 0;
 
     while (hasNextInsights && insightsUrl && pagesInsightsFetched < pageLimit) {
@@ -655,7 +639,7 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
 
     if (adInsightsMap.size === 0 && !nextCursor) {
       const result = { fetched: (checkpoint.fetched || 0) + rowsFetched, saved: checkpoint.saved || 0, complete: true, hasMore: false };
-      if (selectedDays === 'all' && !options?.batch) {
+      if (!selectedPeriod && !options?.batch) {
         await prisma.appSetting.upsert({ where: { key: checkpointKey }, update: { value: JSON.stringify({ ...result, cursor: null }) }, create: { key: checkpointKey, value: JSON.stringify({ ...result, cursor: null }) } });
       }
       return result;
@@ -861,7 +845,7 @@ export async function syncPostAdsInsights(token: string, adAccountId?: string, d
       hasMore: Boolean(nextCursor),
       cursor: nextCursor,
     };
-    if (selectedDays === 'all' && !options?.batch) {
+    if (!selectedPeriod && !options?.batch) {
       await prisma.appSetting.upsert({
         where: { key: checkpointKey },
         update: { value: JSON.stringify({ ...result, cursor: nextCursor || null }) },

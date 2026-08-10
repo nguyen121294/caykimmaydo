@@ -5,7 +5,6 @@ import PageHeader from '@/app/components/page-header';
 import { toast } from 'sonner';
 
 type PlatformStatus = 'idle' | 'syncing' | 'success' | 'error';
-type SyncDays = '7' | '30' | '90' | 'all';
 
 interface SyncItem {
   id: string;
@@ -34,13 +33,40 @@ const SYNC_CONFIG: SyncItem[] = [
   { id: 'manychat', name: 'ManyChat (CRM / Inbox)', apiRoute: '/api/marketing/sync/manychat', status: 'idle', lastSync: null },
 ];
 
+const formatInputDate = (date: Date) => {
+  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
+};
+
+const defaultEndDate = formatInputDate(new Date());
+const initialStartDate = new Date();
+initialStartDate.setDate(initialStartDate.getDate() - 6);
+const defaultStartDate = formatInputDate(initialStartDate);
+
 export default function SyncHubContent() {
   const [items, setItems] = useState<SyncItem[]>(SYNC_CONFIG);
   const [logs, setLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [lastUpdate, setLastUpdate] = useState('');
-  const [syncDays, setSyncDays] = useState<SyncDays>('7');
+  const [startDate, setStartDate] = useState(defaultStartDate);
+  const [endDate, setEndDate] = useState(defaultEndDate);
+
+  const selectedDayCount = Math.floor(
+    (new Date(`${endDate}T00:00:00Z`).getTime() - new Date(`${startDate}T00:00:00Z`).getTime()) / 86_400_000,
+  ) + 1;
+
+  const confirmDateRange = () => {
+    if (!startDate || !endDate || startDate > endDate) {
+      toast.error('Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.');
+      return false;
+    }
+    if (selectedDayCount <= 30) return true;
+    return window.confirm(
+      `Bạn đang chọn ${selectedDayCount} ngày. Dữ liệu lớn có thể khiến tác vụ bị timeout. `
+      + 'Nên chia thành nhiều khoảng tối đa 30 ngày. Bạn vẫn muốn tiếp tục?',
+    );
+  };
 
   const readJsonResponse = async (res: Response) => {
     const text = await res.text();
@@ -96,7 +122,7 @@ export default function SyncHubContent() {
     const res = await fetch('/api/marketing/sync/meta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platforms, days: syncDays }),
+      body: JSON.stringify({ platforms, startDate, endDate }),
     });
     const data = await readJsonResponse(res);
     if (!res.ok || !data.success) throw new Error(data.error || `Không thể xếp hàng đồng bộ (${res.status})`);
@@ -121,7 +147,8 @@ export default function SyncHubContent() {
     setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
   }, []);
 
-  const handleSyncItem = async (index: number) => {
+  const handleSyncItem = async (index: number, skipDateConfirmation = false) => {
+    if (!skipDateConfirmation && !confirmDateRange()) return;
     const item = items[index];
     setItems(prev => prev.map((candidate, candidateIndex) => candidateIndex === index
       ? { ...candidate, status: 'syncing', message: 'QUEUED' }
@@ -135,7 +162,7 @@ export default function SyncHubContent() {
         const res = await fetch(item.apiRoute, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ days: syncDays }),
+          body: JSON.stringify({ days: String(selectedDayCount) }),
         });
         const data = await readJsonResponse(res);
         if (!res.ok || !data.success) throw new Error(data.error || `Đồng bộ thất bại (${res.status})`);
@@ -160,6 +187,7 @@ export default function SyncHubContent() {
 
   const handleSyncAll = async () => {
     if (isSyncingAll) return;
+    if (!confirmDateRange()) return;
     setIsSyncingAll(true);
     toast.info('Đang xếp hàng đồng bộ Meta tuần tự...');
     const metaItems = items.filter(item => item.payload?.platform);
@@ -173,7 +201,7 @@ export default function SyncHubContent() {
       const directIndexes = items
         .map((item, index) => item.payload?.platform ? -1 : index)
         .filter(index => index >= 0);
-      for (const index of directIndexes) await handleSyncItem(index);
+      for (const index of directIndexes) await handleSyncItem(index, true);
       const failed = jobs.filter(job => job.status === 'FAILED');
       if (failed.length > 0) toast.error(`${failed.length} nền tảng đồng bộ thất bại.`);
       else toast.success('Đã hoàn tất chuỗi đồng bộ Meta!');
@@ -216,18 +244,27 @@ export default function SyncHubContent() {
         />
         <div className="flex flex-col sm:flex-row sm:items-end gap-3">
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-            Khoảng thời gian đồng bộ
-            <select
-              value={syncDays}
-              onChange={(event) => setSyncDays(event.target.value as SyncDays)}
+            Từ ngày
+            <input
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={(event) => setStartDate(event.target.value)}
               disabled={isSyncingAll || items.some(item => item.status === 'syncing')}
-              className="min-w-44 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
-            >
-              <option value="7">7 ngày gần nhất</option>
-              <option value="30">30 ngày gần nhất</option>
-              <option value="90">90 ngày gần nhất</option>
-              <option value="all">Toàn bộ thời gian</option>
-            </select>
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+            Đến ngày
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={defaultEndDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              disabled={isSyncingAll || items.some(item => item.status === 'syncing')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+            />
           </label>
           <div className="flex flex-col items-end">
           <button

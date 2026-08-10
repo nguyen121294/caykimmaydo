@@ -6,17 +6,20 @@ interface PageHeaderProps {
   title: string;
   description?: string;
   icon?: LucideIcon;
-  onRefresh?: () => void;
+  onRefresh?: () => void | Promise<void>;
   children?: React.ReactNode;
 }
 
 export default function PageHeader({ title, description, icon: Icon, onRefresh, children }: PageHeaderProps) {
   const [spinning, setSpinning] = useState(false);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setSpinning(true);
-    onRefresh?.();
-    setTimeout(() => setSpinning(false), 1000);
+    try {
+      await onRefresh?.();
+    } finally {
+      setSpinning(false);
+    }
   };
 
   return (

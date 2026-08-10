@@ -14,11 +14,13 @@ export default function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30');
   const [lastUpdate, setLastUpdate] = useState('');
+  const [campaignRefreshKey, setCampaignRefreshKey] = useState(0);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const res = await fetch(`/api/dashboard?days=${timeRange}&_t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Dashboard request failed: ${res.status}`);
       const json = await res?.json?.();
       setData(json ?? {});
       setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
@@ -26,6 +28,11 @@ export default function DashboardContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const refreshAll = async () => {
+    await fetchData();
+    setCampaignRefreshKey((key) => key + 1);
   };
 
   useEffect(() => {
@@ -76,7 +83,7 @@ export default function DashboardContent() {
           title="Tổng Quan"
           description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
           icon={LayoutDashboard}
-          onRefresh={fetchData}
+          onRefresh={refreshAll}
         />
         <div className="flex flex-col items-center justify-center py-20">
           <div className="bg-gray-100 rounded-full p-6 mb-6">
@@ -117,7 +124,7 @@ export default function DashboardContent() {
         title="Tổng Quan"
         description="Theo dõi KPI và hiệu suất kinh doanh theo thời gian thực"
         icon={LayoutDashboard}
-        onRefresh={fetchData}
+        onRefresh={refreshAll}
       >
         <select
           value={timeRange}
@@ -398,7 +405,10 @@ export default function DashboardContent() {
       {/* Campaigns Section */}
       <div className="mt-8 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-6">
-          <CampaignManager timeRange={timeRange === 'all' ? '0' : timeRange} />
+          <CampaignManager
+            timeRange={timeRange === 'all' ? '0' : timeRange}
+            refreshKey={campaignRefreshKey}
+          />
         </div>
       </div>
     </div>

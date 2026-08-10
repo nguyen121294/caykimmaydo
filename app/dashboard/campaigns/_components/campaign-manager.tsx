@@ -6,9 +6,10 @@ import PageHeader from '@/app/components/page-header';
 
 interface CampaignManagerProps {
   timeRange?: string;
+  refreshKey?: number;
 }
 
-export default function CampaignManager({ timeRange = '30' }: CampaignManagerProps) {
+export default function CampaignManager({ timeRange = '30', refreshKey = 0 }: CampaignManagerProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -17,7 +18,8 @@ export default function CampaignManager({ timeRange = '30' }: CampaignManagerPro
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/campaigns?days=${timeRange}`);
+      const res = await fetch(`/api/campaigns?days=${timeRange}&_t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Campaign request failed: ${res.status}`);
       const json = await res.json();
       setData(json?.campaignRecords ?? []);
     } catch (error) {
@@ -29,7 +31,7 @@ export default function CampaignManager({ timeRange = '30' }: CampaignManagerPro
 
   useEffect(() => {
     fetchData();
-  }, [timeRange]);
+  }, [timeRange, refreshKey]);
 
   const filteredData = data.filter(record => 
     record.name.toLowerCase().includes(searchTerm.toLowerCase())

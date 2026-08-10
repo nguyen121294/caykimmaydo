@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
-import { assertQStashConfiguration, publishSyncJob } from '@/lib/qstash-sync';
+import { publishMetaSync } from '@/lib/netlify-async-workloads';
 
 const META_PLATFORMS = ['Facebook Page', 'Facebook Ads', 'Instagram'] as const;
 type MetaPlatform = (typeof META_PLATFORMS)[number];
@@ -26,7 +26,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Bạn cần đăng nhập để bắt đầu đồng bộ.' }, { status: 401 });
     }
 
-    assertQStashConfiguration();
     const body = await req.json().catch(() => ({}));
     const platforms = normalizePlatforms(body);
     const days = ['7', '30', '90', 'all'].includes(body?.days) ? body.days : '30';
@@ -38,16 +37,30 @@ export async function POST(req: NextRequest) {
       }))
     );
 
-    try {
-      const firstJob = jobs[0];
-      const messageId = await publishSyncJob({ jobId: firstJob.id, revision: firstJob.revision });
-      await prisma.syncJob.update({ where: { id: firstJob.id }, data: { messageId } });
-    } catch (error: any) {
-      await prisma.syncJob.updateMany({
-        where: { groupId },
-        data: { status: 'FAILED', error: error?.message || 'Không thể publish QStash', completedAt: new Date() },
+    const dispatchResults = await Promise.allSettled(jobs.map(async job => {
+        const eventId = await publishMetaSync(job.id);
+        await prisma.syncJob.update({ where: { id: job.id }, data: { messageId: eventId } });
+      }));
+
+    const failedDispatches = dispatchResults
+      .map((result, index) => ({ result, job: jobs[index] }))
+      .filter(({ result }) => result.status === 'rejected');
+
+    await Promise.all(failedDispatches.map(async ({ result, job }) => {
+      const reason = result.status === 'rejected' ? result.reason : null;
+      await prisma.syncJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          stage: 'DISPATCH_FAILED',
+          error: reason?.message || 'Không thể publish Netlify Async Workload',
+          completedAt: new Date(),
+        },
       });
-      throw error;
+    }));
+
+    if (failedDispatches.length === jobs.length) {
+      throw new Error('Netlify Async Workloads không thể xếp hàng tác vụ đồng bộ.');
     }
 
     await prisma.automationLog.create({
@@ -68,7 +81,7 @@ export async function POST(req: NextRequest) {
     }, { status: 202 });
   } catch (error: any) {
     const message = error?.message || 'Lỗi server khi xếp hàng đồng bộ Meta.';
-    const status = message.includes('QSTASH_') || message.includes('NEXT_PUBLIC_APP_URL') ? 503 : 400;
+    const status = message.includes('Async Workloads') ? 503 : 400;
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }

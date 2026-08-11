@@ -12,7 +12,7 @@ retries and status records.
    variables. Netlify supplies runtime configuration automatically on plans where
    an explicit key is not required.
 3. Deploy the `stage_test` branch and verify that Netlify discovers
-   `netlify/functions/meta-sync-workload.ts`.
+   `netlify/functions/meta-sync-workload.mts`.
 
 The workload is configured as a background function so each sync invocation may
 run for up to 15 minutes. Netlify retries a failing platform up to three times

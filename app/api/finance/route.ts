@@ -28,39 +28,72 @@ function auditActor(session: AdminSession) {
     userName: session.user.name || 'Admin',
     userEmail: session.user.email || null,
   };
+export const dynamic = 'force-dynamic';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
+import { prisma } from '@/lib/prisma';
+import {
+  DEFAULT_FINANCE_ROWS,
+  emptyMonthValues,
+  isFinanceRowKind,
+  normalizeMonthValues,
+  type FinanceRowKind,
+} from '@/lib/finance-ledger';
+
+type AdminSession = {
+  user: { id?: string; name?: string | null; email?: string | null; role?: string };
+};
+
+async function requireAdmin() {
+  const session = (await getServerSession(authOptions)) as AdminSession | null;
+  if (!session?.user || session.user.role !== 'admin') return null;
+  return session;
+}
+
+function auditActor(session: AdminSession) {
+  return {
+    userId: session.user.id && session.user.id !== 'superadmin' ? session.user.id : null,
+    userName: session.user.name || 'Admin',
+    userEmail: session.user.email || null,
+  };
 }
 
 async function createDefaultLedger(year: number, session: AdminSession) {
   const existing = await prisma.financeLedger.findUnique({ where: { year } });
   if (existing) return existing;
 
-  return prisma.$transaction(async (tx) => {
-    const ledger = await tx.financeLedger.create({
-      data: {
-        year,
-        archived: year < new Date().getFullYear(),
-        months: { create: Array.from({ length: 12 }, (_, index) => ({ month: index + 1 })) },
-      },
-    });
-    const parents = new Map<string, string>();
-    for (const [sortOrder, row] of DEFAULT_FINANCE_ROWS.entries()) {
-      const created = await tx.financeLedgerRow.create({
+  return prisma.$transaction(
+    async (tx) => {
+      const ledger = await tx.financeLedger.create({
         data: {
-          ledgerId: ledger.id,
-          parentId: row.parentLabel ? parents.get(row.parentLabel) : null,
-          label: row.label,
-          kind: row.kind,
-          sortOrder,
-          values: emptyMonthValues(),
+          year,
+          archived: year < new Date().getFullYear(),
+          months: { create: Array.from({ length: 12 }, (_, index) => ({ month: index + 1 })) },
         },
       });
-      if (row.kind === 'GROUP') parents.set(row.label, created.id);
-    }
-    await tx.financeAuditLog.create({
-      data: { ledgerId: ledger.id, action: 'CREATE_YEAR', after: { year }, ...auditActor(session) },
-    });
-    return ledger;
-  });
+      const parents = new Map<string, string>();
+      for (const [sortOrder, row] of DEFAULT_FINANCE_ROWS.entries()) {
+        const created = await tx.financeLedgerRow.create({
+          data: {
+            ledgerId: ledger.id,
+            parentId: row.parentLabel ? parents.get(row.parentLabel) : null,
+            label: row.label,
+            kind: row.kind,
+            sortOrder,
+            values: emptyMonthValues(),
+          },
+        });
+        if (row.kind === 'GROUP') parents.set(row.label, created.id);
+      }
+      await tx.financeAuditLog.create({
+        data: { ledgerId: ledger.id, action: 'CREATE_YEAR', after: { year }, ...auditActor(session) },
+      });
+      return ledger;
+    },
+    { timeout: 30000, maxWait: 10000 },
+  );
 }
 
 export async function GET(req: NextRequest) {

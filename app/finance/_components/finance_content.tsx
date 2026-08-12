@@ -65,6 +65,18 @@ const SPECIAL_KINDS: Record<string, FinanceRowKind> = {
 const money = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
 const compactMoney = new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 });
 
+async function readApiResponse(response: Response) {
+  const text = await response.text();
+  if (!text) {
+    throw new Error(`Máy chủ không trả dữ liệu (${response.status || 'mất kết nối'}). Vui lòng kiểm tra migration và log triển khai.`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(response.ok ? 'Dữ liệu máy chủ trả về không hợp lệ' : `Máy chủ báo lỗi ${response.status}`);
+  }
+}
+
 function orderedRows(rows: LedgerRow[]) {
   const children = new Map<string, LedgerRow[]>();
   rows.forEach((row) => {
@@ -120,7 +132,7 @@ export default function FinanceContent() {
     setLoading(true);
     try {
       const response = await fetch(`/api/finance?year=${year}`, { cache: 'no-store' });
-      const result = await response.json();
+      const result = await readApiResponse(response);
       if (!response.ok) throw new Error(result.error || 'Không tải được dữ liệu');
       setData(result);
     } catch (error) {
@@ -148,7 +160,7 @@ export default function FinanceContent() {
 
   const request = async (method: string, body: unknown) => {
     const response = await fetch('/api/finance', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const result = await response.json();
+    const result = await readApiResponse(response);
     if (!response.ok) throw new Error(result.error || 'Không thể lưu thay đổi');
     return result;
   };

@@ -64,28 +64,33 @@ async function createDefaultLedger(year: number, session: AdminSession) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: 'Chỉ admin được truy cập' }, { status: 403 });
+  try {
+    const session = await requireAdmin();
+    if (!session) return NextResponse.json({ error: 'Chỉ admin được truy cập' }, { status: 403 });
 
-  const requestedYear = Number(req.nextUrl.searchParams.get('year')) || new Date().getFullYear();
-  const ledger = await createDefaultLedger(requestedYear, session);
-  const [years, data, logs] = await Promise.all([
-    prisma.financeLedger.findMany({ orderBy: { year: 'desc' }, select: { year: true, archived: true } }),
-    prisma.financeLedger.findUnique({
-      where: { id: ledger.id },
-      include: {
-        rows: { orderBy: { sortOrder: 'asc' } },
-        months: { orderBy: { month: 'asc' } },
-      },
-    }),
-    prisma.financeAuditLog.findMany({
-      where: { ledgerId: ledger.id },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: { id: true, action: true, field: true, before: true, after: true, userName: true, userEmail: true, createdAt: true, row: { select: { label: true } } },
-    }),
-  ]);
-  return NextResponse.json({ ...data, years, logs });
+    const requestedYear = Number(req.nextUrl.searchParams.get('year')) || new Date().getFullYear();
+    const ledger = await createDefaultLedger(requestedYear, session);
+    const [years, data, logs] = await Promise.all([
+      prisma.financeLedger.findMany({ orderBy: { year: 'desc' }, select: { year: true, archived: true } }),
+      prisma.financeLedger.findUnique({
+        where: { id: ledger.id },
+        include: {
+          rows: { orderBy: { sortOrder: 'asc' } },
+          months: { orderBy: { month: 'asc' } },
+        },
+      }),
+      prisma.financeAuditLog.findMany({
+        where: { ledgerId: ledger.id },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: { id: true, action: true, field: true, before: true, after: true, userName: true, userEmail: true, createdAt: true, row: { select: { label: true } } },
+      }),
+    ]);
+    return NextResponse.json({ ...data, years, logs });
+  } catch (error) {
+    console.error('Finance ledger GET failed:', error);
+    return NextResponse.json({ error: 'Không thể tải sổ tài chính. Hãy kiểm tra database migration.' }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

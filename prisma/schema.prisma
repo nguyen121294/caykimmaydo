@@ -1,24 +1,25 @@
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          String    @default("user")
-  accounts      Account[]
-  sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+  role             String            @default("user")
+  accounts         Account[]
+  sessions         Session[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  financeAuditLogs FinanceAuditLog[]
 }
 
 model Account {
@@ -56,33 +57,33 @@ model VerificationToken {
 }
 
 model Order {
-  id          String   @id @default(cuid())
-  orderId     String   @unique
+  id           String   @id @default(cuid())
+  orderId      String   @unique
   customerName String
-  phone       String?
-  product     String
-  productType String?
-  quantity    Int?     @default(1)
-  fabricType  String?
-  tailorName  String?
-  orderDate   String?
+  phone        String?
+  product      String
+  productType  String?
+  quantity     Int?     @default(1)
+  fabricType   String?
+  tailorName   String?
+  orderDate    String?
   expectedDate String?
-  actualDate  String?
-  tryDate     String?
+  actualDate   String?
+  tryDate      String?
   deliveryDate String?
-  price       String?
-  total       Float?   @default(0)
-  deposit     Float?   @default(0)
-  department  String?
-  status      String   @default("Mới")
-  hasMedia    String?  @default("No")
-  hasFeedback String?  @default("No")
-  mediaLink   String?
-  notes       String?
-  action      String?
-  source      String?  @default("Khác")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  price        String?
+  total        Float?   @default(0)
+  deposit      Float?   @default(0)
+  department   String?
+  status       String   @default("Mới")
+  hasMedia     String?  @default("No")
+  hasFeedback  String?  @default("No")
+  mediaLink    String?
+  notes        String?
+  action       String?
+  source       String?  @default("Khác")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Task {
@@ -121,35 +122,35 @@ model TailorChecklist {
 }
 
 model VideoScript {
-  id            String   @id @default(cuid())
-  scriptId      String   @unique
-  funnelStage   String
-  contentType   String
-  hook          String?
-  painPoint     String?
-  solution      String?
-  cta           String?
-  caption       String?
-  duration      String?
+  id             String   @id @default(cuid())
+  scriptId       String   @unique
+  funnelStage    String
+  contentType    String
+  hook           String?
+  painPoint      String?
+  solution       String?
+  cta            String?
+  caption        String?
+  duration       String?
   targetAudience String?
-  expectedKpi   String?
-  status        String   @default("Chưa Dùng")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  expectedKpi    String?
+  status         String   @default("Chưa Dùng")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model InboxScript {
-  id             String   @id @default(cuid())
-  customerType   String
-  colorTag       String?
-  identifiers    String?
-  messageNumber  String?
-  sender         String?
-  label          String?
-  content        String?
-  sheetName      String   @default("Master")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  customerType  String
+  colorTag      String?
+  identifiers   String?
+  messageNumber String?
+  sender        String?
+  label         String?
+  content       String?
+  sheetName     String   @default("Master")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model ContentTracking {
@@ -189,51 +190,51 @@ model ContentCalendar {
 }
 
 model ABTest {
-  id             String   @id @default(cuid())
-  testId         String   @unique
-  testName       String
-  dateStarted    String?
-  dateEnded      String?
-  variantA       String?
-  variantB       String?
-  budgetA        Float?   @default(0)
-  budgetB        Float?   @default(0)
-  impressionsA   Float?   @default(0)
-  impressionsB   Float?   @default(0)
-  clicksA          Float?   @default(0)
-  clicksB          Float?   @default(0)
-  linkClicksA      Float?   @default(0)
-  landingPageViewsA Float?  @default(0)
-  conversionsA     Float?   @default(0)
-  conversionsB   Float?   @default(0)
-  revenueA       Float?   @default(0)
-  revenueB       Float?   @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default(cuid())
+  testId            String   @unique
+  testName          String
+  dateStarted       String?
+  dateEnded         String?
+  variantA          String?
+  variantB          String?
+  budgetA           Float?   @default(0)
+  budgetB           Float?   @default(0)
+  impressionsA      Float?   @default(0)
+  impressionsB      Float?   @default(0)
+  clicksA           Float?   @default(0)
+  clicksB           Float?   @default(0)
+  linkClicksA       Float?   @default(0)
+  landingPageViewsA Float?   @default(0)
+  conversionsA      Float?   @default(0)
+  conversionsB      Float?   @default(0)
+  revenueA          Float?   @default(0)
+  revenueB          Float?   @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model TeamWorkflow {
-  id              String   @id @default(cuid())
-  roleNumber      String?
-  role            String
+  id               String   @id @default(cuid())
+  roleNumber       String?
+  role             String
   responsibilities String?
-  sheetsAccess    String?
-  accessLevel     String?
-  dailyTasks      String?
-  weeklyTasks     String?
-  tools           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  sheetsAccess     String?
+  accessLevel      String?
+  dailyTasks       String?
+  weeklyTasks      String?
+  tools            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model PlatformCredential {
-  id           String   @id @default(cuid())
-  platform     String   @unique
-  credentials  String
-  isConnected  Boolean  @default(false)
-  lastTested   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String    @id @default(cuid())
+  platform    String    @unique
+  credentials String
+  isConnected Boolean   @default(false)
+  lastTested  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model AppSetting {
@@ -279,19 +280,19 @@ model SyncJob {
 }
 
 model KpiSnapshot {
-  id              String   @id @default(cuid())
-  date            DateTime @default(now())
-  totalOrders     Float?   @default(0)
-  totalRevenue    Float?   @default(0)
-  totalAdSpend    Float?   @default(0)
-  roas            Float?   @default(0)
-  conversionRate  Float?   @default(0)
-  totalContent    Float?   @default(0)
-  avgViews        Float?   @default(0)
-  saveRate        Float?   @default(0)
-  closeRate       Float?   @default(0)
-  mediaRate       Float?   @default(0)
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  date           DateTime @default(now())
+  totalOrders    Float?   @default(0)
+  totalRevenue   Float?   @default(0)
+  totalAdSpend   Float?   @default(0)
+  roas           Float?   @default(0)
+  conversionRate Float?   @default(0)
+  totalContent   Float?   @default(0)
+  avgViews       Float?   @default(0)
+  saveRate       Float?   @default(0)
+  closeRate      Float?   @default(0)
+  mediaRate      Float?   @default(0)
+  createdAt      DateTime @default(now())
 }
 
 model InboxKpi {
@@ -309,34 +310,34 @@ model InboxKpi {
 }
 
 model Customer {
-  id              String   @id @default(cuid())
-  name            String
-  phone           String?
-  email           String?
-  zaloId          String?
-  source          String?  @default("Khác")
-  totalOrders     Int      @default(0)
-  totalSpent      Float    @default(0)
-  lastOrder       String?
-  tags            String?
-  notes           String?
-  status          String   @default("Mới")
+  id                  String               @id @default(cuid())
+  name                String
+  phone               String?
+  email               String?
+  zaloId              String?
+  source              String?              @default("Khác")
+  totalOrders         Int                  @default(0)
+  totalSpent          Float                @default(0)
+  lastOrder           String?
+  tags                String?
+  notes               String?
+  status              String               @default("Mới")
   // Loyalty fields
-  loyaltyPoints   Int      @default(0)
-  loyaltyTier     String   @default("New")
-  lastPurchaseDate String?
+  loyaltyPoints       Int                  @default(0)
+  loyaltyTier         String               @default("New")
+  lastPurchaseDate    String?
   // Google Sheet extra fields
-  contactAccount  String?
-  address         String?
-  tailoringNeed   String?
-  measurementInfo String?
-  noteInfo        String?
-  completedDate   String?
-  inactiveDays    Int      @default(0)
+  contactAccount      String?
+  address             String?
+  tailoringNeed       String?
+  measurementInfo     String?
+  noteInfo            String?
+  completedDate       String?
+  inactiveDays        Int                  @default(0)
   // Relations
   loyaltyTransactions LoyaltyTransaction[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model LoyaltyTransaction {
@@ -344,7 +345,7 @@ model LoyaltyTransaction {
   customerId  String
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   orderId     String?
-  type        String   // earn, redeem, adjust, expire
+  type        String // earn, redeem, adjust, expire
   points      Int
   amount      Float?   @default(0)
   description String?
@@ -352,19 +353,19 @@ model LoyaltyTransaction {
 }
 
 model Lead {
-  id          String   @id @default(cuid())
-  name        String
-  phone       String?
-  email       String?
-  source      String?  @default("Facebook")
-  stage       String   @default("Mới")
-  value       Float    @default(0)
-  assignee    String?
-  nextAction  String?
-  nextDate    String?
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  source     String?  @default("Facebook")
+  stage      String   @default("Mới")
+  value      Float    @default(0)
+  assignee   String?
+  nextAction String?
+  nextDate   String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model FinanceEntry {
@@ -380,6 +381,70 @@ model FinanceEntry {
   updatedAt   DateTime @updatedAt
 }
 
+model FinanceLedger {
+  id        String               @id @default(cuid())
+  year      Int                  @unique
+  archived  Boolean              @default(false)
+  rows      FinanceLedgerRow[]
+  months    FinanceMonthStatus[]
+  auditLogs FinanceAuditLog[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model FinanceLedgerRow {
+  id        String             @id @default(cuid())
+  ledgerId  String
+  ledger    FinanceLedger      @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    FinanceLedgerRow?  @relation("FinanceRowTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  FinanceLedgerRow[] @relation("FinanceRowTree")
+  label     String
+  kind      String             @default("DETAIL")
+  sortOrder Int
+  values    Json               @default("{}")
+  auditLogs FinanceAuditLog[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([ledgerId, sortOrder])
+  @@index([parentId])
+}
+
+model FinanceMonthStatus {
+  id        String        @id @default(cuid())
+  ledgerId  String
+  ledger    FinanceLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  month     Int
+  isClosed  Boolean       @default(false)
+  closedAt  DateTime?
+  closedBy  String?
+  updatedAt DateTime      @updatedAt
+
+  @@unique([ledgerId, month])
+}
+
+model FinanceAuditLog {
+  id        String            @id @default(cuid())
+  ledgerId  String
+  ledger    FinanceLedger     @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  rowId     String?
+  row       FinanceLedgerRow? @relation(fields: [rowId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName  String?
+  userEmail String?
+  action    String
+  field     String?
+  before    Json?
+  after     Json?
+  createdAt DateTime          @default(now())
+
+  @@index([ledgerId, createdAt])
+  @@index([rowId])
+  @@index([userId])
+}
+
 model FacebookPost {
   id            String    @id @default(cuid())
   postId        String    @unique
@@ -393,17 +458,17 @@ model FacebookPost {
   viewsCount    Int       @default(0)
   commentsCount Int       @default(0)
   sharesCount   Int       @default(0)
-  
-  // Ad Insights fields
-  adSpend       Float?
-  adReach       Int?
-  adVisits      Int?
-  adStatus      String?
-  demographics  Json?
 
-  syncedAt      DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  // Ad Insights fields
+  adSpend      Float?
+  adReach      Int?
+  adVisits     Int?
+  adStatus     String?
+  demographics Json?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model InstagramPost {
@@ -417,43 +482,43 @@ model InstagramPost {
   createdTime   DateTime?
   likesCount    Int       @default(0)
   commentsCount Int       @default(0)
-  
-  // Ad Insights fields
-  adSpend       Float?
-  adReach       Int?
-  adVisits      Int?
-  adStatus      String?
-  demographics  Json?
 
-  syncedAt      DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  // Ad Insights fields
+  adSpend      Float?
+  adReach      Int?
+  adVisits     Int?
+  adStatus     String?
+  demographics Json?
+
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model InstagramAd {
-  id            String   @id @default(cuid())
-  adId          String   @unique
-  adName        String?
-  campaignId    String?
-  campaignName  String?
-  adSetId       String?
-  adSetName     String?
-  postId        String?
-  caption       String?
-  mediaUrl      String?
-  permalinkUrl  String?
-  status        String?
-  spend         Float    @default(0)
-  reach         Int      @default(0)
-  visits        Int      @default(0)
-  likesCount    Int      @default(0)
-  commentsCount Int      @default(0)
-  sharesCount   Int      @default(0)
-  engagementCount Int    @default(0)
-  demographics  Json?
-  syncedAt      DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  adId            String   @unique
+  adName          String?
+  campaignId      String?
+  campaignName    String?
+  adSetId         String?
+  adSetName       String?
+  postId          String?
+  caption         String?
+  mediaUrl        String?
+  permalinkUrl    String?
+  status          String?
+  spend           Float    @default(0)
+  reach           Int      @default(0)
+  visits          Int      @default(0)
+  likesCount      Int      @default(0)
+  commentsCount   Int      @default(0)
+  sharesCount     Int      @default(0)
+  engagementCount Int      @default(0)
+  demographics    Json?
+  syncedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([campaignId])
   @@index([postId])

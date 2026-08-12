@@ -1,53 +1,216 @@
 export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { prisma } from '@/lib/prisma';
+import {
+  DEFAULT_FINANCE_ROWS,
+  emptyMonthValues,
+  isFinanceRowKind,
+  normalizeMonthValues,
+  type FinanceRowKind,
+} from '@/lib/finance-ledger';
 
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const entries = await prisma.financeEntry.findMany({ orderBy: { createdAt: 'desc' } });
-    return NextResponse.json(entries);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+type AdminSession = {
+  user: { id?: string; name?: string | null; email?: string | null; role?: string };
+};
+
+async function requireAdmin() {
+  const session = (await getServerSession(authOptions)) as AdminSession | null;
+  if (!session?.user || session.user.role !== 'admin') return null;
+  return session;
+}
+
+function auditActor(session: AdminSession) {
+  return {
+    userId: session.user.id && session.user.id !== 'superadmin' ? session.user.id : null,
+    userName: session.user.name || 'Admin',
+    userEmail: session.user.email || null,
+  };
+}
+
+async function createDefaultLedger(year: number, session: AdminSession) {
+  const existing = await prisma.financeLedger.findUnique({ where: { year } });
+  if (existing) return existing;
+
+  return prisma.$transaction(async (tx) => {
+    const ledger = await tx.financeLedger.create({
+      data: {
+        year,
+        archived: year < new Date().getFullYear(),
+        months: { create: Array.from({ length: 12 }, (_, index) => ({ month: index + 1 })) },
+      },
+    });
+    const parents = new Map<string, string>();
+    for (const [sortOrder, row] of DEFAULT_FINANCE_ROWS.entries()) {
+      const created = await tx.financeLedgerRow.create({
+        data: {
+          ledgerId: ledger.id,
+          parentId: row.parentLabel ? parents.get(row.parentLabel) : null,
+          label: row.label,
+          kind: row.kind,
+          sortOrder,
+          values: emptyMonthValues(),
+        },
+      });
+      if (row.kind === 'GROUP') parents.set(row.label, created.id);
+    }
+    await tx.financeAuditLog.create({
+      data: { ledgerId: ledger.id, action: 'CREATE_YEAR', after: { year }, ...auditActor(session) },
+    });
+    return ledger;
+  });
+}
+
+export async function GET(req: NextRequest) {
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: 'Chỉ admin được truy cập' }, { status: 403 });
+
+  const requestedYear = Number(req.nextUrl.searchParams.get('year')) || new Date().getFullYear();
+  const ledger = await createDefaultLedger(requestedYear, session);
+  const [years, data, logs] = await Promise.all([
+    prisma.financeLedger.findMany({ orderBy: { year: 'desc' }, select: { year: true, archived: true } }),
+    prisma.financeLedger.findUnique({
+      where: { id: ledger.id },
+      include: {
+        rows: { orderBy: { sortOrder: 'asc' } },
+        months: { orderBy: { month: 'asc' } },
+      },
+    }),
+    prisma.financeAuditLog.findMany({
+      where: { ledgerId: ledger.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: { id: true, action: true, field: true, before: true, after: true, userName: true, userEmail: true, createdAt: true, row: { select: { label: true } } },
+    }),
+  ]);
+  return NextResponse.json({ ...data, years, logs });
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const data = await req.json();
-    const entry = await prisma.financeEntry.create({ data: { ...data, amount: parseFloat(data.amount) || 0 } });
-    return NextResponse.json(entry, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: 'Chỉ admin được chỉnh sửa' }, { status: 403 });
+  const body = await req.json();
+  const action = String(body.action || '');
+
+  if (action === 'CREATE_YEAR') {
+    const year = Number(body.year);
+    if (!Number.isInteger(year) || year < 2020 || year > 2100) return NextResponse.json({ error: 'Năm không hợp lệ' }, { status: 400 });
+    const ledger = await createDefaultLedger(year, session);
+    return NextResponse.json(ledger, { status: 201 });
   }
+
+  const ledger = await prisma.financeLedger.findUnique({ where: { id: String(body.ledgerId || '') } });
+  if (!ledger) return NextResponse.json({ error: 'Không tìm thấy sổ tài chính' }, { status: 404 });
+
+  if (action === 'ADD_ROW') {
+    const parentId = body.parentId ? String(body.parentId) : null;
+    const parent = parentId ? await prisma.financeLedgerRow.findFirst({ where: { id: parentId, ledgerId: ledger.id, kind: 'GROUP' } }) : null;
+    if (parentId && !parent) return NextResponse.json({ error: 'Nhóm cha không hợp lệ' }, { status: 400 });
+    const label = String(body.label || '').trim();
+    if (!label) return NextResponse.json({ error: 'Tên dòng không được trống' }, { status: 400 });
+    const max = await prisma.financeLedgerRow.aggregate({ where: { ledgerId: ledger.id }, _max: { sortOrder: true } });
+    const row = await prisma.financeLedgerRow.create({
+      data: { ledgerId: ledger.id, parentId, label, kind: 'DETAIL', sortOrder: (max._max.sortOrder ?? 0) + 1, values: emptyMonthValues() },
+    });
+    await prisma.financeAuditLog.create({ data: { ledgerId: ledger.id, rowId: row.id, action: 'ADD_ROW', after: { label, parentId }, ...auditActor(session) } });
+    return NextResponse.json(row, { status: 201 });
+  }
+
+  if (action === 'IMPORT') {
+    if (!Array.isArray(body.rows)) return NextResponse.json({ error: 'Dữ liệu import không hợp lệ' }, { status: 400 });
+    const rows = body.rows.slice(0, 200).map((row: any, index: number) => ({
+      label: String(row.label || '').trim(),
+      kind: isFinanceRowKind(row.kind) ? row.kind : 'DETAIL',
+      parentLabel: row.parentLabel ? String(row.parentLabel).trim() : null,
+      values: Object.fromEntries(Object.entries(row.values || {}).filter(([month, value]) => {
+        const numericMonth = Number(month);
+        return Number.isInteger(numericMonth) && numericMonth >= 1 && numericMonth <= 12 && Number.isFinite(Number(value));
+      }).map(([month, value]) => [month, Number(value)])),
+      sortOrder: index,
+    })).filter((row: any) => row.label);
+    if (!rows.length) return NextResponse.json({ error: 'Template không có dòng dữ liệu' }, { status: 400 });
+
+    await prisma.$transaction(async (tx) => {
+      const existingRows = await tx.financeLedgerRow.findMany({ where: { ledgerId: ledger.id } });
+      const existingByLabel = new Map(existingRows.map((row) => [row.label.trim().toLocaleUpperCase('vi'), row]));
+      const parents = new Map<string, string>();
+      for (const row of rows) {
+        const key = row.label.toLocaleUpperCase('vi');
+        const existing = existingByLabel.get(key);
+        const parentId = row.parentLabel
+          ? parents.get(row.parentLabel) || existingByLabel.get(row.parentLabel.toLocaleUpperCase('vi'))?.id || null
+          : null;
+        const mergedValues = { ...normalizeMonthValues(existing?.values), ...row.values };
+        const saved = existing
+          ? await tx.financeLedgerRow.update({ where: { id: existing.id }, data: { parentId, kind: row.kind, sortOrder: row.sortOrder, values: mergedValues } })
+          : await tx.financeLedgerRow.create({ data: { ledgerId: ledger.id, parentId, label: row.label, kind: row.kind, sortOrder: row.sortOrder, values: mergedValues } });
+        if (row.kind === 'GROUP') parents.set(row.label, saved.id);
+      }
+      await tx.financeAuditLog.create({ data: { ledgerId: ledger.id, action: 'IMPORT', after: { rowCount: rows.length, fileName: String(body.fileName || '') }, ...auditActor(session) } });
+    });
+    return NextResponse.json({ success: true });
+  }
+
+  return NextResponse.json({ error: 'Thao tác không được hỗ trợ' }, { status: 400 });
 }
 
 export async function PATCH(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { id, ...data } = await req.json();
-    if (data.amount) data.amount = parseFloat(data.amount) || 0;
-    const entry = await prisma.financeEntry.update({ where: { id }, data });
-    return NextResponse.json(entry);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: 'Chỉ admin được chỉnh sửa' }, { status: 403 });
+  const body = await req.json();
+  const action = String(body.action || '');
+
+  if (action === 'MONTH_STATUS') {
+    const ledgerId = String(body.ledgerId || '');
+    const month = Number(body.month);
+    if (!Number.isInteger(month) || month < 1 || month > 12) return NextResponse.json({ error: 'Tháng không hợp lệ' }, { status: 400 });
+    const isClosed = Boolean(body.isClosed);
+    const status = await prisma.financeMonthStatus.upsert({
+      where: { ledgerId_month: { ledgerId, month } },
+      update: { isClosed, closedAt: isClosed ? new Date() : null, closedBy: isClosed ? session.user.name || session.user.email || 'Admin' : null },
+      create: { ledgerId, month, isClosed, closedAt: isClosed ? new Date() : null, closedBy: isClosed ? session.user.name || session.user.email || 'Admin' : null },
+    });
+    await prisma.financeAuditLog.create({ data: { ledgerId, action: isClosed ? 'CLOSE_MONTH' : 'REOPEN_MONTH', field: `month.${month}`, after: { isClosed }, ...auditActor(session) } });
+    return NextResponse.json(status);
   }
+
+  const row = await prisma.financeLedgerRow.findUnique({ where: { id: String(body.rowId || '') } });
+  if (!row) return NextResponse.json({ error: 'Không tìm thấy dòng' }, { status: 404 });
+
+  if (action === 'UPDATE_CELL') {
+    if (row.kind !== 'DETAIL' && row.kind !== 'REVENUE') return NextResponse.json({ error: 'Dòng tổng được tính tự động' }, { status: 400 });
+    const month = Number(body.month);
+    const amount = Number(body.amount);
+    if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isFinite(amount)) return NextResponse.json({ error: 'Giá trị không hợp lệ' }, { status: 400 });
+    const beforeValues = normalizeMonthValues(row.values);
+    const afterValues = { ...beforeValues, [String(month)]: amount };
+    const updated = await prisma.financeLedgerRow.update({ where: { id: row.id }, data: { values: afterValues } });
+    await prisma.financeAuditLog.create({ data: { ledgerId: row.ledgerId, rowId: row.id, action: 'UPDATE_CELL', field: `month.${month}`, before: beforeValues[String(month)], after: amount, ...auditActor(session) } });
+    return NextResponse.json(updated);
+  }
+
+  if (action === 'RENAME_ROW') {
+    const label = String(body.label || '').trim();
+    if (!label) return NextResponse.json({ error: 'Tên dòng không được trống' }, { status: 400 });
+    const updated = await prisma.financeLedgerRow.update({ where: { id: row.id }, data: { label } });
+    await prisma.financeAuditLog.create({ data: { ledgerId: row.ledgerId, rowId: row.id, action: 'RENAME_ROW', field: 'label', before: row.label, after: label, ...auditActor(session) } });
+    return NextResponse.json(updated);
+  }
+
+  return NextResponse.json({ error: 'Thao tác không được hỗ trợ' }, { status: 400 });
 }
 
 export async function DELETE(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { id } = await req.json();
-    await prisma.financeEntry.delete({ where: { id } });
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: 'Chỉ admin được chỉnh sửa' }, { status: 403 });
+  const { rowId } = await req.json();
+  const row = await prisma.financeLedgerRow.findUnique({ where: { id: String(rowId || '') } });
+  if (!row || row.kind !== 'DETAIL') return NextResponse.json({ error: 'Chỉ có thể xóa dòng thành phần' }, { status: 400 });
+  await prisma.$transaction([
+    prisma.financeAuditLog.create({ data: { ledgerId: row.ledgerId, action: 'DELETE_ROW', before: { label: row.label, values: row.values }, ...auditActor(session) } }),
+    prisma.financeLedgerRow.delete({ where: { id: row.id } }),
+  ]);
+  return NextResponse.json({ success: true });
 }

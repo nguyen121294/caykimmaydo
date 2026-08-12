@@ -28,36 +28,6 @@ function auditActor(session: AdminSession) {
     userName: session.user.name || 'Admin',
     userEmail: session.user.email || null,
   };
-export const dynamic = 'force-dynamic';
-
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
-import { prisma } from '@/lib/prisma';
-import {
-  DEFAULT_FINANCE_ROWS,
-  emptyMonthValues,
-  isFinanceRowKind,
-  normalizeMonthValues,
-  type FinanceRowKind,
-} from '@/lib/finance-ledger';
-
-type AdminSession = {
-  user: { id?: string; name?: string | null; email?: string | null; role?: string };
-};
-
-async function requireAdmin() {
-  const session = (await getServerSession(authOptions)) as AdminSession | null;
-  if (!session?.user || session.user.role !== 'admin') return null;
-  return session;
-}
-
-function auditActor(session: AdminSession) {
-  return {
-    userId: session.user.id && session.user.id !== 'superadmin' ? session.user.id : null,
-    userName: session.user.name || 'Admin',
-    userEmail: session.user.email || null,
-  };
 }
 
 async function createDefaultLedger(year: number, session: AdminSession) {

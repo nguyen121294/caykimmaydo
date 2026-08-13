@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { randomUUID } from 'crypto';
 import {
   DEFAULT_FINANCE_ROWS,
   emptyMonthValues,
@@ -96,7 +97,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: 'Chỉ admin được chỉnh sửa' }, { status: 403 });
   const body = await req.json();
@@ -140,28 +141,43 @@ export async function POST(req: NextRequest) {
     })).filter((row: any) => row.label);
     if (!rows.length) return NextResponse.json({ error: 'Template không có dòng dữ liệu' }, { status: 400 });
 
-    await prisma.$transaction(async (tx) => {
-      const existingRows = await tx.financeLedgerRow.findMany({ where: { ledgerId: ledger.id } });
-      const existingByLabel = new Map(existingRows.map((row) => [row.label.trim().toLocaleUpperCase('vi'), row]));
-      const parents = new Map<string, string>();
-      for (const row of rows) {
-        const key = row.label.toLocaleUpperCase('vi');
-        const existing = existingByLabel.get(key);
-        const parentId = row.parentLabel
-          ? parents.get(row.parentLabel) || existingByLabel.get(row.parentLabel.toLocaleUpperCase('vi'))?.id || null
-          : null;
-        const mergedValues = { ...normalizeMonthValues(existing?.values), ...row.values };
-        const saved = existing
-          ? await tx.financeLedgerRow.update({ where: { id: existing.id }, data: { parentId, kind: row.kind, sortOrder: row.sortOrder, values: mergedValues } })
-          : await tx.financeLedgerRow.create({ data: { ledgerId: ledger.id, parentId, label: row.label, kind: row.kind, sortOrder: row.sortOrder, values: mergedValues } });
-        if (row.kind === 'GROUP') parents.set(row.label, saved.id);
-      }
-      await tx.financeAuditLog.create({ data: { ledgerId: ledger.id, action: 'IMPORT', after: { rowCount: rows.length, fileName: String(body.fileName || '') }, ...auditActor(session) } });
+    const existingRows = await prisma.financeLedgerRow.findMany({ where: { ledgerId: ledger.id } });
+    const existingByLabel = new Map(existingRows.map((row) => [row.label.trim().toLocaleUpperCase('vi'), row]));
+    const rowIds = new Map<string, string>(rows.map((row: any): [string, string] => {
+      const key = row.label.toLocaleUpperCase('vi');
+      return [key, existingByLabel.get(key)?.id || randomUUID()];
+    }));
+    const operations = rows.map((row: any) => {
+      const key = row.label.toLocaleUpperCase('vi');
+      const existing = existingByLabel.get(key);
+      const parentId = row.parentLabel ? rowIds.get(row.parentLabel.toLocaleUpperCase('vi')) || null : null;
+      const values = { ...normalizeMonthValues(existing?.values), ...row.values };
+      return existing
+        ? prisma.financeLedgerRow.update({ where: { id: existing.id }, data: { parentId, kind: row.kind, sortOrder: row.sortOrder, values } })
+        : prisma.financeLedgerRow.create({ data: { id: rowIds.get(key), ledgerId: ledger.id, parentId, label: row.label, kind: row.kind, sortOrder: row.sortOrder, values } });
     });
+    await prisma.$transaction([
+      ...operations,
+      prisma.financeAuditLog.create({ data: { ledgerId: ledger.id, action: 'IMPORT', after: { rowCount: rows.length, fileName: String(body.fileName || '') }, ...auditActor(session) } }),
+    ]);
     return NextResponse.json({ success: true });
   }
 
   return NextResponse.json({ error: 'Thao tác không được hỗ trợ' }, { status: 400 });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    return await handlePost(req);
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null;
+    console.error('Finance ledger POST failed:', error);
+    return NextResponse.json({
+      error: code === 'P2028'
+        ? 'Kết nối database đã đóng transaction khi import. Vui lòng thử lại.'
+        : `Không thể import dữ liệu${code ? ` (${code})` : ''}`,
+    }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {

@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Kế Hoạch Kinh Doanh — MKT Pro CRM 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]});"></script>
+<style>
+/* === PAGE SETUP === */
+@page {
+  size: A4;
+  margin: 2.2cm 1.8cm;
+  @top-right { content: string(doctitle); font-family: 'Inter', sans-serif; font-size: 7.5pt; color: #94A3B8; }
+  @bottom-center { content: counter(page); font-family: 'Inter', sans-serif; font-size: 8pt; color: #94A3B8; }
+  @bottom-left { content: "MKT Pro — Kế Hoạch Kinh Doanh 2026"; font-family: 'Inter', sans-serif; font-size: 7.5pt; color: #CBD5E1; }
+}
+@page :first { margin: 0; @top-right { content: none; } @bottom-center { content: none; } @bottom-left { content: none; } }
+
+/* === BASE === */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; font-size: 10.5pt; line-height: 1.7; color: #1E293B; background: #fff; string-set: doctitle ""; }
+h1 { string-set: doctitle content(); }
+
+/* === OVERFLOW PREVENTION === */
+pre, table, figure, img, svg, .mermaid, blockquote, .equation, code {
+  max-width: 100%; box-sizing: border-box; overflow-wrap: break-word;
+}
+pre { overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+figure img, figure svg { max-width: 80%; max-height: 40vh; height: auto; }
+a { word-break: break-all; }
+.katex-display { overflow-x: auto; }
+
+/* === COVER === */
+.cover {
+  width: 210mm; height: 297mm; margin: 0;
+  position: relative; overflow: hidden; page-break-after: always;
+  background: linear-gradient(150deg, #040D2E 0%, #0C1F5C 28%, #1a3a9a 60%, #1D4ED8 85%, #3B82F6 100%);
+  color: #fff; box-sizing: border-box;
+}
+.cover-circle {
+  position: absolute; border-radius: 50%;
+  background: rgba(255,255,255,0.04); pointer-events: none;
+}
+.cover-inner {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  text-align: center; padding: 3cm 2.2cm;
+}
+.cover-badge {
+  background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+  color: #93C5FD; font-size: 8.5pt; font-weight: 600;
+  letter-spacing: 3px; text-transform: uppercase;
+  padding: 6px 22px; border-radius: 20px; margin-bottom: 36px;
+}
+.cover h1 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 56pt; font-weight: 800; color: #fff;
+  letter-spacing: -1px; line-height: 1.05; margin: 0 0 6px 0;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  white-space: normal; overflow-wrap: break-word; max-width: 100%;
+  string-set: doctitle "";
+}
+.cover-tagline {
+  font-size: 12pt; font-weight: 300; color: #BFDBFE;
+  letter-spacing: 0.5px; margin-bottom: 40px; font-style: italic;
+}
+.cover-divider {
+  width: 90px; height: 3px;
+  background: linear-gradient(90deg, #60A5FA, #A78BFA, #F472B6);
+  border-radius: 2px; margin: 0 auto 32px;
+}
+.cover-doc-type {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 10px 28px; border-radius: 6px;
+  font-size: 13pt; font-weight: 600; color: #fff;
+  letter-spacing: 0.5px; margin-bottom: 10px;
+}
+.cover-doc-sub {
+  font-size: 9.5pt; color: #93C5FD; margin-bottom: 52px;
+}
+.cover-meta-row { display: flex; gap: 52px; justify-content: center; }
+.cover-meta-item { text-align: center; }
+.cover-meta-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 2px; color: #7DD3FC; margin-bottom: 4px; }
+.cover-meta-value { font-size: 11pt; font-weight: 700; color: #fff; }
+.cover-bottom-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 5px;
+  background: linear-gradient(90deg, #60A5FA, #818CF8, #F472B6, #FB923C);
+}
+
+/* === TOC === */
+.toc-page { padding: 0.8cm 0.3cm; }
+.toc-title { font-size: 20pt; font-weight: 800; color: #0C1F5C; margin-bottom: 28px; padding-bottom: 10px; border-bottom: 3px solid #1D4ED8; }
+.toc-list { list-style: none; padding: 0; margin: 0; column-count: 2; column-gap: 0.6cm; }
+.toc-list li { display: flex; align-items: baseline; padding: 6px 0; }
+.toc-list li a { display: flex; align-items: baseline; width: 100%; text-decoration: none; color: #1E293B; }
+.toc-part-item { border-bottom: 1px solid #E2E8F0; margin-top: 10px; padding-top: 2px; }
+.toc-part-item .toc-text { font-weight: 700; font-size: 11pt; color: #0C1F5C; }
+.toc-sub-item { padding-left: 22px; }
+.toc-sub-item .toc-text { font-weight: 400; font-size: 9.5pt; color: #475569; }
+.toc-text { white-space: nowrap; flex-shrink: 0; }
+.toc-dots { flex: 1; margin: 0 8px; border-bottom: 1.5px dotted #CBD5E1; min-width: 30px; position: relative; top: -3px; }
+.toc-page-num { flex-shrink: 0; min-width: 22px; text-align: right; font-size: 9.5pt; color: #64748B; font-weight: 600; }
+
+/* === SECTION HEADER === */
+.section-header {
+  background: linear-gradient(135deg, #0C1F5C 0%, #1D4ED8 100%);
+  color: #fff; padding: 20px 26px; margin: 0 0 28px 0; border-radius: 8px;
+  page-break-after: avoid;
+}
+.section-num { font-size: 8pt; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: #93C5FD; margin-bottom: 4px; }
+.section-header h1 { font-size: 18pt; font-weight: 700; margin: 0; color: #fff; white-space: normal; overflow-wrap: break-word; }
+
+/* === TYPOGRAPHY === */
+h2 { font-size: 13.5pt; font-weight: 700; color: #0C1F5C; margin: 26px 0 10px 0; padding-bottom: 6px; border-bottom: 2px solid #EFF6FF; page-break-after: avoid; }
+h3 { font-size: 11pt; font-weight: 600; color: #1D4ED8; margin: 18px 0 7px 0; page-break-after: avoid; }
+h4 { font-size: 10.5pt; font-weight: 600; color: #1E293B; margin: 12px 0 5px 0; page-break-after: avoid; }
+p { margin: 0 0 9px 0; text-align: justify; text-align-last: left; }
+ul, ol { padding-left: 18px; margin: 8px 0; }
+li { margin-bottom: 5px; font-size: 9.5pt; page-break-inside: avoid; }
+
+/* === TABLES === */
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 9.2pt; }
+thead tr { background: #0C1F5C; color: #fff; }
+thead th { padding: 9px 11px; text-align: left; font-weight: 600; font-size: 8.8pt; }
+tbody tr:nth-child(even) { background: #F8FAFC; }
+tbody tr:nth-child(odd) { background: #fff; }
+tbody td { padding: 8px 11px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+td strong { color: #0C1F5C; }
+figcaption::before, caption::before { content: attr(data-label) "  "; font-weight: bold; }
+
+/* === CALLOUTS === */
+.callout { border-left: 4px solid #1D4ED8; background: #EFF6FF; padding: 13px 17px; margin: 14px 0; border-radius: 0 6px 6px 0; }
+.callout.gold { border-color: #D97706; background: #FEF3C7; }
+.callout.green { border-color: #059669; background: #ECFDF5; }
+.callout.purple { border-color: #7C3AED; background: #F5F3FF; }
+.callout-title { font-weight: 700; font-size: 10pt; color: #0C1F5C; margin-bottom: 5px; }
+.callout.gold .callout-title { color: #92400E; }
+.callout.green .callout-title { color: #065F46; }
+.callout.purple .callout-title { color: #5B21B6; }
+
+/* === STAT GRID === */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
+.stat-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-top: 3px solid #1D4ED8; padding: 14px; border-radius: 6px; text-align: center; }
+.stat-box.gold { border-top-color: #D97706; }
+.stat-box.green { border-top-color: #059669; }
+.stat-value { font-size: 22pt; font-weight: 800; color: #0C1F5C; line-height: 1.1; }
+.stat-label { font-size: 8pt; color: #64748B; margin-top: 3px; font-weight: 500; line-height: 1.3; }
+
+/* === USP PILLARS === */
+.usp-pillar { border: 1px solid #DBEAFE; border-left: 4px solid #1D4ED8; padding: 13px 15px; margin: 10px 0; border-radius: 0 6px 6px 0; page-break-inside: avoid; background: #FAFCFF; }
+.usp-pillar h4 { color: #0C1F5C; margin: 0 0 5px 0; font-size: 10.5pt; }
+.usp-pillar p { margin: 0; font-size: 9.5pt; color: #475569; }
+
+/* === PAIN POINTS === */
+.pain-point { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin: 10px 0; page-break-inside: avoid; }
+.pain-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 7px; }
+.pain-num { background: #1D4ED8; color: #fff; font-size: 9pt; font-weight: 700; min-width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.pain-title { font-weight: 700; font-size: 10pt; color: #0C1F5C; }
+.pain-point p { margin: 0; font-size: 9.5pt; color: #475569; }
+.pain-solution { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #CBD5E1; font-size: 9pt; color: #059669; font-weight: 500; }
+
+/* === PERSONA CARD === */
+.persona-card { background: linear-gradient(135deg, #EFF6FF, #F0F9FF); border: 1px solid #BFDBFE; border-radius: 10px; padding: 18px; margin: 14px 0; page-break-inside: avoid; }
+.persona-name { font-size: 12.5pt; font-weight: 700; color: #0C1F5C; margin-bottom: 3px; }
+.persona-role { font-size: 9pt; color: #1D4ED8; font-weight: 600; margin-bottom: 12px; }
+.persona-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+.persona-item { font-size: 9pt; color: #374151; }
+.persona-item strong { color: #0C1F5C; }
+
+/* === FUNNEL STEPS === */
+.funnel-step { display: flex; align-items: flex-start; gap: 14px; padding: 11px 0; border-bottom: 1px solid #F1F5F9; }
+.funnel-step:last-child { border-bottom: none; }
+.funnel-icon { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11pt; color: #fff; }
+.funnel-body h4 { margin: 0 0 3px 0; font-size: 10.5pt; color: #0C1F5C; }
+.funnel-body p { margin: 0; font-size: 9.5pt; color: #475569; }
+
+/* === ROADMAP === */
+.roadmap-phase { border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; margin: 10px 0; page-break-inside: avoid; }
+.phase-header { background: #0C1F5C; color: #fff; padding: 7px 13px; border-radius: 4px; font-weight: 700; font-size: 9.5pt; margin-bottom: 10px; display: inline-block; }
+
+/* === SCRIPT BOX === */
+.script-box { background: #F1F5F9; border-radius: 8px; padding: 14px; font-style: italic; color: #374151; margin: 10px 0; border-left: 3px solid #1D4ED8; font-size: 9.5pt; page-break-inside: avoid; }
+.script-label { font-style: normal; font-weight: 700; color: #0C1F5C; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; }
+
+/* === QUICK WINS === */
+.qw-item { display: flex; align-items: flex-start; gap: 12px; padding: 11px; background: #F8FAFC; border-radius: 7px; margin: 8px 0; border: 1px solid #E2E8F0; page-break-inside: avoid; }
+.qw-num { width: 32px; height: 32px; border-radius: 6px; background: #1D4ED8; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11pt; font-weight: 700; flex-shrink: 0; }
+.qw-body h4 { margin: 0 0 2px 0; font-size: 10pt; color: #0C1F5C; }
+.qw-body p { margin: 0; font-size: 9pt; color: #64748B; }
+
+/* === HIGHLIGHT & TAGS === */
+.highlight { background: #FEF3C7; padding: 1px 6px; border-radius: 3px; font-weight: 600; color: #92400E; }
+.badge-blue { background: #EFF6FF; color: #1D4ED8; padding: 2px 10px; border-radius: 12px; font-size: 8.5pt; font-weight: 600; display: inline-block; }
+
+/* === PAGE BREAKS === */
+h1, h2, h3, h4 { page-break-after: avoid; }
+.section-page { page-break-before: always; }
+figure { page-break-inside: avoid; max-height: 70vh; height: auto; width: 100%; object-fit: contain; }
+tr { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- ======================================================= COVER -->
+<div class="cover">
+  <div class="cover-circle" style="width:500px;height:500px;top:-150px;right:-160px;"></div>
+  <div class="cover-circle" style="width:280px;height:280px;bottom:-80px;left:-100px;"></div>
+  <div class="cover-circle" style="width:160px;height:160px;top:42%;left:8%;"></div>
+  <div class="cover-circle" style="width:80px;height:80px;top:20%;right:15%;background:rgba(255,255,255,0.07);"></div>
+
+  <div class="cover-inner">
+    <div class="cover-badge">Tài liệu Nội bộ &nbsp;·&nbsp; 2026</div>
+
+    <h1>MKT PRO</h1>
+    <div class="cover-tagline">Nền tảng Quản trị Marketing &amp; CRM Toàn diện cho Doanh nghiệp Việt Nam</div>
+
+    <div class="cover-divider"></div>
+
+    <div class="cover-doc-type">Kế Hoạch Kinh Doanh &amp; Chiến lược Tăng trưởng</div>
+    <div class="cover-doc-sub">"Quản lý toàn bộ kênh marketing — Chốt đơn thông minh hơn, nhanh hơn"</div>
+
+    <div class="cover-meta-row">
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Năm</div>
+        <div class="cover-meta-value">2026</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Phiên bản</div>
+        <div class="cover-meta-value">v1.0</div>
+      </div>
+      <div class="cover-meta-item">
+        <div class="cover-meta-label">Loại tài liệu</div>
+        <div class="cover-meta-value">Business Plan</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cover-bottom-bar"></div>
+</div>
+
+<!-- ======================================================= TOC -->
+<div class="toc-page">
+  <div class="toc-title">Mục Lục</div>
+  <ul class="toc-list">
+    <li class="toc-part-item">
+      <a href="#part1"><span class="toc-text">Phần 1 — Kế Hoạch Kinh Doanh</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#part1"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s1-1"><span class="toc-text">1.1 Tổng quan sản phẩm</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s1-1"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s1-2"><span class="toc-text">1.2 Thị trường mục tiêu và Cơ hội</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s1-2"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s1-3"><span class="toc-text">1.3 Mô hình kinh doanh SaaS</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s1-3"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s1-4"><span class="toc-text">1.4 Phân tích SWOT</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s1-4"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s1-5"><span class="toc-text">1.5 Mục tiêu tài chính 12 tháng</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s1-5"></span></span></a>
+    </li>
+    <li class="toc-part-item">
+      <a href="#part2"><span class="toc-text">Phần 2 — USP (Unique Selling Proposition)</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#part2"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s2-1"><span class="toc-text">2.1 Tuyên ngôn USP chính</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s2-1"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s2-2"><span class="toc-text">2.2 Sáu trụ cột USP</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s2-2"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s2-3"><span class="toc-text">2.3 So sánh với đối thủ cạnh tranh</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s2-3"></span></span></a>
+    </li>
+    <li class="toc-part-item">
+      <a href="#part3"><span class="toc-text">Phần 3 — Pain Points &amp; Insights Khách Hàng</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#part3"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s3-1"><span class="toc-text">3.1 Chân dung khách hàng (Persona)</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s3-1"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s3-2"><span class="toc-text">3.2 Sáu Pain Points cốt lõi</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s3-2"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s3-3"><span class="toc-text">3.3 Insights chiến lược</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s3-3"></span></span></a>
+    </li>
+    <li class="toc-part-item">
+      <a href="#part4"><span class="toc-text">Phần 4 — Kế Hoạch Sale</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#part4"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s4-1"><span class="toc-text">4.1 Phễu bán hàng (Sales Funnel)</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s4-1"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s4-2"><span class="toc-text">4.2 Chiến lược Go-to-Market</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s4-2"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s4-3"><span class="toc-text">4.3 Kịch bản bán hàng mẫu</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s4-3"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s4-4"><span class="toc-text">4.4 KPI và Chỉ tiêu theo giai đoạn</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s4-4"></span></span></a>
+    </li>
+    <li class="toc-sub-item">
+      <a href="#s4-5"><span class="toc-text">4.5 Lộ trình phát triển 12 tháng</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#s4-5"></span></span></a>
+    </li>
+    <li class="toc-part-item">
+      <a href="#qw"><span class="toc-text">Ưu tiên Hành động Ngay — Quick Wins</span><span class="toc-dots"></span><span class="toc-page-num"><span class="page-ref" data-href="#qw"></span></span></a>
+    </li>
+  </ul>
+</div>
+
+<!-- ======================================================= SECTION 1 -->
+<div class="section-page" id="part1">
+  <div class="section-header">
+    <div class="section-num">Phần 01</div>
+    <h1 id="h-part1">Kế Hoạch Kinh Doanh</h1>
+  </div>
+
+  <h2 id="s1-1">1.1 Tổng Quan Sản Phẩm</h2>
+  <p><strong>MKT Pro</strong> là nền tảng SaaS (Software-as-a-Service) all-in-one được xây dựng dành riêng cho doanh nghiệp vừa và nhỏ (SMBs) tại Việt Nam — giúp quản lý toàn bộ hoạt động marketing đa kênh và CRM trong một giao diện duy nhất. Thay vì phải dùng 6–8 công cụ rời rạc không kết nối với nhau, MKT Pro tích hợp tất cả trong một nền tảng thống nhất: từ quảng cáo Facebook/Google/TikTok, quản lý Zalo OA, tự động hóa email/SMS, cho đến CRM theo dõi toàn bộ hành trình khách hàng.</p>
+
+  <p>MKT Pro giải quyết vấn đề cốt lõi của hầu hết doanh nghiệp Việt Nam hiện nay: <strong>dữ liệu marketing phân mảnh, không có cái nhìn tổng thể, và leads rơi vãi giữa các kênh</strong>. Với MKT Pro, mọi tương tác của khách hàng — dù đến từ Facebook Ads, TikTok Shop, Zalo, hay website — đều được thu thập về một dashboard duy nhất, giúp team sales và marketing phối hợp hiệu quả và chốt đơn nhanh hơn, đồng thời giảm chi phí vận hành và tăng ROAS thực tế.</p>
+
+  <p>Sản phẩm được thiết kế theo triết lý <em>"Made for Vietnam First"</em>: giao diện tiếng Việt hoàn toàn, tích hợp sẵn Zalo OA (kênh số 1 tại Việt Nam với 75+ triệu người dùng), hỗ trợ thanh toán VND, và onboarding bằng tiếng Việt với đội support nội địa. Đây là điểm khác biệt căn bản so với các công cụ nước ngoài như HubSpot, ActiveCampaign hay Salesforce — vốn tốn hàng chục triệu đồng mỗi tháng và không tích hợp được Zalo hay các kênh đặc thù của thị trường Việt Nam.</p>
+
+  <h3>Tính năng chính của MKT Pro</h3>
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Tính năng</th><th>Lợi ích trực tiếp</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Multi-Channel Hub</strong></td><td>Quản lý Facebook Ads, Google Ads, TikTok Ads, Zalo OA trong 1 dashboard</td><td>Tiết kiệm 3–4 giờ/ngày chuyển tab</td></tr>
+      <tr><td><strong>CRM Thông minh</strong></td><td>Lead scoring AI, pipeline bán hàng, lịch sử tương tác đầy đủ</td><td>Tăng tỷ lệ chốt đơn 35–50%</td></tr>
+      <tr><td><strong>Marketing Automation</strong></td><td>Automation flow: email, SMS, Zalo, chatbot — triggered theo hành vi</td><td>Nuture leads 24/7 không cần nhân sự</td></tr>
+      <tr><td><strong>Analytics Dashboard</strong></td><td>ROAS, CPL, CAC, LTV, tỷ lệ chuyển đổi real-time trên 1 màn hình</td><td>Ra quyết định data-driven trong vài giây</td></tr>
+      <tr><td><strong>Unified Inbox</strong></td><td>Tin nhắn từ Facebook, Zalo, Instagram, Email về 1 inbox duy nhất</td><td>Không bao giờ bỏ sót lead nào</td></tr>
+      <tr><td><strong>Content Calendar</strong></td><td>Lập lịch, soạn thảo, đăng bài tự động đa kênh</td><td>Tiết kiệm 60% thời gian quản lý nội dung</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s1-2">1.2 Thị Trường Mục Tiêu &amp; Cơ Hội</h2>
+  <p>Thị trường mục tiêu của MKT Pro là <strong>doanh nghiệp vừa và nhỏ (SMBs) tại Việt Nam</strong>, đặc biệt trong các lĩnh vực thương mại điện tử, bán lẻ, thời trang, F&amp;B, giáo dục và dịch vụ. Đây là phân khúc đang tăng trưởng mạnh nhất về nhu cầu số hóa và marketing automation.</p>
+
+  <div class="stat-grid">
+    <div class="stat-box">
+      <div class="stat-value">900K+</div>
+      <div class="stat-label">Doanh nghiệp SMB tại Việt Nam cần số hóa</div>
+    </div>
+    <div class="stat-box gold">
+      <div class="stat-value">20%</div>
+      <div class="stat-label">Tăng trưởng chi tiêu Digital Marketing mỗi năm</div>
+    </div>
+    <div class="stat-box green">
+      <div class="stat-value">85%</div>
+      <div class="stat-label">SMBs chưa dùng marketing automation — thị trường xanh</div>
+    </div>
+  </div>
+
+  <p>Theo khảo sát năm 2025, chỉ khoảng <span class="highlight">12–15% SMBs Việt Nam</span> đang sử dụng công cụ marketing automation tích hợp, trong khi 85%+ vẫn quản lý marketing thủ công hoặc dùng các công cụ rời rạc. Đây là khoảng trống thị trường khổng lồ mà MKT Pro hướng tới.</p>
+
+  <p>Các xu hướng thúc đẩy nhu cầu trong năm 2026:</p>
+  <ul>
+    <li><strong>TikTok Shop bùng nổ</strong> — doanh nghiệp cần quản lý thêm kênh mới nhưng không có thêm nhân sự</li>
+    <li><strong>Chi phí quảng cáo tăng</strong> — ROAS giảm buộc doanh nghiệp phải tối ưu hóa funnel và CRM</li>
+    <li><strong>Khách hàng đa kênh</strong> — 1 khách hàng tương tác trên 3–5 điểm chạm khác nhau trước khi mua</li>
+    <li><strong>Nhân sự marketing khan hiếm</strong> — automation giúp làm nhiều hơn với ít người hơn</li>
+    <li><strong>Dữ liệu là vũ khí</strong> — doanh nghiệp nào có data tốt hơn sẽ thắng nhiều hơn</li>
+  </ul>
+
+  <div class="callout gold">
+    <div class="callout-title">Cơ hội vàng: Thị trường bỏ ngỏ</div>
+    Hiện chưa có sản phẩm SaaS Marketing+CRM nào tích hợp đầy đủ Zalo OA, TikTok, Facebook, Google trong một nền tảng với giá phù hợp cho SMBs Việt Nam và hoàn toàn bằng tiếng Việt. MKT Pro có cơ hội trở thành <strong>chuẩn mực mới</strong> cho quản trị marketing tại Việt Nam, chiếm lĩnh thị trường trước khi các đối thủ nước ngoài kịp thích nghi.
+  </div>
+
+  <h2 id="s1-3">1.3 Mô Hình Kinh Doanh (SaaS)</h2>
+  <p>MKT Pro vận hành theo mô hình <strong>SaaS subscription</strong> với 4 gói dịch vụ chính, cho phép khách hàng nâng cấp theo nhu cầu tăng trưởng. Ngoài ra, có thêm nguồn doanh thu từ <em>Professional Services</em> (triển khai, đào tạo) và <em>Add-ons</em> (SMS pack, extra users, custom integrations).</p>
+
+  <table>
+    <thead>
+      <tr><th>Gói</th><th>Giá/tháng</th><th>Đối tượng</th><th>Tính năng chính</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Starter</strong></td><td>490.000 VND</td><td>Shop nhỏ, freelancer</td><td>2 kênh ads, CRM cơ bản, 500 contacts, 1 user</td></tr>
+      <tr><td><strong>Pro</strong></td><td>1.490.000 VND</td><td>SMBs 5–20 nhân sự</td><td>5 kênh ads, CRM đầy đủ, 5.000 contacts, 5 users, automation</td></tr>
+      <tr><td><strong>Business</strong></td><td>3.990.000 VND</td><td>DN 20–100 nhân sự</td><td>Tất cả kênh, unlimited contacts, 20 users, AI insights, priority support</td></tr>
+      <tr><td><strong>Enterprise</strong></td><td>Theo thỏa thuận</td><td>Agency, chuỗi bán lẻ lớn</td><td>White-label, API riêng, custom integration, dedicated CSM</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Chiến lược doanh thu đa tầng:</strong> Mô hình freemium "trial 14 ngày miễn phí — không cần thẻ tín dụng" để hạ thấp rào cản dùng thử, sau đó convert sang gói trả phí. Tỷ lệ convert từ trial sang trả phí mục tiêu là <span class="highlight">25–30%</span>. Upsell từ Starter lên Pro khi khách hàng vượt giới hạn contacts hoặc cần thêm tính năng automation. Revenue streams phụ bao gồm onboarding fee (1–3 triệu/khách), training workshop (5–10 triệu/session), và SMS credit packs.</p>
+
+  <h2 id="s1-4">1.4 Phân Tích SWOT</h2>
+  <table>
+    <thead>
+      <tr><th style="width:50%">Điểm mạnh (Strengths)</th><th style="width:50%">Điểm yếu (Weaknesses)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <ul>
+            <li>Tích hợp Zalo OA sâu — kênh số 1 VN, đối thủ nước ngoài không có</li>
+            <li>Giao diện tiếng Việt 100%, support nội địa trong 2 giờ</li>
+            <li>Giá cạnh tranh — rẻ hơn HubSpot/Salesforce 5–10 lần</li>
+            <li>All-in-one thực sự: không cần dùng nhiều công cụ riêng lẻ</li>
+            <li>Trial miễn phí 14 ngày, không ràng buộc</li>
+          </ul>
+        </td>
+        <td>
+          <ul>
+            <li>Brand mới, chưa có tên tuổi trên thị trường</li>
+            <li>Chi phí phát triển phần mềm ban đầu cao</li>
+            <li>Cần đội ngũ customer success để hỗ trợ onboarding</li>
+            <li>Tính năng AI insights còn ở giai đoạn beta</li>
+            <li>Chưa có tích hợp với phần mềm kế toán (MISA, Fast)</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Cơ hội (Opportunities)</strong></td>
+        <td><strong>Thách thức (Threats)</strong></td>
+      </tr>
+      <tr>
+        <td>
+          <ul>
+            <li>85% SMBs chưa dùng marketing automation — thị trường xanh</li>
+            <li>TikTok Shop bùng nổ — nhu cầu quản lý đa kênh tăng vọt</li>
+            <li>Agency model: bán qua agencies như đối tác phân phối</li>
+            <li>Hỗ trợ từ chương trình startup (VINASA, VPBank acceleration)</li>
+            <li>Chi phí ads tăng — doanh nghiệp cần tối ưu CRM để giữ khách</li>
+          </ul>
+        </td>
+        <td>
+          <ul>
+            <li>Đối thủ nước ngoài (HubSpot, Mailchimp) đang Việt hóa sản phẩm</li>
+            <li>DN VN có xu hướng dùng phần mềm miễn phí</li>
+            <li>Rủi ro chính sách API từ Facebook, Zalo, TikTok</li>
+            <li>Cạnh tranh từ các startup SaaS nội địa khác đang nổi</li>
+            <li>Thời gian onboarding dài có thể dẫn đến churn cao</li>
+          </ul>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="s1-5">1.5 Mục Tiêu Tài Chính 12 Tháng</h2>
+  <p>Kế hoạch tài chính được xây dựng theo 4 giai đoạn trong 12 tháng đầu, từ Launch đến Scale, với mục tiêu đạt break-even vào tháng thứ 10 và MRR (Monthly Recurring Revenue) 850 triệu VND vào cuối năm đầu tiên.</p>
+
+  <table>
+    <thead>
+      <tr><th>Giai đoạn</th><th>Khách trả phí</th><th>MRR (triệu VND)</th><th>Churn</th><th>Mục tiêu chính</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Q1 — Launch</strong></td><td>50 khách</td><td>75 triệu</td><td>&lt;8%</td><td>Product-market fit, thu thập feedback</td></tr>
+      <tr><td><strong>Q2 — Traction</strong></td><td>200 khách</td><td>300 triệu</td><td>&lt;6%</td><td>Content marketing, agency partnerships</td></tr>
+      <tr><td><strong>Q3 — Growth</strong></td><td>400 khách</td><td>550 triệu</td><td>&lt;5%</td><td>Referral program, upsell Pro/Business</td></tr>
+      <tr><td><strong>Q4 — Scale</strong></td><td>600 khách</td><td>850 triệu</td><td>&lt;4%</td><td>Break-even, chuẩn bị Series A</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">Chỉ số sức khỏe SaaS mục tiêu cuối năm 1</div>
+    <strong>LTV/CAC ratio:</strong> &gt;5x &nbsp;|&nbsp; <strong>CAC trung bình:</strong> &lt;3.000.000 VND &nbsp;|&nbsp; <strong>Payback period:</strong> &lt;6 tháng &nbsp;|&nbsp; <strong>NPS:</strong> &gt;50 &nbsp;|&nbsp; <strong>ARR:</strong> &gt;10 ty VND
+  </div>
+</div>
+
+<!-- ======================================================= SECTION 2 -->
+<div class="section-page" id="part2">
+  <div class="section-header">
+    <div class="section-num">Phần 02</div>
+    <h1 id="h-part2">USP — Unique Selling Proposition</h1>
+  </div>
+
+  <h2 id="s2-1">2.1 Tuyên Ngôn USP Chính</h2>
+  <div class="callout purple" style="font-size: 11pt; font-style: italic; padding: 18px 20px;">
+    <div class="callout-title" style="font-size: 11pt; font-style: normal;">Tuyên ngôn định vị</div>
+    "MKT Pro không chỉ là công cụ marketing — đó là đội ngũ marketing số của bạn, hoạt động 24/7, không bao giờ bỏ sót một khách hàng tiềm năng nào. Một nền tảng. Tất cả kênh. Mọi dữ liệu. Mọi quyết định."
+  </div>
+
+  <p>Trong khi hầu hết doanh nghiệp SMB Việt Nam đang "chắp vá" từ 6–8 công cụ khác nhau — tốn tiền, tốn thời gian, và mất data giữa các kênh — MKT Pro mang đến giải pháp <strong>thống nhất, tích hợp sâu, và thuần Việt</strong>. Chúng tôi không dịch một sản phẩm nước ngoài sang tiếng Việt — chúng tôi xây dựng từ đầu cho thị trường Việt Nam, hiểu rõ cách người Việt dùng Zalo, bán hàng trên TikTok, và chăm sóc khách hàng qua Facebook Messenger.</p>
+
+  <h2 id="s2-2">2.2 Sáu Trụ Cột USP</h2>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 1 — Tích hợp đa kênh thực sự (All-in-One, không phải All-in-One giả)</h4>
+    <p>Facebook Ads, Google Ads, TikTok Ads, Zalo OA, Email, SMS — tất cả trong một dashboard duy nhất với data đồng bộ real-time. Không phải "tích hợp cơ bản" chỉ hiển thị số liệu — MKT Pro cho phép tạo chiến dịch, xem ROAS, và điều chỉnh ngân sách ngay từ một màn hình duy nhất. Các nền tảng cung cấp dữ liệu thông qua API chính thức, đảm bảo tính chính xác và cập nhật liên tục. Tiết kiệm trung bình 3–4 giờ/ngày cho mỗi marketer, tương đương hơn 15 triệu đồng/tháng giá trị lao động.</p>
+  </div>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 2 — CRM thông minh với Lead Scoring AI</h4>
+    <p>Mỗi lead được chấm điểm tự động dựa trên hành vi: đã xem bao nhiêu sản phẩm, đã tương tác kênh nào, thời gian tương tác, tần suất quay lại — từ đó ưu tiên leads "nóng" để sales tiếp cận đúng lúc. Không còn tình trạng sales gọi leads ngẫu nhiên và bỏ qua người sắp mua. Hệ thống AI liên tục học từ kết quả chốt đơn thực tế để nâng cao độ chính xác theo thời gian.</p>
+  </div>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 3 — Marketing Automation "Set and Forget"</h4>
+    <p>Xây dựng automation flow một lần, hệ thống tự động gửi email/SMS/Zalo/chatbot theo hành vi khách hàng 24/7. Ví dụ: khách hàng vào website xem sản phẩm nhưng không mua → tự động gửi Zalo sau 2 giờ với ưu đãi 10%. Hay: khách hàng mua hàng lần đầu → tự động chuỗi chào mừng + request review + upsell sản phẩm liên quan sau 7 ngày. Chăm sóc khách hàng liên tục mà không cần thêm nhân sự, giảm chi phí vừa tăng LTV.</p>
+  </div>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 4 — Analytics Dashboard "One-Screen Decision"</h4>
+    <p>Chủ doanh nghiệp và marketing manager có thể thấy toàn bộ sức khỏe marketing trong 30 giây: tổng chi ads hôm nay, ROAS từng kênh, số leads mới, số chốt đơn, doanh thu, và dự báo tháng này. Không cần mở 5 tab, không cần chờ báo cáo tuần — mọi thứ real-time trên 1 màn hình. Báo cáo tự động gửi qua email/Zalo theo lịch, giúp lãnh đạo luôn cập nhật dữ liệu mà không mất thời gian tổng hợp thủ công.</p>
+  </div>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 5 — Made for Vietnam (Zalo-first, tiếng Việt hoàn toàn)</h4>
+    <p>MKT Pro là nền tảng duy nhất tích hợp sâu với Zalo OA (Official Account) — kênh có hơn 75 triệu người dùng tại Việt Nam và là kênh chăm sóc khách hàng số 1 của thị trường nội địa. Giao diện, support, tài liệu hướng dẫn và onboarding 100% bằng tiếng Việt. Thanh toán VND qua chuyển khoản, thẻ nội địa hoặc MoMo — không cần thẻ quốc tế hay tài khoản PayPal như các sản phẩm nước ngoài.</p>
+  </div>
+
+  <div class="usp-pillar">
+    <h4>Trụ cột 6 — Onboarding trong 24h, Support thực sự</h4>
+    <p>Mỗi khách hàng được assign một Customer Success Manager (CSM) người Việt, hỗ trợ onboarding trong vòng 24 giờ đầu tiên. Không giống các công cụ nước ngoài với support qua email và knowledge base tiếng Anh — MKT Pro cam kết response trong vòng 2 giờ qua Zalo trong giờ hành chính. Mỗi tháng, CSM chủ động check-in để đảm bảo khách hàng đang dùng đầy đủ tính năng và thấy giá trị rõ ràng.</p>
+  </div>
+
+  <h2 id="s2-3">2.3 So Sánh Với Đối Thủ Cạnh Tranh</h2>
+  <table>
+    <thead>
+      <tr><th>Tiêu chí</th><th>HubSpot</th><th>Mailchimp</th><th>Getfly CRM</th><th>MKT Pro</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Giá/tháng (SMB)</strong></td><td>$800–1.600</td><td>$300–500</td><td>1.5–4M VND</td><td><strong>490K–3.9M VND</strong></td></tr>
+      <tr><td><strong>Tích hợp Zalo OA</strong></td><td>Không</td><td>Khong</td><td>Có (cơ bản)</td><td><strong>Có — tích hợp sâu</strong></td></tr>
+      <tr><td><strong>Tích hợp TikTok Ads</strong></td><td>Có</td><td>Khong</td><td>Khong</td><td><strong>Có</strong></td></tr>
+      <tr><td><strong>CRM + Marketing trong 1 nền tảng</strong></td><td>Có (giá cao)</td><td>Khong</td><td>Có (CRM-first)</td><td><strong>Có — cân bằng</strong></td></tr>
+      <tr><td><strong>Giao diện tiếng Việt</strong></td><td>Khong</td><td>Khong</td><td>Co</td><td><strong>Có — 100%</strong></td></tr>
+      <tr><td><strong>Support tiếng Việt</strong></td><td>Khong</td><td>Khong</td><td>Co</td><td><strong>Có — trong 2h</strong></td></tr>
+      <tr><td><strong>AI Lead Scoring</strong></td><td>Có (gói cao)</td><td>Cơ bản</td><td>Khong</td><td><strong>Có từ gói Pro</strong></td></tr>
+      <tr><td><strong>Unified Inbox đa kênh</strong></td><td>Co (goi cao)</td><td>Khong</td><td>Khong</td><td><strong>Có từ gói Starter</strong></td></tr>
+      <tr><td><strong>Trial miễn phí</strong></td><td>14 ngày</td><td>Freemium</td><td>14 ngay</td><td><strong>14 ngày, không cần thẻ</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout gold" style="margin-top: 16px;">
+    <div class="callout-title">Vì sao MKT Pro là lựa chọn hợp lý nhất cho SMBs Việt Nam năm 2026?</div>
+    MKT Pro là giao điểm lý tưởng giữa <strong>giá cả phù hợp</strong> (490K–4M VND/tháng, không phải $800+/tháng như HubSpot), <strong>tính năng đúng cho thị trường Việt Nam</strong> (Zalo-first, TikTok Ads, Unified Inbox đa kênh), và <strong>trải nghiệm sử dụng thuần Việt</strong> (giao diện 100% tiếng Việt, support trong 2 giờ qua Zalo, onboarding có CSM nội địa). Không có sản phẩm nào trên thị trường hiện tại đáp ứng cả ba tiêu chí này cùng lúc — đây chính là lợi thế cạnh tranh bền vững của MKT Pro.
+  </div>
+</div>
+
+<!-- ======================================================= SECTION 3 -->
+<div class="section-page" id="part3">
+  <div class="section-header">
+    <div class="section-num">Phần 03</div>
+    <h1 id="h-part3">Pain Points &amp; Insights Khách Hàng</h1>
+  </div>
+
+  <h2 id="s3-1">3.1 Chân Dung Khách Hàng (Persona)</h2>
+
+  <div class="persona-card">
+    <div class="persona-name">Anh Minh — Chủ shop thời trang online</div>
+    <div class="persona-role">32 tuổi &nbsp;·&nbsp; TP. Hồ Chí Minh &nbsp;·&nbsp; Doanh thu 500 triệu–2 tỷ/năm</div>
+    <div class="persona-grid">
+      <div class="persona-item"><strong>Đội ngũ:</strong> 3–5 nhân sự, 1–2 người làm marketing</div>
+      <div class="persona-item"><strong>Kênh đang dùng:</strong> Facebook Ads, TikTok Shop, Zalo OA</div>
+      <div class="persona-item"><strong>Công cụ hiện tại:</strong> Ads Manager + Google Sheets + Zalo riêng lẻ</div>
+      <div class="persona-item"><strong>Mục tiêu:</strong> Tăng tỷ lệ chốt đơn, giảm chi phí ads</div>
+      <div class="persona-item"><strong>Nỗi đau lớn nhất:</strong> Không biết kênh nào thực sự mang lại doanh thu</div>
+      <div class="persona-item"><strong>Ngân sách phần mềm:</strong> 1–3 triệu VND/tháng</div>
+    </div>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-name">Chị Hà — Marketing Manager tại startup B2B</div>
+    <div class="persona-role">34 tuổi &nbsp;·&nbsp; Hà Nội &nbsp;·&nbsp; Công ty 30 nhân sự, SaaS B2B</div>
+    <div class="persona-grid">
+      <div class="persona-item"><strong>Team marketing:</strong> 3–4 người, phụ trách đa kênh</div>
+      <div class="persona-item"><strong>Kênh đang dùng:</strong> Google Ads, LinkedIn, Email, Facebook</div>
+      <div class="persona-item"><strong>Công cụ hiện tại:</strong> HubSpot (đắt), Google Analytics, Mailchimp riêng lẻ</div>
+      <div class="persona-item"><strong>Mục tiêu:</strong> Giảm chi phí tool, tăng hiệu quả team</div>
+      <div class="persona-item"><strong>Nỗi đau lớn nhất:</strong> Mất nhiều giờ tổng hợp báo cáo từ nhiều nguồn</div>
+      <div class="persona-item"><strong>Ngân sách phần mềm:</strong> 3–8 triệu VND/tháng</div>
+    </div>
+  </div>
+
+  <h2 id="s3-2">3.2 Sáu Pain Points Cốt Lõi</h2>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">1</div>
+      <div class="pain-title">"Tôi đang dùng 6–8 công cụ khác nhau và chúng không nói chuyện được với nhau"</div>
+    </div>
+    <p>Doanh nghiệp trung bình đang dùng: Facebook Business Manager, Google Ads, Google Analytics, Mailchimp, Zalo OA Business, một CRM riêng, và Google Sheets để tổng hợp. Mỗi công cụ có login riêng, database riêng, báo cáo riêng. Data không đồng bộ, insights không tổng hợp được, team phải copy-paste giữa các hệ thống mỗi ngày — tốn giá trị lao động cao và gây ra nhiều lỗi sai số liệu nghiêm trọng.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: Tích hợp tất cả trong 1 nền tảng, data tự động đồng bộ real-time, 1 login cho tất cả — không còn copy-paste, không còn báo cáo sai.</div>
+  </div>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">2</div>
+      <div class="pain-title">"Tôi không biết kênh nào thực sự mang lại khách hàng và doanh thu"</div>
+    </div>
+    <p>Một khách hàng có thể thấy quảng cáo Facebook, sau đó xem TikTok, sau đó search Google, rồi nhắn Zalo để mua. Facebook Ads Manager tính credit cho Facebook. Google Ads tính credit cho Google. Không ai biết hành trình thật sự. Kết quả: doanh nghiệp đầu tư nhầm kênh, cắt kênh hiệu quả, và giữ kênh kém hiệu quả — lãng phí ngân sách marketing một cách hệ thống và không nhận ra.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: Multi-touch attribution tracking — ghi nhận toàn bộ hành trình khách hàng, phân bổ credit đúng cho từng kênh, giúp ra quyết định phân bổ ngân sách chính xác.</div>
+  </div>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">3</div>
+      <div class="pain-title">"Leads rơi vãi khắp nơi — không ai theo dõi được"</div>
+    </div>
+    <p>Inbox Facebook có 200 tin nhắn chưa đọc. Zalo có 50 người hỏi chưa trả lời. Email có 30 form đăng ký chưa được xử lý. Comment trên Instagram chưa ai reply. Trong khi đó, sales team không biết bắt đầu từ đâu, lead "nóng" nguội dần vì phản hồi chậm, và doanh nghiệp mất doanh thu ngay từ leads mình đã trả tiền để có được. Đây là nguyên nhân chính khiến ROAS thật sự thấp hơn ROAS platform báo cáo nhiều.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: Unified Inbox — tất cả tin nhắn từ mọi kênh đổ về 1 inbox, AI phân loại độ ưu tiên, auto-reply trong 30 giây cho leads mới, đảm bảo không bỏ sót bất kỳ cơ hội nào.</div>
+  </div>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">4</div>
+      <div class="pain-title">"Team tôi mất 5–10 giờ/tuần chỉ để làm báo cáo thủ công"</div>
+    </div>
+    <p>Mỗi cuối tuần hoặc đầu tháng, marketing manager phải vào từng platform export số liệu, copy vào Google Sheets, tạo chart, viết report, gửi cho sếp. Quá trình này tốn 5–10 giờ lao động có kỹ năng cao cho một tác vụ lặp đi lặp lại. Nếu data sai ở bất kỳ bước nào, toàn bộ báo cáo sai và không ai biết cho đến khi đưa ra quyết định sai lầm — rủi ro này rất lớn với các doanh nghiệp chi quảng cáo hàng chục triệu mỗi tháng.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: Automated reporting — hệ thống tự động tổng hợp và gửi báo cáo theo lịch (ngày/tuần/tháng), tùy chỉnh KPI dashboard theo vai trò từng người, loại bỏ hoàn toàn công việc thủ công.</div>
+  </div>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">5</div>
+      <div class="pain-title">"Tôi chi tiền ads nhưng không chắc ROAS thực sự là bao nhiêu"</div>
+    </div>
+    <p>Facebook Ads Manager báo ROAS 4x. Google Ads báo ROAS 3x. Nhưng thực tế doanh thu tháng đó chỉ tăng 20% trong khi chi ads tăng 50%. Vấn đề là các platform tự báo cáo kết quả của mình, thường overlap và double-count. Doanh nghiệp không có cái nhìn ROAS thực sự — tức là tổng doanh thu thực / tổng chi ads trên tất cả kênh — nên không thể ra quyết định đầu tư chính xác.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: True ROAS Calculator — tổng chi ads tất cả kênh / tổng doanh thu thực tế từ CRM, loại bỏ overlap và double-counting, cho ra con số thật sự tin cậy để ra quyết định.</div>
+  </div>
+
+  <div class="pain-point">
+    <div class="pain-header">
+      <div class="pain-num">6</div>
+      <div class="pain-title">"Không có hệ thống chăm sóc khách hàng sau mua — khách mua 1 lần rồi thôi"</div>
+    </div>
+    <p>Chi phí để có 1 khách hàng mới ngày càng tăng. Nhưng hầu hết doanh nghiệp SMB không có hệ thống giữ chân khách hàng sau lần mua đầu. Không có email "cảm ơn" tự động, không có ưu đãi cho khách hàng quay lại, không có nhắc nhở khi khách hàng chưa mua trong 30 ngày. Customer Lifetime Value (LTV) thấp và chi phí acquisition cao là công thức dẫn đến thua lỗ trong dài hạn — ngay cả khi ROAS tháng đó nhìn có vẻ tốt.</p>
+    <div class="pain-solution">Giải pháp MKT Pro: Retention Automation — post-purchase flow tự động (cảm ơn → review request → upsell → loyalty program), tăng LTV trung bình 40–60% mà không cần thêm nhân sự.</div>
+  </div>
+
+  <h2 id="s3-3">3.3 Insights Chiến Lược</h2>
+
+  <div class="callout">
+    <div class="callout-title">Insight 1 — Doanh nghiệp sẵn sàng trả tiền để tiết kiệm thời gian hơn là để thêm tính năng</div>
+    Nghiên cứu 200 SMBs Việt Nam cho thấy: lý do quyết định mua phần mềm số 1 là "tiết kiệm thời gian" (67%), không phải "thêm tính năng" (23%) hay "báo cáo tốt hơn" (10%). Thông điệp bán hàng phải nhấn mạnh vào <strong>giờ làm việc tiết kiệm</strong> và <strong>công việc được tự động hóa</strong>, không phải danh sách feature dài.
+  </div>
+
+  <div class="callout gold">
+    <div class="callout-title">Insight 2 — Quyết định mua xảy ra sau khi nhìn thấy "aha moment"</div>
+    Trong quá trình demo, "aha moment" thường xảy ra khi khách hàng nhìn thấy <strong>lần đầu tiên tất cả leads từ mọi kênh hợp nhất về 1 inbox</strong> — đây là khoảnh khắc họ hiểu rõ nhất vấn đề mình đang gặp phải. Sales script cần dẫn đến aha moment này càng sớm càng tốt — lý tưởng là trong 5 phút đầu của demo, trước khi khách hàng có cơ hội từ chối.
+  </div>
+
+  <div class="callout green">
+    <div class="callout-title">Insight 3 — Agency là kênh phân phối nhân rộng hiệu quả nhất</div>
+    1 agency marketing quản lý trung bình 8–15 client. Nếu MKT Pro thuyết phục được 50 agencies dùng sản phẩm và giới thiệu cho client → tiếp cận 400–750 SMBs mà không cần đầu tư marketing trực tiếp. <strong>Agency Partnership Program</strong> nên là ưu tiên chiến lược trong Q2, với commission 20% và free account vĩnh viễn cho agency.
+  </div>
+
+  <div class="callout purple">
+    <div class="callout-title">Insight 4 — Churn xảy ra ở tháng 2–3, không phải sau 1 năm</div>
+    Dữ liệu SaaS ngành cho thấy: 60% churn xảy ra trong 90 ngày đầu vì khách hàng không onboard thành công và không thấy giá trị rõ ràng. Đầu tư vào customer success trong 30 ngày đầu là quan trọng nhất — ROI của 1 giờ CSM trong tháng đầu bằng 10 giờ marketing để kiếm khách mới. Một nền tảng có tính năng tốt mà khách không biết dùng là nền tảng thất bại.
+  </div>
+
+  <div class="callout" style="margin-top: 14px; border-color: #0C1F5C; background: #F0F4FF;">
+    <div class="callout-title">Insight 5 — Thị trường B2B VN: quyết định đến từ marketer, không phải IT</div>
+    Khác với các thị trường phát triển, tại Việt Nam quyết định mua phần mềm B2B thường đến từ <strong>marketing manager hoặc chủ doanh nghiệp</strong> — không phải từ bộ phận IT. Thông điệp bán hàng phải nói bằng ngôn ngữ của marketer (ROAS, leads, conversion rate). Demo phải show kết quả kinh doanh cụ thể trong 2 phút đầu — không phải kiến trúc hệ thống.
+  </div>
+
+  <h3 style="margin-top: 18px;">Tổng Kết: Ba Cam Kết Cốt Lõi Với Khách Hàng</h3>
+  <p>Tổng kết 5 insights và 6 pain points, người dùng lý tưởng của MKT Pro cần ba điều cốt lõi: <strong>tiết kiệm thời gian rõ ràng</strong> (không phải thêm tính năng), <strong>nhìn thấy kết quả cụ thể trong 30 ngày đầu</strong> (để tiếp tục trả phí), và <strong>được support tiếng Việt khi gặp khó khăn</strong> (để không bị churn sớm). Đây là ba cam kết cốt lõi mà mọi quyết định về sản phẩm, marketing và customer success phải được đo lường hàng tháng. Doanh nghiệp nào hiểu rõ người dùng của mình và hành động dựa trên dữ liệu sẽ chiến thắng trong dài hạn.</p>
+</div>
+
+<!-- ======================================================= SECTION 4 -->
+<div class="section-page" id="part4">
+  <div class="section-header">
+    <div class="section-num">Phần 04</div>
+    <h1 id="h-part4">Kế Hoạch Sale</h1>
+  </div>
+
+  <h2 id="s4-1">4.1 Phễu Bán Hàng (Sales Funnel)</h2>
+  <p>Sales funnel của MKT Pro được thiết kế theo mô hình <strong>Product-Led Growth (PLG)</strong> — cho phép sản phẩm tự bán hàng qua trải nghiệm dùng thử, sau đó được hỗ trợ bởi đội sales để chốt và upsell. Đây là mô hình phù hợp nhất với SaaS B2B tại Việt Nam vì rào cản bắt đầu thấp và giá trị sản phẩm tự chứng minh.</p>
+
+  <div class="funnel-step">
+    <div class="funnel-icon" style="background:#3B82F6;">1</div>
+    <div class="funnel-body">
+      <h4>Awareness — Nhận biết</h4>
+      <p>Content marketing (blog SEO, YouTube, LinkedIn), Google Search Ads nhắm vào từ khóa "phần mềm quản lý marketing", "CRM Việt Nam". TikTok và YouTube giải thích vấn đề cụ thể mà doanh nghiệp đang gặp. Mục tiêu: 10.000 visitors/tháng vào tháng 6.</p>
+    </div>
+  </div>
+  <div class="funnel-step">
+    <div class="funnel-icon" style="background:#8B5CF6;">2</div>
+    <div class="funnel-body">
+      <h4>Interest — Quan tâm</h4>
+      <p>Khách hàng đăng ký nhận "Báo cáo miễn phí: 7 lỗi marketing khiến doanh nghiệp mất 30% doanh thu" — đây là lead magnet chính. Sau đó nhận email/Zalo nurture sequence 5 bước trong 10 ngày, dẫn đến trial signup.</p>
+    </div>
+  </div>
+  <div class="funnel-step">
+    <div class="funnel-icon" style="background:#10B981;">3</div>
+    <div class="funnel-body">
+      <h4>Trial — Dùng thử</h4>
+      <p>Đăng ký trial 14 ngày miễn phí, không cần thẻ tín dụng, onboarding trong 24h với CSM. Mục tiêu aha moment trong ngày 3: khách hàng thấy lần đầu tất cả leads hợp nhất về 1 inbox. Activation rate mục tiêu: 60%.</p>
+    </div>
+  </div>
+  <div class="funnel-step">
+    <div class="funnel-icon" style="background:#F59E0B;">4</div>
+    <div class="funnel-body">
+      <h4>Convert — Chuyển đổi trả phí</h4>
+      <p>Vào ngày 10, sales outreach cá nhân hóa dựa trên usage data: "Em thấy anh/chị đang dùng tính năng Unified Inbox rất nhiều — gói Pro sẽ cho phép kết nối thêm 3 kênh nữa." Offer: nâng cấp ngay và nhận thêm 1 tháng miễn phí. Trial-to-paid conversion rate mục tiêu: 30%.</p>
+    </div>
+  </div>
+  <div class="funnel-step">
+    <div class="funnel-icon" style="background:#EF4444;">5</div>
+    <div class="funnel-body">
+      <h4>Expand &amp; Retain — Mở rộng và Giữ chân</h4>
+      <p>Tháng thứ 3–6: upsell thêm users, upsell lên gói Business, bán thêm SMS pack. Referral program: giới thiệu 1 bạn nhận 1 tháng miễn phí. Customer success check-in mỗi tháng để đảm bảo khách hàng đang thấy giá trị rõ ràng và không có lý do churn.</p>
+    </div>
+  </div>
+
+  <h2 id="s4-2">4.2 Chiến Lược Go-to-Market</h2>
+  <p>MKT Pro áp dụng chiến lược <strong>"Land and Expand"</strong> — bắt đầu với gói Starter giá thấp để khách hàng dễ quyết định, sau đó mở rộng khi họ đã thấy giá trị và muốn nhiều tính năng hơn. Ba kênh Go-to-Market chính được triển khai đồng thời:</p>
+
+  <table>
+    <thead>
+      <tr><th>Kênh</th><th>Chiến thuật</th><th>Mục tiêu (Tháng 6)</th><th>Chi phí/tháng</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Content Marketing</strong></td><td>Blog SEO (2 bài/tuần), YouTube demo, LinkedIn thought leadership</td><td>5.000 organic visitors</td><td>10M VND (nhân sự)</td></tr>
+      <tr><td><strong>Performance Ads</strong></td><td>Google Search ("phần mềm marketing", "CRM Việt Nam"), Facebook retargeting</td><td>200 trial signups</td><td>20M VND</td></tr>
+      <tr><td><strong>Agency Partnership</strong></td><td>Hợp tác 20–50 agencies, commission 20%, white-label option</td><td>50 clients qua agencies</td><td>5M VND (events)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-title">Chiến lược nổi bật của tháng 1–3: "Show, Don't Tell"</div>
+    Thay vì quảng cáo tính năng, MKT Pro quảng cáo <strong>kết quả cụ thể</strong>: "Doanh nghiệp X giảm 4 giờ báo cáo/tuần và tăng ROAS 40% trong 30 ngày đầu dùng MKT Pro." Video case study người thật, kết quả thật — đây là nội dung chuyển đổi tốt nhất cho B2B SaaS.
+  </div>
+
+  <h2 id="s4-3">4.3 Kịch Bản Bán Hàng Mẫu (Sales Script)</h2>
+
+  <div class="script-box">
+    <div class="script-label">Khi prospect hỏi "Phần mềm này khác gì so với HubSpot?"</div>
+    "Câu hỏi hay lắm! HubSpot là công cụ rất tốt — nhưng giá bắt đầu từ $800–1.600/tháng và không tích hợp Zalo OA, kênh mà 80% khách hàng Việt Nam đang dùng để liên lạc với doanh nghiệp. MKT Pro tích hợp sâu Zalo ngay từ gói cơ bản, giao diện tiếng Việt hoàn toàn, và support trong 2 giờ bằng tiếng Việt. Và giá chỉ bằng 1/10. Thực ra anh/chị đang dùng Zalo OA không? Mình demo luôn phần đó cho anh/chị xem nhé?"
+  </div>
+
+  <div class="script-box">
+    <div class="script-label">Khi prospect do dự về giá ("Để suy nghĩ thêm")</div>
+    "Dạ mình hiểu ạ! Để anh/chị cân nhắc, mình có một câu hỏi nhỏ: hiện tại team marketing của anh/chị mất bao nhiêu giờ mỗi tuần để tổng hợp báo cáo từ các platform? Nếu là 5 tiếng/tuần thì 1 tháng mất 20 tiếng — với mức lương nhân sự marketing trung bình 15–20M/tháng thì 20 giờ đó tương đương 5–7 triệu đồng tiền lương. MKT Pro giá 1.5 triệu/tháng nhưng tiết kiệm được 5–7 triệu giá trị lao động. Tức là ROI dương từ tháng đầu tiên. Anh/chị thấy sao ạ?"
+  </div>
+
+  <div class="script-box">
+    <div class="script-label">Khi prospect hỏi "Có đảm bảo hiệu quả không?"</div>
+    "MKT Pro cung cấp trial 14 ngày hoàn toàn miễn phí — không cần thẻ tín dụng, không ràng buộc. Trong 14 ngày đó, anh/chị kết nối tất cả kênh đang chạy và nhìn thấy toàn bộ data trên 1 dashboard. Nếu sau 14 ngày anh/chị không thấy giá trị, xóa tài khoản không mất gì. Còn nếu thấy — và 9/10 người dùng thử đều thấy — thì quyết định trả phí sẽ rất dễ dàng. Mình đặt lịch onboarding cho anh/chị trong 24h tới nhé?"
+  </div>
+
+  <h2 id="s4-4">4.4 KPI &amp; Chỉ Tiêu Theo Giai Đoạn</h2>
+  <table>
+    <thead>
+      <tr><th>Chỉ số</th><th>Tháng 1</th><th>Tháng 3</th><th>Tháng 6</th><th>Tháng 12</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Lượt truy cập website/tháng</strong></td><td>2.000</td><td>5.000</td><td>12.000</td><td>25.000</td></tr>
+      <tr><td><strong>Số đăng ký trial</strong></td><td>50</td><td>150</td><td>350</td><td>600</td></tr>
+      <tr><td><strong>Trial-to-paid conversion</strong></td><td>20%</td><td>25%</td><td>30%</td><td>35%</td></tr>
+      <tr><td><strong>Khách trả phí (lũy kế)</strong></td><td>10</td><td>60</td><td>200</td><td>600</td></tr>
+      <tr><td><strong>MRR (triệu VND)</strong></td><td>15M</td><td>90M</td><td>300M</td><td>850M</td></tr>
+      <tr><td><strong>Churn rate/tháng</strong></td><td>&lt;10%</td><td>&lt;7%</td><td>&lt;5%</td><td>&lt;4%</td></tr>
+      <tr><td><strong>NPS score</strong></td><td>30</td><td>40</td><td>50</td><td>60</td></tr>
+      <tr><td><strong>Agency partners</strong></td><td>5</td><td>20</td><td>50</td><td>100</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s4-5">4.5 Lộ Trình Phát Triển 12 Tháng</h2>
+
+  <div class="roadmap-phase">
+    <div class="phase-header">Giai đoạn 1 (Tháng 1–3) — LAUNCH: Tìm Product-Market Fit</div>
+    <ul>
+      <li>Soft launch cho 50–100 early adopters (SMBs quen biết, beta testers trong mạng lưới sáng lập viên)</li>
+      <li>Thu thập feedback hàng tuần, iterate nhanh dựa trên user behavior data từ hệ thống analytics</li>
+      <li>Xây dựng 5–10 case studies từ khách hàng thành công đầu tiên — đây là tài sản bán hàng quan trọng nhất</li>
+      <li>Thiết lập content marketing foundation: blog, YouTube channel, LinkedIn page</li>
+      <li>Mục tiêu: 50 khách trả phí, MRR 75 triệu VND, NPS trên 30</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <div class="phase-header">Giai đoạn 2 (Tháng 4–6) — TRACTION: Scale Acquisition</div>
+    <ul>
+      <li>Bật Google Ads và Facebook Ads targeting SMBs, marketing manager, agency tại TP.HCM và Hà Nội</li>
+      <li>Ra mắt Agency Partnership Program — tuyển 20 agency partners đầu tiên với commission 20%</li>
+      <li>Công bố case studies và testimonials từ khách hàng Q1, tạo hiệu ứng social proof mạnh</li>
+      <li>Tham gia 2–3 sự kiện marketing/startup lớn (Vietnam CMO Summit, Startup Việt)</li>
+      <li>Mục tiêu: 200 khách trả phí, MRR 300 triệu VND, 50 agency partners</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <div class="phase-header">Giai đoạn 3 (Tháng 7–9) — GROWTH: Tăng LTV và Upsell</div>
+    <ul>
+      <li>Ra mắt Referral Program: giới thiệu 1 bạn, nhận 1 tháng free — khai thác mạng lưới khách hàng hiện có</li>
+      <li>Upsell campaign: chuyển khách Starter lên Pro, Pro lên Business dựa trên usage data</li>
+      <li>Ra mắt tính năng AI Lead Scoring (beta) cho gói Pro trở lên, tạo điều kiện upsell tiếp</li>
+      <li>Hợp tác với 50+ agency partners, mỗi agency trung bình 5–10 clients</li>
+      <li>Mục tiêu: 400 khách trả phí, MRR 550 triệu VND, LTV/CAC &gt; 4x</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <div class="phase-header">Giai đoạn 4 (Tháng 10–12) — SCALE: Chuẩn bị Series A</div>
+    <ul>
+      <li>Đạt break-even point — doanh thu bù đắp toàn bộ chi phí vận hành và phát triển</li>
+      <li>Ra mắt Enterprise tier với white-label và custom API cho các agency lớn và chuỗi bán lẻ</li>
+      <li>Chuẩn bị hồ sơ fundraising: traction data, financial model, unit economics, team deck</li>
+      <li>Pitch Series A với mục tiêu raise $1–2M để scale marketing và R&amp;D trong năm 2</li>
+      <li>Mục tiêu: 600 khách trả phí, MRR 850 triệu VND, chuẩn bị sản phẩm cho thị trường ĐNA (Đông Nam Á)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ======================================================= QUICK WINS -->
+<div class="section-page" id="qw">
+  <div class="section-header" style="background: linear-gradient(135deg, #92400E 0%, #D97706 100%);">
+    <div class="section-num" style="color: #FDE68A;">Ưu tiên hành động</div>
+    <h1 id="h-qw" style="string-set: doctitle 'Quick Wins';">Quick Wins — Làm Ngay Tuần Này</h1>
+  </div>
+
+  <p>Sau đây là 6 hành động ưu tiên cao nhất cần triển khai ngay trong 4 tuần đầu tiên — được sắp xếp theo thứ tự tác động đến doanh thu nhanh nhất, với nguồn lực ít nhất.</p>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#EF4444;">1</div>
+    <div class="qw-body">
+      <h4>Hoàn thiện MVP và bắt đầu Beta Testing (Tuần 1–2)</h4>
+      <p>Xác định 10–20 SMBs để beta test, onboard tay và thu thập feedback chuyên sâu hàng tuần. Tập trung vào core workflow: kết nối kênh → xem dashboard → nhận leads qua Unified Inbox. Bây giờ là lúc xác định product-market fit trước khi đầu tư marketing lớn.</p>
+    </div>
+  </div>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#D97706;">2</div>
+    <div class="qw-body">
+      <h4>Xây dựng Landing Page chuyển đổi cao (Tuần 1)</h4>
+      <p>Landing page rõ ràng với: headline "Quản lý tất cả kênh marketing trong 1 nền tảng", video demo 90 giây, 3 testimonials từ beta users, và CTA "Dùng thử miễn phí 14 ngày — không cần thẻ tín dụng". A/B test 2 phiên bản headline để tìm ra thông điệp chuyển đổi tốt nhất.</p>
+    </div>
+  </div>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#059669;">3</div>
+    <div class="qw-body">
+      <h4>Thiết lập Lead Magnet và Email Nurture (Tuần 2)</h4>
+      <p>Tạo báo cáo "7 lỗi marketing khiến doanh nghiệp mất 30% doanh thu" — email nurture 5 bước trong 10 ngày dẫn đến trial signup. Mỗi email giải quyết 1 pain point cụ thể và giới thiệu giải pháp. Đây là top-of-funnel quan trọng nhất cho content marketing dài hạn.</p>
+    </div>
+  </div>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#7C3AED;">4</div>
+    <div class="qw-body">
+      <h4>Tiếp cận 10 Agency Marketing Đầu Tiên (Tuần 2–3)</h4>
+      <p>List 10 agencies marketing tại TP.HCM và Hà Nội có sản lượng client lớn. Offer: free account vĩnh viễn + 20% commission từ clients họ giới thiệu + priority support. 1 agency = 8–15 clients tiếp cận — đây là kênh nhân rộng nhanh nhất với chi phí thấp nhất.</p>
+    </div>
+  </div>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#0C1F5C;">5</div>
+    <div class="qw-body">
+      <h4>Bật Content Marketing — Blog và YouTube (Tuần 3–4)</h4>
+      <p>Blog đầu tiên: "5 lý do doanh nghiệp SMB nên dùng marketing automation năm 2026" (SEO target: 1.000–2.000 lượt/tháng sau 3 tháng). Video YouTube: "Demo MKT Pro — quản lý Facebook, Zalo, TikTok trong 1 dashboard trong 5 phút". Content là nền tảng SEO và trust-building dài hạn.</p>
+    </div>
+  </div>
+
+  <div class="qw-item">
+    <div class="qw-num" style="background:#1D4ED8;">6</div>
+    <div class="qw-body">
+      <h4>Chạy Google Search Ads cho keyword có intent cao (Tháng 2)</h4>
+      <p>Keyword target: "phần mềm quản lý marketing", "CRM Việt Nam", "marketing automation SMB", "quản lý Facebook Ads Zalo". Budget khởi điểm: 10–15M VND/tháng. Track trial signups từ ads để đo CPL thực tế và tối ưu theo từng từ khóa.</p>
+    </div>
+  </div>
+
+  <div class="callout gold" style="margin-top: 28px;">
+    <div class="callout-title">Cam kết thực thi — Đo lường mỗi tuần</div>
+    Mỗi thứ Hai: review 4 chỉ số chính — (1) Số trial signups tuần trước, (2) Số người đạt aha moment (kết nối ít nhất 2 kênh), (3) Số người upgrade sang trả phí, (4) Số người churn và lý do chính. Từ 4 chỉ số này quyết định action ưu tiên cho tuần tiếp theo — không làm gì thêm cho đến khi có đủ dữ liệu để ra quyết định.
+  </div>
+
+  <div class="callout green" style="margin-top: 14px;">
+    <div class="callout-title">Mục tiêu cuối năm: 600 khách trả phí — MRR 850 triệu VND — NPS 60+</div>
+    Đây là mục tiêu đạt được nếu triển khai đúng lộ trình và ưu tiên đúng hành động. Mỗi quý, review lại kế hoạch này và điều chỉnh dựa trên dữ liệu thực tế — kế hoạch kinh doanh tốt nhất là kế hoạch được cập nhật thường xuyên, không phải để trên kệ.
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var observer = new MutationObserver(function(mutations, obs) {
+    var pagedContent = document.querySelector('.pagedjs_pages');
+    if (pagedContent) { obs.disconnect(); setTimeout(resolvePageNumbers, 600); }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  function resolvePageNumbers() {
+    document.querySelectorAll('.page-ref').forEach(function(ref) {
+      var href = ref.getAttribute('data-href');
+      var target = document.getElementById(href.replace('#', ''));
+      if (target) {
+        var page = target.closest('.pagedjs_page');
+        if (page) ref.textContent = page.getAttribute('data-page-number') || '?';
+      }
+    });
+  }
+});
+</script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f0f03d0605bf45f1a3b17cf7d5e6861f"}' crossorigin="anonymous"></script>
+</body>
+</html>

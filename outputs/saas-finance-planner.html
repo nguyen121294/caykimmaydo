@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SaaS Finance Planner · Kế hoạch tài chính 5 năm</title>
+  <style>
+    :root {
+      --ink: #162033;
+      --muted: #667085;
+      --soft: #f3f6fa;
+      --line: #e3e8ef;
+      --paper: #ffffff;
+      --navy: #101b2d;
+      --blue: #225bd6;
+      --purple: #7c4dff;
+      --orange: #ef7a32;
+      --green: #11966f;
+      --red: #d94c4c;
+      --yellow: #f4b740;
+      --radius: 18px;
+      --shadow: 0 14px 38px rgba(20, 32, 51, .08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: #edf1f6;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    .app { min-height: 100vh; }
+    .shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 24px 0 64px; }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 218px;
+      padding: 34px 38px;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at 88% 0%, rgba(54, 112, 255, .32), transparent 30%),
+        radial-gradient(circle at 60% 130%, rgba(124, 77, 255, .18), transparent 32%),
+        var(--navy);
+      color: #fff;
+      box-shadow: 0 18px 50px rgba(16, 27, 45, .22);
+    }
+    .hero-grid { position: relative; z-index: 1; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+    .eyebrow { margin: 0 0 10px; color: #739cff; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .hero h1 { max-width: 740px; margin: 0; font-size: clamp(27px, 4vw, 42px); line-height: 1.1; letter-spacing: -.035em; }
+    .hero-copy { max-width: 690px; margin: 13px 0 0; color: #b9c5d7; font-size: 14px; }
+    .hero-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 9px; }
+    .hero-field { display: grid; gap: 6px; min-width: 126px; }
+    .hero-field span { color: #9eacc1; font-size: 10px; font-weight: 750; text-transform: uppercase; }
+    .hero select { height: 42px; padding: 0 34px 0 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 11px; background: rgba(255,255,255,.08); color: #fff; outline: none; }
+    .hero select option { color: var(--ink); }
+    .btn { height: 42px; padding: 0 15px; border: 1px solid transparent; border-radius: 11px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 750; transition: .18s ease; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+    .btn-primary { background: #3972f5; color: #fff; }
+    .btn-ghost { border-color: rgba(255,255,255,.15); background: rgba(255,255,255,.06); color: #e6edfa; }
+    .btn-dark { background: var(--navy); color: #fff; }
+    .btn-light { border-color: var(--line); background: var(--paper); }
+    .btn-danger { border-color: #f4d7d7; background: #fff7f7; color: var(--red); }
+    .btn-small { height: 36px; padding: 0 12px; font-size: 11px; }
+
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; margin-top: 16px; }
+    .metric { min-height: 132px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 2px 5px rgba(17, 30, 50, .025); }
+    .metric-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .metric-label { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .metric-icon { display: grid; width: 35px; height: 35px; place-items: center; border-radius: 10px; background: #edf3ff; color: var(--blue); font-weight: 900; }
+    .metric-value { margin: 10px 0 2px; font-size: clamp(22px, 2.3vw, 29px); font-weight: 800; letter-spacing: -.035em; }
+    .metric-note { color: var(--muted); font-size: 11px; }
+
+    .tabs { position: sticky; top: 8px; z-index: 10; display: flex; gap: 4px; margin: 16px 0; padding: 5px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.94); box-shadow: 0 8px 22px rgba(18, 31, 51, .06); backdrop-filter: blur(12px); }
+    .tab { flex: 0 0 auto; height: 38px; padding: 0 16px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 750; }
+    .tab.active { background: var(--navy); color: #fff; }
+    .save-state { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 0 11px; color: #8a96a8; font-size: 10px; white-space: nowrap; }
+    .save-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+    .page { display: none; animation: reveal .25s ease; }
+    .page.active { display: block; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+    .grid-2 { display: grid; grid-template-columns: 1.65fr 1fr; gap: 16px; }
+    .grid-half { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .stack { gap: 16px; }
+    .page.stack.active { display: grid; }
+    .card { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 2px 5px rgba(17, 30, 50, .025); }
+    .card-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 19px 21px 17px; border-bottom: 1px solid #edf0f4; }
+    .card-head h2 { margin: 3px 0 0; font-size: 18px; letter-spacing: -.02em; }
+    .card-head p { max-width: 760px; margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+    .section-tag { color: var(--blue); font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .card-body { padding: 20px 21px; }
+    .canvas-box { position: relative; height: 322px; padding: 16px; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .year-pills { display: flex; gap: 5px; padding: 14px 18px 0; }
+    .year-pill { flex: 1; height: 29px; border: 0; border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 10px; font-weight: 800; }
+    .year-pill.active { background: var(--navy); color: #fff; }
+    .donut-wrap { position: relative; height: 260px; padding: 8px 16px 15px; }
+    .donut-center { position: absolute; top: 46%; left: 50%; text-align: center; transform: translate(-50%, -50%); pointer-events: none; }
+    .donut-center span { display: block; color: var(--muted); font-size: 10px; }
+    .donut-center strong { display: block; margin-top: 2px; font-size: 16px; }
+    .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; padding: 0 14px 15px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    .assumption-bar { display: grid; grid-template-columns: 1fr 2fr; gap: 22px; margin-top: 16px; padding: 20px; border: 1px solid #cadafb; border-radius: var(--radius); background: #f1f6ff; }
+    .assumption-title { display: flex; gap: 11px; }
+    .assumption-mark { display: grid; flex: 0 0 auto; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: var(--blue); color: #fff; font-weight: 800; }
+    .assumption-title h3 { margin: 0; font-size: 14px; }
+    .assumption-title p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+    .fields-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    label { display: grid; gap: 5px; color: #596579; font-size: 10px; font-weight: 750; }
+    input, select { width: 100%; min-width: 0; height: 39px; padding: 0 10px; border: 1px solid #d8dfe8; border-radius: 9px; background: #fff; color: var(--ink); outline: none; transition: .16s ease; }
+    input:focus, select:focus { border-color: #6a92ed; box-shadow: 0 0 0 3px rgba(34, 91, 214, .1); }
+    input[type="range"] { height: 22px; padding: 0; border: 0; accent-color: var(--blue); box-shadow: none; }
+    .money-wrap, .suffix-wrap { position: relative; }
+    .money-wrap input, .suffix-wrap input { padding-right: 31px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .field-suffix { position: absolute; top: 50%; right: 10px; color: #98a2b3; font-size: 10px; font-weight: 800; transform: translateY(-50%); pointer-events: none; }
+
+    .plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .plan-card { position: relative; overflow: hidden; padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: #f9fafc; }
+    .plan-line { position: absolute; inset: 0 0 auto; height: 4px; }
+    .plan-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .plan-name { height: 34px; padding: 0; border: 0; background: transparent; font-size: 17px; font-weight: 800; box-shadow: none !important; }
+    .plan-badge { flex: 0 0 auto; padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: 9px; font-weight: 800; }
+    .annual-price { margin-top: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .annual-price-row { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+    .annual-price small { display: block; margin-top: 4px; color: var(--green); font-weight: 700; }
+    .mix-row { display: flex; justify-content: space-between; margin-top: 13px; font-size: 10px; font-weight: 700; }
+    .formula { margin: 7px 0 0; color: #8a96a8; font-size: 9px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 820px; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid #edf0f4; text-align: left; font-size: 11px; }
+    th { background: #f7f9fb; color: #667085; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: #fbfcfe; }
+    .table-input { min-width: 88px; height: 35px; text-align: right; font-size: 11px; font-weight: 700; }
+    .name-input { min-width: 190px; height: 35px; font-size: 11px; }
+    .total-row td { background: #f0f5ff; color: #17449f; font-weight: 800; }
+    .subtle-row td { background: #f8fafc; font-weight: 750; }
+    .profit-row td { background: #ecfbf5; color: #087454; font-weight: 850; }
+    .cash-row td { background: #f3efff; color: #5d34c6; font-weight: 850; }
+    .negative { color: var(--red) !important; }
+    .remove { display: grid; width: 33px; height: 33px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #a5adba; font-weight: 900; }
+    .remove:hover { background: #fff0f0; color: var(--red); }
+
+    .provider-list { display: grid; }
+    .provider { padding: 18px 21px; border-bottom: 1px solid #edf0f4; }
+    .provider:last-child { border-bottom: 0; }
+    .provider-grid { display: grid; grid-template-columns: 1.65fr repeat(5, minmax(98px, .55fr)) 36px; align-items: end; gap: 10px; }
+    .provider-top { display: flex; align-items: center; gap: 7px; }
+    .category-select { width: 100px; height: 30px; padding: 0 7px; background: var(--soft); font-size: 9px; font-weight: 800; }
+    .provider-name { height: 30px; padding: 0; border: 0; background: transparent; font-weight: 800; box-shadow: none !important; }
+    .provider-name-row { display: flex; align-items: center; gap: 6px; }
+    .provider-link { color: var(--blue); font-size: 12px; font-weight: 850; text-decoration: none; }
+    .provider-desc { height: 28px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 10px; box-shadow: none !important; }
+    .price-note { margin-top: 2px; color: #98a2b3; font-size: 9px; }
+    .provider-years { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; }
+    .provider-year { padding: 7px 4px; border-radius: 7px; background: var(--soft); text-align: center; }
+    .provider-year span { display: block; color: #98a2b3; font-size: 8px; }
+    .provider-year strong { display: block; margin-top: 2px; font-size: 9px; }
+
+    .year-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .year-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+    .year-card-top { display: flex; align-items: center; justify-content: space-between; color: #8a96a8; font-size: 9px; font-weight: 800; }
+    .year-card-value { margin-top: 8px; font-size: 17px; font-weight: 850; }
+    .year-card-note { margin-top: 2px; color: var(--muted); font-size: 9px; }
+    .progress { height: 5px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: #edf0f4; }
+    .progress > span { display: block; height: 100%; border-radius: inherit; }
+
+    .notice { margin-top: 16px; padding: 14px 16px; border: 1px solid #f0dda6; border-radius: 13px; background: #fff9e9; color: #6c5620; font-size: 10px; }
+    footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #dbe1e9; color: #8792a3; font-size: 9px; }
+    .toast { position: fixed; right: 20px; bottom: 20px; z-index: 99; padding: 11px 14px; border-radius: 10px; background: var(--navy); color: #fff; font-size: 11px; box-shadow: var(--shadow); opacity: 0; transform: translateY(10px); pointer-events: none; transition: .2s ease; }
+    .toast.show { opacity: 1; transform: none; }
+
+    @media (max-width: 1120px) {
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      .grid-2, .grid-half { grid-template-columns: 1fr; }
+      .provider-grid { grid-template-columns: 1.3fr repeat(3, minmax(105px, .7fr)); }
+      .provider-grid > :nth-child(5), .provider-grid > :nth-child(6) { grid-row: 2; }
+      .year-cards { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1500px); padding-top: 10px; }
+      .hero { padding: 25px 20px; border-radius: 20px; }
+      .hero-grid { align-items: flex-start; flex-direction: column; }
+      .hero-actions { width: 100%; justify-content: flex-start; }
+      .summary { grid-template-columns: 1fr; }
+      .metric { min-height: 112px; }
+      .save-state { display: none; }
+      .card-head { align-items: flex-start; flex-direction: column; }
+      .assumption-bar { grid-template-columns: 1fr; }
+      .fields-3, .plan-grid { grid-template-columns: 1fr; }
+      .canvas-box { height: 280px; }
+      .provider-grid { grid-template-columns: 1fr 1fr; }
+      .provider-grid > :first-child { grid-column: 1 / -1; }
+      .provider-grid > :last-child { align-self: end; }
+      .provider-years { overflow-x: auto; grid-template-columns: repeat(5, minmax(80px, 1fr)); }
+      .year-cards { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
+    }
+    @media print {
+      body { background: #fff; }
+      .shell { width: 100%; padding: 0; }
+      .hero-actions, .tabs, .btn, .remove, footer { display: none !important; }
+      .hero { min-height: 0; border-radius: 0; box-shadow: none; }
+      .page { display: block !important; margin-top: 14px; page-break-after: always; }
+      .card, .metric { box-shadow: none; break-inside: avoid; }
+      .provider { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="shell">
+      <header class="hero">
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow">SaaS · Financial planning workspace</p>
+            <h1>Kế hoạch thu chi & tăng trưởng 5 năm</h1>
+            <p class="hero-copy">Mô phỏng ba gói SaaS, số lượng khách, chi phí phát triển, nhân sự và hạ tầng theo quy mô — tất cả trong một file HTML độc lập.</p>
+          </div>
+          <div class="hero-actions">
+            <label class="hero-field"><span>Năm bắt đầu</span><select id="startYear"></select></label>
+            <button class="btn btn-ghost" id="resetBtn">↺ Mặc định</button>
+            <button class="btn btn-ghost" id="printBtn">⌑ In / PDF</button>
+            <button class="btn btn-primary" id="exportBtn">↓ Xuất CSV</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="summary" id="summary"></section>
+
+      <nav class="tabs" aria-label="Điều hướng mô hình">
+        <button class="tab active" data-tab="overview">Tổng quan</button>
+        <button class="tab" data-tab="revenue">Doanh thu</button>
+        <button class="tab" data-tab="costs">Chi phí</button>
+        <button class="tab" data-tab="projection">Bảng 5 năm</button>
+        <span class="save-state"><i class="save-dot"></i>Tự động lưu trên thiết bị</span>
+      </nav>
+
+      <section class="page active" id="page-overview">
+        <div class="grid-2">
+          <article class="card">
+            <div class="card-head"><div><span class="section-tag">P&L projection</span><h2>Doanh thu, chi phí & lợi nhuận</h2><p>Lợi nhuận ròng đã trừ phí thanh toán và thuế dự kiến.</p></div></div>
+            <div class="canvas-box"><canvas id="pnlChart" aria-label="Biểu đồ doanh thu chi phí và lợi nhuận"></canvas></div>
+          </article>
+          <article class="card">
+            <div class="card-head"><div><span class="section-tag">Cost mix</span><h2 id="costMixTitle">Cơ cấu chi phí</h2><p>Chọn năm để xem nguồn lực đang tập trung ở đâu.</p></div></div>
+            <div class="year-pills" id="costYearPills"></div>
+            <div class="donut-wrap"><canvas id="costChart" aria-label="Biểu đồ cơ cấu chi phí"></canvas><div class="donut-center"><span>Tổng chi</span><strong id="donutTotal"></strong></div></div>
+            <div class="legend" id="costLegend"></div>
+          </article>
+        </div>
+
+        <div class="grid-half" style="margin-top:16px">
+          <article class="card">
+            <div class="card-head"><div><span class="section-tag">Customer growth</span><h2>Quy mô khách hàng theo gói</h2><p>Số khách trả phí hoạt động trong từng năm.</p></div></div>
+            <div class="canvas-box"><canvas id="usersChart" aria-label="Biểu đồ khách hàng theo gói"></canvas></div>
+          </article>
+          <article class="card">
+            <div class="card-head"><div><span class="section-tag">Cash position</span><h2>Dòng tiền tích lũy</h2><p>Vùng âm thể hiện nhu cầu bổ sung vốn.</p></div></div>
+            <div class="canvas-box"><canvas id="cashChart" aria-label="Biểu đồ dòng tiền tích lũy"></canvas></div>
+          </article>
+        </div>
+
+        <section class="assumption-bar">
+          <div class="assumption-title"><div class="assumption-mark">i</div><div><h3>Giả định tài chính chung</h3><p>Phí thanh toán tính trên doanh thu. Thuế chỉ phát sinh khi lợi nhuận trước thuế dương.</p></div></div>
+          <div class="fields-3" id="globalFields"></div>
+        </section>
+      </section>
+
+      <section class="page stack" id="page-revenue">
+        <article class="card">
+          <div class="card-head"><div><span class="section-tag">SaaS pricing</span><h2>Ba gói sản phẩm</h2><p>Giá niêm yết theo tháng. Khách mua theo năm chỉ trả 10 tháng, tương đương giảm 16,7%.</p></div></div>
+          <div class="card-body"><div class="plan-grid" id="planCards"></div></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><div><span class="section-tag">Paid users</span><h2>Mô phỏng số khách theo từng gói</h2><p>Nên dùng số khách bình quân năm để dự báo doanh thu sát thực tế hơn.</p></div></div>
+          <div class="table-wrap" id="userTable"></div>
+        </article>
+        <article class="card">
+          <div class="card-head"><div><span class="section-tag">Revenue output</span><h2>Doanh thu theo gói</h2><p>Công thức: user × giá tháng × [12 × tỷ lệ tháng + 10 × tỷ lệ năm].</p></div></div>
+          <div class="table-wrap" id="revenueTable"></div>
+        </article>
+      </section>
+
+      <section class="page stack" id="page-costs">
+        <article class="card" id="mvpCard"></article>
+        <article class="card" id="fullCard"></article>
+        <article class="card" id="peopleCard"></article>
+        <article class="card" id="annualCard"></article>
+      </section>
+
+      <section class="page stack" id="page-projection">
+        <article class="card">
+          <div class="card-head"><div><span class="section-tag">5-year plan</span><h2>Báo cáo thu chi tổng hợp</h2><p>Bảng P&L kế hoạch theo năm; số âm được hiển thị màu đỏ.</p></div></div>
+          <div class="table-wrap" id="projectionTable"></div>
+        </article>
+        <div class="year-cards" id="yearCards"></div>
+        <div class="notice">Lưu ý: đây là mô hình planning để so sánh kịch bản, không thay thế tư vấn kế toán hoặc thuế. Hãy cập nhật báo giá nhà cung cấp, tỷ giá và quy định thuế trước khi dùng cho quyết định đầu tư.</div>
+      </section>
+
+      <footer><span>SaaS Finance Planner · Planning period 5 năm · Đơn vị VND</span><span>File độc lập · Không gửi dữ liệu ra ngoài · Lưu cục bộ trên trình duyệt</span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      const YEARS = 5;
+      const KEY = 'standalone-saas-finance-planner-v1';
+      const COLORS = ['#225bd6', '#7c4dff', '#ef7a32'];
+      const COST_COLORS = ['#11966f', '#7c4dff', '#ef7a32', '#d94c4c'];
+
+      const defaults = {
+        startYear: 2026,
+        openingCash: 1200000000,
+        paymentFeeRate: 0.035,
+        taxRate: 0.20,
+        plans: [
+          { id: 'starter', name: 'Starter', color: COLORS[0], monthlyPrice: 299000, annualMix: 0.60, users: [120, 350, 800, 1600, 3000] },
+          { id: 'growth', name: 'Growth', color: COLORS[1], monthlyPrice: 699000, annualMix: 0.50, users: [35, 120, 300, 700, 1400] },
+          { id: 'scale', name: 'Scale', color: COLORS[2], monthlyPrice: 1499000, annualMix: 0.40, users: [5, 18, 50, 130, 320] }
+        ],
+        fixedCosts: [
+          { id: 'mvp-ux', phase: 'MVP', name: 'Nghiên cứu người dùng & UX/UI', yearIndex: 0, amount: 60000000 },
+          { id: 'mvp-core', phase: 'MVP', name: 'Phát triển nền tảng web cốt lõi', yearIndex: 0, amount: 280000000 },
+          { id: 'mvp-qa', phase: 'MVP', name: 'QA, bảo mật & kiểm thử tải', yearIndex: 0, amount: 45000000 },
+          { id: 'mvp-launch', phase: 'MVP', name: 'Thiết lập vận hành & ra mắt', yearIndex: 0, amount: 25000000 },
+          { id: 'full-v2', phase: 'FULL', name: 'Full product V2 & automation', yearIndex: 1, amount: 350000000 },
+          { id: 'full-mobile', phase: 'FULL', name: 'Ứng dụng mobile iOS / Android', yearIndex: 2, amount: 280000000 },
+          { id: 'full-data', phase: 'FULL', name: 'Data platform & tính năng AI', yearIndex: 3, amount: 180000000 }
+        ],
+        people: [
+          { id: 'p-engineer', role: 'Full-stack Engineer', hourlyRate: 250000, hoursPerMonth: 120, monthsPerYear: 12, headcount: [2, 2, 3, 4, 5] },
+          { id: 'p-product', role: 'Product / UX Designer', hourlyRate: 220000, hoursPerMonth: 80, monthsPerYear: 12, headcount: [1, 1, 1, 1.5, 2] },
+          { id: 'p-qa', role: 'QA Engineer', hourlyRate: 160000, hoursPerMonth: 80, monthsPerYear: 12, headcount: [0.5, 1, 1, 1.5, 2] },
+          { id: 'p-growth', role: 'Growth Marketing', hourlyRate: 180000, hoursPerMonth: 100, monthsPerYear: 12, headcount: [0.5, 1, 1.5, 2, 3] },
+          { id: 'p-support', role: 'Customer Success', hourlyRate: 120000, hoursPerMonth: 120, monthsPerYear: 12, headcount: [0.5, 1, 2, 3, 5] }
+        ],
+        annualCosts: [
+          { id: 'a-cloudflare', category: 'Hạ tầng', provider: 'Cloudflare Workers + R2', description: 'Web/API edge, CDN, WAF và lưu file; R2 không tính egress trực tiếp.', priceNote: 'Workers Paid từ $5/tháng; R2 $0.015/GB-tháng, miễn phí 10GB.', link: 'https://developers.cloudflare.com/workers/platform/pricing/', baseAnnual: 1530000, metric: 'active', includedUsers: 5000, costPerUser: 4000, annualGrowth: 0.03 },
+          { id: 'a-supabase', category: 'Hạ tầng', provider: 'Supabase Pro', description: 'Postgres, authentication, API, backup hằng ngày và log.', priceNote: 'Từ $25/tháng; gồm 100.000 MAU, 8GB DB và 250GB egress.', link: 'https://supabase.com/pricing', baseAnnual: 7650000, metric: 'active', includedUsers: 100000, costPerUser: 1000, annualGrowth: 0.03 },
+          { id: 'a-resend', category: 'Hạ tầng', provider: 'Resend Pro', description: 'Email OTP, hóa đơn, cảnh báo và chuỗi onboarding.', priceNote: '$20/tháng cho 50.000 email; vượt mức khoảng $0.90/1.000 email.', link: 'https://resend.com/pricing?product=transactional', baseAnnual: 6120000, metric: 'active', includedUsers: 12500, costPerUser: 1100, annualGrowth: 0.03 },
+          { id: 'a-monitoring', category: 'Hạ tầng', provider: 'Sentry + Better Stack', description: 'Theo dõi lỗi, uptime, log và cảnh báo trực ca.', priceNote: 'Ngân sách thực tế cho team nhỏ; tăng theo event và log volume.', link: 'https://sentry.io/pricing/', baseAnnual: 12000000, metric: 'active', includedUsers: 10000, costPerUser: 700, annualGrowth: 0.05 },
+          { id: 'a-analytics', category: 'Hạ tầng', provider: 'PostHog / product analytics', description: 'Funnel, retention, feature flags và session replay có kiểm soát.', priceNote: 'Dùng free tier khi nhỏ; ngân sách vượt mức theo số event.', link: 'https://posthog.com/pricing', baseAnnual: 6000000, metric: 'active', includedUsers: 5000, costPerUser: 3000, annualGrowth: 0.05 },
+          { id: 'a-domain', category: 'Vận hành', provider: 'Domain, SSL & backup độc lập', description: 'Tên miền, backup off-site, secret management và status page.', priceNote: 'Ngân sách dự phòng hằng năm; không phụ thuộc lượng user.', link: '', baseAnnual: 8000000, metric: 'active', includedUsers: 999999999, costPerUser: 0, annualGrowth: 0.05 },
+          { id: 'a-legal', category: 'Vận hành', provider: 'Kế toán, pháp lý & compliance', description: 'Kế toán thuế, hợp đồng, chính sách dữ liệu và rà soát pháp lý.', priceNote: 'Ngân sách nền; cần báo giá riêng khi mở thêm thị trường.', link: '', baseAnnual: 48000000, metric: 'active', includedUsers: 20000, costPerUser: 5000, annualGrowth: 0.06 },
+          { id: 'a-marketing', category: 'Tăng trưởng', provider: 'Performance marketing', description: 'Paid social/search, creator, landing page và sản xuất nội dung.', priceNote: 'Ngân sách nền + CAC giả định 150.000đ cho mỗi khách mới.', link: '', baseAnnual: 120000000, metric: 'new', includedUsers: 0, costPerUser: 150000, annualGrowth: 0.05 },
+          { id: 'a-cs', category: 'Tăng trưởng', provider: 'CRM & customer success tools', description: 'Helpdesk, knowledge base, NPS và automation vòng đời.', priceNote: 'Phí nền + license/usage theo số khách đang hoạt động.', link: '', baseAnnual: 24000000, metric: 'active', includedUsers: 1000, costPerUser: 15000, annualGrowth: 0.05 }
+        ]
+      };
+
+      let model;
+      let costYear = 0;
+      let activeTab = 'overview';
+      let toastTimer;
+      let renderTimer;
+
+      const $ = (selector, root = document) => root.querySelector(selector);
+      const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const clone = value => JSON.parse(JSON.stringify(value));
+      const id = prefix => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+      const n = value => Number(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
+      const years = () => Array.from({ length: YEARS }, (_, i) => model.startYear + i);
+      const money = value => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(value || 0);
+      const number = value => new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(value || 0);
+      const compact = value => new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0);
+      const percent = value => `${(value * 100).toFixed((value * 100) % 1 ? 1 : 0)}%`;
+      const moneyInput = (value, action, key, label) => `<div class="money-wrap"><input class="money-input" aria-label="${esc(label)}" value="${esc(number(value))}" data-action="${action}" data-key="${esc(key)}"><span class="field-suffix">đ</span></div>`;
+      const numberInput = (value, action, key, label, step = 1, suffix = '') => `<div class="suffix-wrap"><input type="number" min="0" step="${step}" aria-label="${esc(label)}" value="${value}" data-action="${action}" data-key="${esc(key)}">${suffix ? `<span class="field-suffix">${esc(suffix)}</span>` : ''}</div>`;
+
+      model = load();
+
+      function load() {
+        try {
+          const saved = localStorage.getItem(KEY);
+          return saved ? Object.assign(clone(defaults), JSON.parse(saved)) : clone(defaults);
+        } catch { return clone(defaults); }
+      }
+
+      function save() {
+        try { localStorage.setItem(KEY, JSON.stringify(model)); } catch {}
+      }
+
+      function scheduleRender() {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(render, 0);
+      }
+
+      function toast(message) {
+        const el = $('#toast');
+        el.textContent = message;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 1900);
+      }
+
+      function projections() {
+        return years().map((year, yearIndex) => {
+          const planRevenue = model.plans.map(plan => plan.users[yearIndex] * plan.monthlyPrice * (12 - 2 * plan.annualMix));
+          const revenue = planRevenue.reduce((a, b) => a + b, 0);
+          const users = model.plans.reduce((sum, plan) => sum + plan.users[yearIndex], 0);
+          const previousUsers = yearIndex ? model.plans.reduce((sum, plan) => sum + plan.users[yearIndex - 1], 0) : 0;
+          const newUsers = Math.max(0, users - previousUsers);
+          const peopleCost = model.people.reduce((sum, person) => sum + person.hourlyRate * person.hoursPerMonth * person.monthsPerYear * person.headcount[yearIndex], 0);
+          const fixedMvp = model.fixedCosts.filter(row => row.phase === 'MVP' && row.yearIndex === yearIndex).reduce((sum, row) => sum + row.amount, 0);
+          const fixedFull = model.fixedCosts.filter(row => row.phase === 'FULL' && row.yearIndex === yearIndex).reduce((sum, row) => sum + row.amount, 0);
+          const annualCost = model.annualCosts.reduce((sum, row) => {
+            const basis = row.metric === 'active' ? users : newUsers;
+            return sum + row.baseAnnual * Math.pow(1 + row.annualGrowth, yearIndex) + Math.max(0, basis - row.includedUsers) * row.costPerUser;
+          }, 0);
+          const paymentFee = revenue * model.paymentFeeRate;
+          const totalCost = peopleCost + fixedMvp + fixedFull + annualCost + paymentFee;
+          const profitBeforeTax = revenue - totalCost;
+          const tax = Math.max(0, profitBeforeTax) * model.taxRate;
+          const netProfit = profitBeforeTax - tax;
+          return { year, yearIndex, planRevenue, revenue, users, newUsers, peopleCost, fixedMvp, fixedFull, annualCost, paymentFee, totalCost, profitBeforeTax, tax, netProfit };
+        });
+      }
+
+      function totals(rows) {
+        return rows.reduce((acc, row) => ({ revenue: acc.revenue + row.revenue, cost: acc.cost + row.totalCost, profit: acc.profit + row.netProfit, tax: acc.tax + row.tax }), { revenue: 0, cost: 0, profit: 0, tax: 0 });
+      }
+
+      function cashFlow(rows) {
+        let cash = model.openingCash;
+        return rows.map(row => ({ ...row, cash: cash += row.netProfit }));
+      }
+
+      function render() {
+        const rows = projections();
+        const total = totals(rows);
+        const cash = cashFlow(rows);
+        renderHeader();
+        renderSummary(rows, total);
+        renderGlobals();
+        renderPlans(rows);
+        renderFixed('MVP', '#mvpCard');
+        renderFixed('FULL', '#fullCard');
+        renderPeople();
+        renderAnnual(rows);
+        renderProjection(rows, total, cash);
+        requestAnimationFrame(() => drawCharts(rows, cash));
+        save();
+      }
+
+      function renderHeader() {
+        $('#startYear').innerHTML = Array.from({ length: 12 }, (_, i) => 2024 + i).map(year => `<option value="${year}" ${year === model.startYear ? 'selected' : ''}>${year}</option>`).join('');
+      }
+
+      function renderSummary(rows, total) {
+        const breakEven = rows.find(row => row.netProfit > 0)?.year;
+        const margin = total.revenue ? total.profit / total.revenue : 0;
+        $('#summary').innerHTML = [
+          ['↗', 'Doanh thu 5 năm', compact(total.revenue), `${number(rows[4].users)} khách vào ${rows[4].year}`],
+          ['≡', 'Tổng chi phí', compact(total.cost), `Gồm ${compact(total.tax)} thuế dự kiến`],
+          ['+', 'Lợi nhuận ròng', compact(total.profit), `${percent(margin)} biên ròng toàn kỳ`],
+          ['◎', 'Hòa vốn vận hành', breakEven || 'Chưa đạt', breakEven ? 'Năm đầu tiên lợi nhuận ròng dương' : 'Cần tăng giá, user hoặc giảm chi phí']
+        ].map(item => `<article class="metric"><div class="metric-top"><span class="metric-label">${item[1]}</span><span class="metric-icon">${item[0]}</span></div><div class="metric-value">${item[2]}</div><div class="metric-note">${item[3]}</div></article>`).join('');
+      }
+
+      function renderGlobals() {
+        $('#globalFields').innerHTML = `
+          <label>Tiền đầu kỳ${moneyInput(model.openingCash, 'global-money', 'openingCash', 'Tiền đầu kỳ')}</label>
+          <label>Phí thanh toán${numberInput(model.paymentFeeRate * 100, 'global-percent', 'paymentFeeRate', 'Phí thanh toán', .1, '%')}</label>
+          <label>Thuế TNDN dự kiến${numberInput(model.taxRate * 100, 'global-percent', 'taxRate', 'Thuế TNDN', 1, '%')}</label>`;
+      }
+
+      function renderPlans(rows) {
+        $('#planCards').innerHTML = model.plans.map((plan, i) => `
+          <div class="plan-card">
+            <div class="plan-line" style="background:${plan.color}"></div>
+            <div class="plan-title"><input class="plan-name" aria-label="Tên gói ${i + 1}" value="${esc(plan.name)}" data-action="plan-text" data-key="${plan.id}|name"><span class="plan-badge">GÓI ${i + 1}</span></div>
+            <label style="margin-top:12px">Giá mỗi tháng${moneyInput(plan.monthlyPrice, 'plan-money', `${plan.id}|monthlyPrice`, `Giá tháng ${plan.name}`)}</label>
+            <div class="annual-price"><div class="annual-price-row"><span>Giá mua năm</span><strong>${money(plan.monthlyPrice * 10)}</strong></div><small>10 tháng · tiết kiệm 16,7%</small></div>
+            <div class="mix-row"><span>Tỷ lệ khách trả năm</span><strong>${percent(plan.annualMix)}</strong></div>
+            <input type="range" min="0" max="100" step="5" value="${plan.annualMix * 100}" data-action="plan-mix" data-key="${plan.id}">
+            <p class="formula">Doanh thu bình quân = ${(12 - 2 * plan.annualMix).toFixed(1)} tháng / khách / năm</p>
+          </div>`).join('');
+
+        $('#userTable').innerHTML = `<table><thead><tr><th>Gói SaaS</th>${years().map(year => `<th class="num">${year}</th>`).join('')}<th class="num">CAGR</th></tr></thead><tbody>
+          ${model.plans.map(plan => {
+            const cagr = plan.users[0] ? Math.pow(plan.users[4] / plan.users[0], .25) - 1 : 0;
+            return `<tr><td><span class="legend-dot" style="display:inline-block;background:${plan.color};margin-right:7px"></span><strong>${esc(plan.name)}</strong><small style="color:#98a2b3;margin-left:7px">${money(plan.monthlyPrice)}/tháng</small></td>${plan.users.map((user, i) => `<td>${numberInput(user, 'plan-user', `${plan.id}|${i}`, `${plan.name} user ${years()[i]}`)}</td>`).join('')}<td class="num"><strong style="color:var(--green)">${percent(cagr)}</strong></td></tr>`;
+          }).join('')}
+          <tr class="total-row"><td>Tổng khách</td>${rows.map(row => `<td class="num">${number(row.users)}</td>`).join('')}<td></td></tr></tbody></table>`;
+
+        $('#revenueTable').innerHTML = `<table><thead><tr><th>Doanh thu</th>${years().map(year => `<th class="num">${year}</th>`).join('')}<th class="num">Tổng 5 năm</th></tr></thead><tbody>
+          ${model.plans.map((plan, i) => `<tr><td><strong>${esc(plan.name)}</strong></td>${rows.map(row => `<td class="num">${compact(row.planRevenue[i])}</td>`).join('')}<td class="num"><strong>${compact(rows.reduce((sum, row) => sum + row.planRevenue[i], 0))}</strong></td></tr>`).join('')}
+          <tr class="total-row"><td>Tổng doanh thu</td>${rows.map(row => `<td class="num">${compact(row.revenue)}</td>`).join('')}<td class="num">${compact(rows.reduce((sum, row) => sum + row.revenue, 0))}</td></tr></tbody></table>`;
+      }
+
+      function renderFixed(phase, selector) {
+        const isMvp = phase === 'MVP';
+        const filtered = model.fixedCosts.filter(row => row.phase === phase);
+        $(selector).innerHTML = `
+          <div class="card-head"><div><span class="section-tag">Fixed cost</span><h2>${isMvp ? 'Chi phí phát triển MVP' : 'Chi phí phát triển full product'}</h2><p>${isMvp ? 'Đầu tư một lần để kiểm chứng sản phẩm và ra mắt phiên bản đầu.' : 'Đầu tư một lần để hoàn thiện, mở rộng và tạo lợi thế sản phẩm.'}</p></div><button class="btn btn-dark btn-small" data-add-fixed="${phase}">+ Thêm chi phí</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Hạng mục</th><th>Năm phát sinh</th><th class="num">Chi phí</th><th></th></tr></thead><tbody>
+          ${filtered.map(row => `<tr><td><input class="name-input" aria-label="Tên chi phí" value="${esc(row.name)}" data-action="fixed-text" data-key="${row.id}"></td><td><select data-action="fixed-year" data-key="${row.id}">${years().map((year, i) => `<option value="${i}" ${i === row.yearIndex ? 'selected' : ''}>${year}</option>`).join('')}</select></td><td>${moneyInput(row.amount, 'fixed-money', row.id, `Chi phí ${row.name}`)}</td><td><button class="remove" aria-label="Xóa ${esc(row.name)}" data-remove-fixed="${row.id}">×</button></td></tr>`).join('')}
+          <tr class="subtle-row"><td colspan="2">Tổng ${phase}</td><td class="num">${money(filtered.reduce((sum, row) => sum + row.amount, 0))}</td><td></td></tr></tbody></table></div>`;
+      }
+
+      function renderPeople() {
+        $('#peopleCard').innerHTML = `
+          <div class="card-head"><div><span class="section-tag">Team cost</span><h2>Chi phí nhân sự theo giờ</h2><p>Chi phí năm = đơn giá/giờ × giờ/tháng × tháng/năm × headcount. Có thể nhập 0,5 cho bán thời gian.</p></div><button class="btn btn-dark btn-small" id="addPerson">+ Thêm nhân sự</button></div>
+          <div class="table-wrap"><table style="min-width:1180px"><thead><tr><th>Vai trò</th><th class="num">Đơn giá/giờ</th><th class="num">Giờ/tháng</th><th class="num">Tháng/năm</th>${years().map(year => `<th class="num">HC ${year}</th>`).join('')}<th class="num">Tổng 5 năm</th><th></th></tr></thead><tbody>
+          ${model.people.map(person => `<tr><td><input class="name-input" value="${esc(person.role)}" aria-label="Vai trò nhân sự" data-action="person-text" data-key="${person.id}"></td><td>${moneyInput(person.hourlyRate, 'person-money', `${person.id}|hourlyRate`, `Đơn giá ${person.role}`)}</td><td>${numberInput(person.hoursPerMonth, 'person-number', `${person.id}|hoursPerMonth`, `Giờ tháng ${person.role}`)}</td><td>${numberInput(person.monthsPerYear, 'person-number', `${person.id}|monthsPerYear`, `Tháng năm ${person.role}`)}</td>${person.headcount.map((hc, i) => `<td>${numberInput(hc, 'person-hc', `${person.id}|${i}`, `Headcount ${person.role} ${years()[i]}`, .5)}</td>`).join('')}<td class="num"><strong>${compact(person.headcount.reduce((sum, hc) => sum + person.hourlyRate * person.hoursPerMonth * person.monthsPerYear * hc, 0))}</strong></td><td><button class="remove" data-remove-person="${person.id}" aria-label="Xóa ${esc(person.role)}">×</button></td></tr>`).join('')}
+          </tbody></table></div>`;
+      }
+
+      function annualAmount(cost, row, index) {
+        const basis = cost.metric === 'active' ? row.users : row.newUsers;
+        return cost.baseAnnual * Math.pow(1 + cost.annualGrowth, index) + Math.max(0, basis - cost.includedUsers) * cost.costPerUser;
+      }
+
+      function renderAnnual(rows) {
+        $('#annualCard').innerHTML = `
+          <div class="card-head"><div><span class="section-tag">Recurring cost</span><h2>Chi phí hằng năm & hạ tầng theo quy mô</h2><p>Phí nền hằng năm + phí vượt mức user. Giá tham chiếu được quy đổi khoảng 25.500đ/USD và có thể chỉnh trực tiếp.</p></div><button class="btn btn-dark btn-small" id="addAnnual">+ Thêm chi phí</button></div>
+          <div class="provider-list">${model.annualCosts.map(cost => `
+            <div class="provider">
+              <div class="provider-grid">
+                <div><div class="provider-top"><select class="category-select" data-action="annual-category" data-key="${cost.id}">${['Hạ tầng','Vận hành','Tăng trưởng'].map(category => `<option ${category === cost.category ? 'selected' : ''}>${category}</option>`).join('')}</select><div class="provider-name-row" style="flex:1"><input class="provider-name" value="${esc(cost.provider)}" data-action="annual-text" data-field="provider" data-key="${cost.id}" aria-label="Nhà cung cấp">${cost.link ? `<a class="provider-link" href="${esc(cost.link)}" target="_blank" rel="noreferrer" title="Mở bảng giá">↗</a>` : ''}</div></div><input class="provider-desc" value="${esc(cost.description)}" data-action="annual-text" data-field="description" data-key="${cost.id}" aria-label="Mô tả chi phí"><div class="price-note">${esc(cost.priceNote)}</div></div>
+                <label>Phí nền/năm${moneyInput(cost.baseAnnual, 'annual-money', `${cost.id}|baseAnnual`, `Phí nền ${cost.provider}`)}</label>
+                <label>Scale theo<select data-action="annual-metric" data-key="${cost.id}"><option value="active" ${cost.metric === 'active' ? 'selected' : ''}>User active</option><option value="new" ${cost.metric === 'new' ? 'selected' : ''}>User mới</option></select></label>
+                <label>User bao gồm${numberInput(cost.includedUsers, 'annual-number', `${cost.id}|includedUsers`, `User bao gồm ${cost.provider}`)}</label>
+                <label>Phí/user vượt${moneyInput(cost.costPerUser, 'annual-money', `${cost.id}|costPerUser`, `Phí user ${cost.provider}`)}</label>
+                <label>Tăng giá/năm${numberInput(cost.annualGrowth * 100, 'annual-growth', cost.id, `Tăng giá ${cost.provider}`, .5, '%')}</label>
+                <button class="remove" data-remove-annual="${cost.id}" aria-label="Xóa ${esc(cost.provider)}">×</button>
+              </div>
+              <div class="provider-years">${rows.map((row, i) => `<div class="provider-year"><span>${row.year}</span><strong>${compact(annualAmount(cost, row, i))}</strong></div>`).join('')}</div>
+            </div>`).join('')}</div>`;
+      }
+
+      function renderProjection(rows, total, cash) {
+        const row = (label, values, className = '', indent = false, totalValue = null) => `<tr class="${className}"><td style="${indent ? 'padding-left:28px' : ''}">${label}</td>${values.map(value => `<td class="num ${value < 0 ? 'negative' : ''}">${compact(value)}</td>`).join('')}<td class="num ${totalValue < 0 ? 'negative' : ''}">${totalValue == null ? '—' : compact(totalValue)}</td></tr>`;
+        $('#projectionTable').innerHTML = `<table style="min-width:930px"><thead><tr><th>Chỉ tiêu</th>${years().map(year => `<th class="num">${year}</th>`).join('')}<th class="num">Tổng 5 năm</th></tr></thead><tbody>
+          <tr><td>Khách trả phí</td>${rows.map(r => `<td class="num">${number(r.users)}</td>`).join('')}<td class="num">—</td></tr>
+          ${row('DOANH THU', rows.map(r => r.revenue), 'total-row', false, total.revenue)}
+          ${row('Chi phí nhân sự', rows.map(r => r.peopleCost), '', true, rows.reduce((s,r) => s+r.peopleCost,0))}
+          ${row('Phát triển MVP', rows.map(r => r.fixedMvp), '', true, rows.reduce((s,r) => s+r.fixedMvp,0))}
+          ${row('Phát triển full product', rows.map(r => r.fixedFull), '', true, rows.reduce((s,r) => s+r.fixedFull,0))}
+          ${row('Hạ tầng, vận hành & marketing', rows.map(r => r.annualCost), '', true, rows.reduce((s,r) => s+r.annualCost,0))}
+          ${row(`Phí thanh toán (${percent(model.paymentFeeRate)})`, rows.map(r => r.paymentFee), '', true, rows.reduce((s,r) => s+r.paymentFee,0))}
+          ${row('TỔNG CHI PHÍ', rows.map(r => r.totalCost), 'subtle-row', false, total.cost)}
+          ${row('Lợi nhuận trước thuế', rows.map(r => r.profitBeforeTax), '', false, rows.reduce((s,r) => s+r.profitBeforeTax,0))}
+          ${row(`Thuế TNDN dự kiến (${percent(model.taxRate)})`, rows.map(r => r.tax), '', true, total.tax)}
+          ${row('LỢI NHUẬN RÒNG', rows.map(r => r.netProfit), 'profit-row', false, total.profit)}
+          ${row('TIỀN CUỐI KỲ', cash.map(r => r.cash), 'cash-row', false, null)}
+        </tbody></table>`;
+
+        $('#yearCards').innerHTML = rows.map(row => {
+          const margin = row.revenue ? row.netProfit / row.revenue : 0;
+          return `<article class="year-card"><div class="year-card-top"><span>NĂM ${row.year}</span><span>›</span></div><div class="year-card-value ${row.netProfit < 0 ? 'negative' : ''}">${money(row.netProfit)}</div><div class="year-card-note">Lợi nhuận ròng · biên ${percent(margin)}</div><div class="progress"><span style="width:${Math.min(100,Math.abs(margin)*100)}%;background:${row.netProfit >= 0 ? 'var(--green)' : 'var(--red)'}"></span></div></article>`;
+        }).join('');
+      }
+
+      function setupCanvas(canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, rect.width * ratio);
+        canvas.height = Math.max(1, rect.height * ratio);
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        return { ctx, w: rect.width, h: rect.height };
+      }
+
+      function scaleBounds(values) {
+        let min = Math.min(0, ...values), max = Math.max(0, ...values);
+        if (min === max) max = min + 1;
+        const pad = (max - min) * .12;
+        return { min: min - pad, max: max + pad };
+      }
+
+      function axes(ctx, w, h, bounds, labels, left = 56) {
+        const top = 18, right = 14, bottom = 30;
+        const plotW = w - left - right, plotH = h - top - bottom;
+        ctx.font = '10px Segoe UI, Arial';
+        ctx.textBaseline = 'middle';
+        for (let i = 0; i <= 4; i++) {
+          const y = top + plotH * i / 4;
+          const value = bounds.max - (bounds.max - bounds.min) * i / 4;
+          ctx.strokeStyle = '#e5e9ef'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+          ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke();
+          ctx.setLineDash([]); ctx.fillStyle = '#7c8798'; ctx.textAlign = 'right'; ctx.fillText(compact(value), left - 7, y);
+        }
+        labels.forEach((label, i) => { const x = left + plotW * (i + .5) / labels.length; ctx.fillStyle = '#647084'; ctx.textAlign = 'center'; ctx.fillText(label, x, h - 10); });
+        return { left, top, right, bottom, plotW, plotH, y: value => top + (bounds.max - value) / (bounds.max - bounds.min) * plotH };
+      }
+
+      function drawPnl(rows) {
+        const { ctx, w, h } = setupCanvas($('#pnlChart'));
+        const bounds = scaleBounds(rows.flatMap(r => [r.revenue, r.totalCost, r.netProfit]));
+        const a = axes(ctx, w, h, bounds, rows.map(r => r.year));
+        const group = a.plotW / rows.length, barW = Math.min(26, group * .25);
+        rows.forEach((row, i) => {
+          const cx = a.left + group * (i + .5), zero = a.y(0);
+          [[row.revenue, '#225bd6', -barW - 2], [row.totalCost, '#c6ceda', 2]].forEach(([value, color, offset]) => {
+            const y = a.y(value); ctx.fillStyle = color; ctx.fillRect(cx + offset, Math.min(y, zero), barW, Math.max(1, Math.abs(zero - y)));
+          });
+        });
+        ctx.strokeStyle = '#11966f'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.beginPath();
+        rows.forEach((row, i) => { const x = a.left + group * (i + .5), y = a.y(row.netProfit); i ? ctx.lineTo(x,y) : ctx.moveTo(x,y); }); ctx.stroke();
+        rows.forEach((row, i) => { const x = a.left + group * (i + .5), y = a.y(row.netProfit); ctx.fillStyle = '#fff'; ctx.strokeStyle = '#11966f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+        drawCanvasLegend(ctx, w, [['Doanh thu','#225bd6'],['Tổng chi','#c6ceda'],['Lợi nhuận ròng','#11966f']]);
+      }
+
+      function drawUsers(rows) {
+        const { ctx, w, h } = setupCanvas($('#usersChart'));
+        const max = Math.max(...rows.map(r => r.users)) * 1.12 || 1;
+        const a = axes(ctx, w, h, { min: 0, max }, rows.map(r => r.year), 42);
+        const group = a.plotW / rows.length, barW = Math.min(48, group * .52);
+        rows.forEach((row, i) => {
+          const x = a.left + group * (i + .5) - barW / 2; let bottom = a.y(0);
+          model.plans.forEach((plan, p) => { const top = a.y(plan.users[i] + (max - (max - 0)) * 0); const segmentH = plan.users[i] / max * a.plotH; bottom -= segmentH; ctx.fillStyle = plan.color; ctx.fillRect(x, bottom, barW, segmentH); });
+        });
+        drawCanvasLegend(ctx, w, model.plans.map(plan => [plan.name, plan.color]));
+      }
+
+      function drawCash(cash) {
+        const { ctx, w, h } = setupCanvas($('#cashChart'));
+        const bounds = scaleBounds(cash.map(r => r.cash));
+        const a = axes(ctx, w, h, bounds, cash.map(r => r.year));
+        const group = a.plotW / cash.length;
+        const points = cash.map((row, i) => [a.left + group * (i + .5), a.y(row.cash)]);
+        const grad = ctx.createLinearGradient(0, a.top, 0, a.top + a.plotH); grad.addColorStop(0, 'rgba(124,77,255,.35)'); grad.addColorStop(1, 'rgba(124,77,255,.02)');
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(points[0][0], a.y(0)); points.forEach(p => ctx.lineTo(p[0],p[1])); ctx.lineTo(points[points.length-1][0], a.y(0)); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#7c4dff'; ctx.lineWidth = 3; ctx.beginPath(); points.forEach((p,i) => i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1])); ctx.stroke();
+        points.forEach(p => { ctx.fillStyle='#fff'; ctx.strokeStyle='#7c4dff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p[0],p[1],4,0,Math.PI*2); ctx.fill(); ctx.stroke(); });
+      }
+
+      function drawCost(rows) {
+        const row = rows[costYear];
+        const values = [row.peopleCost, row.fixedMvp + row.fixedFull, row.annualCost, row.paymentFee];
+        const labels = ['Nhân sự','Phát triển','Hằng năm','Thanh toán'];
+        const total = values.reduce((a,b) => a+b,0) || 1;
+        const { ctx, w, h } = setupCanvas($('#costChart'));
+        const cx = w / 2, cy = h / 2 - 2, radius = Math.min(w,h) * .34, inner = radius * .58;
+        let start = -Math.PI / 2;
+        values.forEach((value, i) => { if (!value) return; const end = start + Math.PI * 2 * value / total; ctx.beginPath(); ctx.arc(cx,cy,radius,start,end); ctx.arc(cx,cy,inner,end,start,true); ctx.closePath(); ctx.fillStyle=COST_COLORS[i]; ctx.fill(); start=end; });
+        $('#donutTotal').textContent = compact(row.totalCost);
+        $('#costMixTitle').textContent = `Cơ cấu chi phí ${row.year}`;
+        $('#costLegend').innerHTML = labels.map((label,i) => `<span class="legend-item"><i class="legend-dot" style="background:${COST_COLORS[i]}"></i>${label} · ${percent(values[i]/total)}</span>`).join('');
+      }
+
+      function drawCanvasLegend(ctx, w, items) {
+        ctx.font = '10px Segoe UI, Arial';
+        const widths = items.map(item => ctx.measureText(item[0]).width + 22);
+        let x = (w - widths.reduce((a,b)=>a+b,0) - (items.length-1)*10) / 2;
+        items.forEach((item,i) => { ctx.fillStyle=item[1]; ctx.beginPath(); ctx.arc(x+4,9,4,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#667085'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(item[0],x+12,9); x += widths[i]+10; });
+      }
+
+      function drawCharts(rows, cash) {
+        if (activeTab !== 'overview') return;
+        $('#costYearPills').innerHTML = years().map((year,i) => `<button class="year-pill ${i === costYear ? 'active' : ''}" data-cost-year="${i}">${year}</button>`).join('');
+        drawPnl(rows); drawUsers(rows); drawCash(cash); drawCost(rows);
+      }
+
+      function updateFromInput(target) {
+        const action = target.dataset.action;
+        const key = target.dataset.key;
+        if (!action) return false;
+        if (action === 'global-money') model[key] = n(target.value);
+        if (action === 'global-percent') model[key] = n(target.value) / 100;
+        if (action.startsWith('plan-')) {
+          const [planId, field] = (key || '').split('|'); const plan = model.plans.find(p => p.id === planId);
+          if (action === 'plan-text') plan[field] = target.value;
+          if (action === 'plan-money') plan[field] = n(target.value);
+          if (action === 'plan-mix') plan.annualMix = n(target.value) / 100;
+          if (action === 'plan-user') plan.users[Number(field)] = n(target.value);
+        }
+        if (action.startsWith('fixed-')) {
+          const row = model.fixedCosts.find(r => r.id === key);
+          if (action === 'fixed-text') row.name = target.value;
+          if (action === 'fixed-year') row.yearIndex = Number(target.value);
+          if (action === 'fixed-money') row.amount = n(target.value);
+        }
+        if (action.startsWith('person-')) {
+          const [personId, field] = key.split('|'); const person = model.people.find(p => p.id === personId);
+          if (action === 'person-text') person.role = target.value;
+          if (action === 'person-money' || action === 'person-number') person[field] = n(target.value);
+          if (action === 'person-hc') person.headcount[Number(field)] = n(target.value);
+        }
+        if (action.startsWith('annual-')) {
+          const [annualId, field] = (key || '').split('|'); const row = model.annualCosts.find(r => r.id === annualId);
+          if (action === 'annual-text') row[target.dataset.field] = target.value;
+          if (action === 'annual-category') row.category = target.value;
+          if (action === 'annual-metric') row.metric = target.value;
+          if (action === 'annual-money' || action === 'annual-number') row[field] = n(target.value);
+          if (action === 'annual-growth') row.annualGrowth = n(target.value) / 100;
+        }
+        return true;
+      }
+
+      document.addEventListener('change', event => {
+        const target = event.target;
+        if (target.id === 'startYear') { model.startYear = Number(target.value); render(); return; }
+        if (updateFromInput(target)) scheduleRender();
+      });
+
+      document.addEventListener('input', event => {
+        const target = event.target;
+        if (!target.dataset.action) return;
+        updateFromInput(target);
+        if (target.dataset.action === 'plan-mix') scheduleRender();
+      });
+
+      document.addEventListener('focusout', event => {
+        const target = event.target;
+        if (target.dataset.action && updateFromInput(target)) scheduleRender();
+      });
+
+      document.addEventListener('click', event => {
+        const target = event.target.closest('button');
+        if (!target) return;
+        if (target.dataset.tab) {
+          activeTab = target.dataset.tab;
+          $$('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === activeTab));
+          $$('.page').forEach(page => page.classList.toggle('active', page.id === `page-${activeTab}`));
+          if (activeTab === 'overview') requestAnimationFrame(() => drawCharts(projections(), cashFlow(projections())));
+        }
+        if (target.dataset.costYear != null) { costYear = Number(target.dataset.costYear); drawCharts(projections(), cashFlow(projections())); }
+        if (target.dataset.addFixed) { model.fixedCosts.push({ id: id('fixed'), phase: target.dataset.addFixed, name: target.dataset.addFixed === 'MVP' ? 'Hạng mục MVP mới' : 'Hạng mục full product mới', yearIndex: target.dataset.addFixed === 'MVP' ? 0 : 1, amount: 0 }); render(); }
+        if (target.dataset.removeFixed) { model.fixedCosts = model.fixedCosts.filter(r => r.id !== target.dataset.removeFixed); render(); }
+        if (target.id === 'addPerson') { model.people.push({ id: id('person'), role: 'Vai trò mới', hourlyRate: 150000, hoursPerMonth: 80, monthsPerYear: 12, headcount: [0,0,0,0,0] }); render(); }
+        if (target.dataset.removePerson) { model.people = model.people.filter(r => r.id !== target.dataset.removePerson); render(); }
+        if (target.id === 'addAnnual') { model.annualCosts.push({ id: id('annual'), category: 'Vận hành', provider: 'Chi phí mới', description: 'Mô tả chi phí', priceNote: 'Giả định nội bộ — cập nhật theo báo giá thực tế.', link: '', baseAnnual: 0, metric: 'active', includedUsers: 0, costPerUser: 0, annualGrowth: .05 }); render(); }
+        if (target.dataset.removeAnnual) { model.annualCosts = model.annualCosts.filter(r => r.id !== target.dataset.removeAnnual); render(); }
+      });
+
+      $('#resetBtn').addEventListener('click', () => { if (confirm('Khôi phục toàn bộ giả định và dữ liệu mẫu ban đầu?')) { model = clone(defaults); costYear = 0; render(); toast('Đã khôi phục dữ liệu mẫu'); } });
+      $('#printBtn').addEventListener('click', () => window.print());
+      $('#exportBtn').addEventListener('click', exportCsv);
+
+      function exportCsv() {
+        const rows = projections(), cash = cashFlow(rows);
+        const data = [
+          ['Chỉ tiêu', ...years()],
+          ['Tổng user', ...rows.map(r => r.users)],
+          ['Doanh thu', ...rows.map(r => Math.round(r.revenue))],
+          ['Nhân sự', ...rows.map(r => Math.round(r.peopleCost))],
+          ['Phát triển MVP', ...rows.map(r => Math.round(r.fixedMvp))],
+          ['Phát triển full product', ...rows.map(r => Math.round(r.fixedFull))],
+          ['Chi phí hằng năm', ...rows.map(r => Math.round(r.annualCost))],
+          ['Phí thanh toán', ...rows.map(r => Math.round(r.paymentFee))],
+          ['Tổng chi phí', ...rows.map(r => Math.round(r.totalCost))],
+          ['Thuế TNDN dự kiến', ...rows.map(r => Math.round(r.tax))],
+          ['Lợi nhuận ròng', ...rows.map(r => Math.round(r.netProfit))],
+          ['Tiền cuối kỳ', ...cash.map(r => Math.round(r.cash))]
+        ];
+        const csv = '\uFEFF' + data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a'); link.href = url; link.download = `saas-finance-${years()[0]}-${years()[4]}.csv`; link.click(); URL.revokeObjectURL(url);
+        toast('Đã xuất kế hoạch CSV');
+      }
+
+      let resizeTimer;
+      window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (activeTab === 'overview') drawCharts(projections(), cashFlow(projections())); }, 120); });
+      render();
+    })();
+  </script>
+</body>
+</html>

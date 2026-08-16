@@ -1,7 +1,7 @@
 'use client';
 import { formatMoney as fmt } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
-import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown } from 'lucide-react';
+import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Customer {
@@ -39,6 +39,28 @@ interface LoyaltyTx {
   createdAt: string;
 }
 
+interface SheetPreview {
+  totalRows: number;
+  validCustomers: number;
+  newCustomers: number;
+  duplicateCustomers: number;
+  repeatedInSheet: number;
+  invalidRows: number;
+  skippedEmpty: number;
+  duplicateSample: Array<{ rowNumber: number; name: string; phone: string }>;
+  invalidSample: Array<{ rowNumber: number; reason: string }>;
+}
+
+interface ImportResult {
+  message: string;
+  imported: number;
+  updated: number;
+  skipped: number;
+  sheetUsed?: string;
+  availableSheets?: string[];
+  errors?: string[];
+}
+
 const sourceOptions = ['Facebook', 'TikTok', 'Instagram', 'Zalo', 'Google', 'Google Sheet', 'Giới thiệu', 'Khác'];
 const statusOptions = ['Mới', 'Đang tư vấn', 'Đã mua', 'VIP', 'Không phản hồi'];
 
@@ -66,14 +88,17 @@ export default function CRMContent() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '', source: 'Facebook', status: 'Mới', tags: '', notes: '' });
 
-  // Import File state
+  // Import state
   const [showImport, setShowImport] = useState(false);
+  const [importMode, setImportMode] = useState<'google' | 'file'>('google');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importSheet, setImportSheet] = useState('QUẢN LÍ KHÁCH HÀNG');
   const [importStartRow, setImportStartRow] = useState('6');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<{ message: string; imported: number; updated: number; skipped: number; sheetUsed?: string; availableSheets?: string[]; errors?: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   // Loyalty detail state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -133,6 +158,44 @@ export default function CRMContent() {
       setImportResult(data);
       toast.success(data.message || `Import thành công ${data.imported} khách hàng`);
       fetchData();
+    } catch (err: any) {
+      setImportError(err.message);
+      toast.error(err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleGoogleSheet = async (action: 'preview' | 'import') => {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    setImportLoading(true);
+    setImportError(null);
+    if (action === 'preview') {
+      setSheetPreview(null);
+      setImportResult(null);
+    }
+    try {
+      const res = await fetch('/api/crm/import-google-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          spreadsheetUrl: googleSheetUrl,
+          startRow: importStartRow || '6',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Không thể đọc Google Sheet');
+
+      if (action === 'preview') {
+        setSheetPreview(data.preview);
+        toast.success('Đã kiểm tra dữ liệu và khách trùng');
+      } else {
+        setImportResult(data);
+        setSheetPreview(null);
+        toast.success(data.message);
+        fetchData();
+      }
     } catch (err: any) {
       setImportError(err.message);
       toast.error(err.message);
@@ -218,8 +281,8 @@ export default function CRMContent() {
           <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5">
             <RefreshCw size={14} /> Làm mới
           </button>
-          <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5">
-            <FileSpreadsheet size={14} /> Import Excel/CSV
+          <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setSheetPreview(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5">
+            <FileSpreadsheet size={14} /> Import khách hàng
           </button>
           <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5">
             <Plus size={14} /> Thêm khách hàng
@@ -303,44 +366,69 @@ export default function CRMContent() {
         </div>
       </div>
 
-      {/* ===== Import Excel/CSV Modal ===== */}
+      {/* ===== Customer Import Modal ===== */}
       {showImport && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold flex items-center gap-2"><FileSpreadsheet size={20} className="text-green-600" /> Import Excel / CSV</h2>
-              <button onClick={() => setShowImport(false)}><X size={20} /></button>
+              <h2 className="text-lg font-bold flex items-center gap-2"><FileSpreadsheet size={20} className="text-green-600" /> Import khách hàng</h2>
+              <button aria-label="Đóng" onClick={() => setShowImport(false)}><X size={20} /></button>
             </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 mb-4">
+              <button
+                onClick={() => { setImportMode('google'); setImportError(null); setImportResult(null); setSheetPreview(null); }}
+                className={`rounded-lg px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 ${importMode === 'google' ? 'bg-white text-green-700 shadow-sm' : 'text-slate-600'}`}
+              >
+                <Link2 size={15} /> Link Google Sheet
+              </button>
+              <button
+                onClick={() => { setImportMode('file'); setImportError(null); setImportResult(null); setSheetPreview(null); }}
+                className={`rounded-lg px-3 py-2 text-sm font-medium flex items-center justify-center gap-2 ${importMode === 'file' ? 'bg-white text-green-700 shadow-sm' : 'text-slate-600'}`}
+              >
+                <FileSpreadsheet size={15} /> File Excel / CSV
+              </button>
+            </div>
+
             <div className="space-y-4">
-              {/* File Upload */}
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-1.5 block">Chọn file Excel (.xlsx, .xls) hoặc CSV</label>
-                <div className="relative">
+              {importMode === 'google' ? (
+                <div>
+                  <label htmlFor="google-sheet-url" className="text-sm font-medium text-slate-700 mb-1.5 block">Link Google Sheet công khai</label>
                   <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={e => { setImportFile(e.target.files?.[0] || null); setImportError(null); setImportResult(null); }}
-                    className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
+                    id="google-sheet-url"
+                    type="url"
+                    className="w-full px-3 py-2.5 rounded-lg border text-sm"
+                    placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0"
+                    value={googleSheetUrl}
+                    onChange={e => { setGoogleSheetUrl(e.target.value); setSheetPreview(null); setImportResult(null); setImportError(null); }}
                   />
+                  <p className="text-xs text-slate-500 mt-1.5">Sheet chỉ cần quyền “Anyone with the link – Viewer”. Không cần cấp quyền chỉnh sửa.</p>
                 </div>
-                {importFile && (
-                  <p className="text-xs text-slate-500 mt-1">Đã chọn: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)</p>
-                )}
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="customer-import-file" className="text-sm font-medium text-slate-700 mb-1.5 block">Chọn file Excel (.xlsx, .xls) hoặc CSV</label>
+                    <input
+                      id="customer-import-file"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={e => { setImportFile(e.target.files?.[0] || null); setImportError(null); setImportResult(null); }}
+                      className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
+                    />
+                    {importFile && <p className="text-xs text-slate-500 mt-1">Đã chọn: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)</p>}
+                  </div>
+                  <div>
+                    <label htmlFor="excel-sheet-name" className="text-sm font-medium text-slate-700 mb-1 block">Tên Sheet/Tab <span className="text-slate-400 font-normal">(để trống = tự động chọn)</span></label>
+                    <input id="excel-sheet-name" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="QUẢN LÍ KHÁCH HÀNG" value={importSheet} onChange={e => setImportSheet(e.target.value)} />
+                  </div>
+                </>
+              )}
 
-              {/* Sheet Name */}
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Tên Sheet/Tab <span className="text-slate-400 font-normal">(để trống = tự động chọn)</span></label>
-                <input className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="QUẢN LÍ KHÁCH HÀNG" value={importSheet} onChange={e => setImportSheet(e.target.value)} />
+                <label htmlFor="customer-import-start-row" className="text-sm font-medium text-slate-700 mb-1 block">Dữ liệu bắt đầu từ hàng</label>
+                <input id="customer-import-start-row" type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="6" value={importStartRow} onChange={e => { setImportStartRow(e.target.value); setSheetPreview(null); }} />
               </div>
 
-              {/* Start Row */}
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Dữ liệu bắt đầu từ hàng</label>
-                <input type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="6" value={importStartRow} onChange={e => setImportStartRow(e.target.value)} />
-              </div>
-
-              {/* Error */}
               {importError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
                   <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
@@ -348,7 +436,33 @@ export default function CRMContent() {
                 </div>
               )}
 
-              {/* Success Result */}
+              {sheetPreview && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Kết quả kiểm tra trước khi import</p>
+                    <p className="text-xs text-blue-700 mt-0.5">Tìm thấy {sheetPreview.validCustomers} khách hợp lệ từ {sheetPreview.totalRows} dòng dữ liệu.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Khách mới</p><p className="text-lg font-bold text-emerald-600">{sheetPreview.newCustomers}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Trùng CRM</p><p className="text-lg font-bold text-amber-600">{sheetPreview.duplicateCustomers}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Trùng trong Sheet</p><p className="text-lg font-bold text-amber-600">{sheetPreview.repeatedInSheet}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Không hợp lệ</p><p className="text-lg font-bold text-red-600">{sheetPreview.invalidRows}</p></div>
+                  </div>
+                  {sheetPreview.duplicateSample.length > 0 && (
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium mb-1">Khách sẽ được cập nhật theo SĐT:</p>
+                      {sheetPreview.duplicateSample.map(item => <p key={`${item.rowNumber}-${item.phone}`}>Hàng {item.rowNumber}: {item.name} · {item.phone}</p>)}
+                    </div>
+                  )}
+                  {sheetPreview.invalidSample.length > 0 && (
+                    <div className="text-xs text-red-700">
+                      <p className="font-medium mb-1">Dòng sẽ bị bỏ qua:</p>
+                      {sheetPreview.invalidSample.map(item => <p key={item.rowNumber}>Hàng {item.rowNumber}: {item.reason}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {importResult && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
                   <p className="text-sm font-medium text-green-800">{importResult.message}</p>
@@ -361,20 +475,33 @@ export default function CRMContent() {
                 </div>
               )}
 
-              {/* Info */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
                 <p><strong>Cấu trúc cột (A→K):</strong></p>
                 <p>STT | Ngày hoàn thành đơn | Tên khách | Tài khoản liên hệ | SĐT | Địa chỉ | Nhu cầu may đo | Thông tin số đo | Thông tin lưu ý | Giá trị đơn hàng | Ngày gián đoạn</p>
-                <p className="mt-1">• Trùng SĐT → cập nhật, không tạo trùng</p>
-                <p>• Tự động tính điểm loyalty: 10.000đ = 1 điểm</p>
+                <p className="mt-1">• SĐT được chuẩn hóa về dạng 0xxxxxxxxx để kiểm tra trùng.</p>
+                <p>• Chỉ nhập hồ sơ khách; không thay đổi doanh thu, số đơn hoặc điểm loyalty.</p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-sm">Đóng</button>
-              <button onClick={handleImportFile} disabled={importLoading || !importFile} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
-                {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
-                {importLoading ? 'Đang import...' : 'Import dữ liệu'}
-              </button>
+              {importMode === 'google' ? (
+                sheetPreview ? (
+                  <button onClick={() => handleGoogleSheet('import')} disabled={importLoading || sheetPreview.validCustomers === 0} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                    {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                    {importLoading ? 'Đang import...' : `Xác nhận import ${sheetPreview.validCustomers} khách`}
+                  </button>
+                ) : (
+                  <button onClick={() => handleGoogleSheet('preview')} disabled={importLoading || !googleSheetUrl.trim()} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                    {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                    {importLoading ? 'Đang kiểm tra...' : 'Kiểm tra trùng'}
+                  </button>
+                )
+              ) : (
+                <button onClick={handleImportFile} disabled={importLoading || !importFile} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                  {importLoading ? 'Đang import...' : 'Import dữ liệu'}
+                </button>
+              )}
             </div>
           </div>
         </div>

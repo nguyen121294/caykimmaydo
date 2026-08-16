@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -307,6 +308,54 @@ model InboxKpi {
   agent        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model SalesConversation {
+  id                 String         @id @default(cuid())
+  platform           String
+  externalId         String
+  customerExternalId String?
+  customerName       String
+  customerPhone      String?
+  lastMessage        String?
+  lastMessageAt      DateTime?
+  unreadCount        Int            @default(0)
+  messages           SalesMessage[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([platform, externalId])
+  @@index([platform, lastMessageAt])
+  @@index([lastMessageAt])
+}
+
+model SalesMessage {
+  id               String            @id @default(cuid())
+  conversationId   String
+  conversation     SalesConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  externalId       String
+  direction        String
+  senderExternalId String?
+  senderName       String
+  text             String
+  hasAttachment    Boolean           @default(false)
+  sentAt           DateTime
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, sentAt])
+}
+
+model SalesInboxSyncState {
+  platform          String    @id
+  state             String
+  detail            String?
+  conversationCount Int       @default(0)
+  lastAttemptAt     DateTime?
+  lastSuccessAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model Customer {

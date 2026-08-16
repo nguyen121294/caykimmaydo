@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
         department: body?.department ?? null,
         status: body?.status ?? 'Mới',
         notes: body?.note ?? body?.notes ?? null,
+        source: body?.source ?? 'Khác',
       },
     });
 

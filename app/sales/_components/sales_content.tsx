@@ -3,7 +3,6 @@ import { formatMoney as fmt } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
 import { Kanban, Plus, RefreshCw, X, DollarSign, User } from 'lucide-react';
 import { toast } from 'sonner';
-import MultichannelInbox from './multichannel-inbox';
 
 interface Lead {
   id: string;
@@ -165,8 +164,6 @@ export default function SalesContent() {
           })}
         </div>
       </div>
-
-      <MultichannelInbox />
 
       {/* Add Modal */}
       {showAdd && (

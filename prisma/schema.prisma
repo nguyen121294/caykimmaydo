@@ -313,6 +313,7 @@ model Customer {
   id                  String               @id @default(cuid())
   name                String
   phone               String?
+  normalizedPhone     String?              @unique
   email               String?
   zaloId              String?
   source              String?              @default("Khác")

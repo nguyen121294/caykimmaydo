@@ -1,6 +1,6 @@
 # Technical Debt Register
 
-> Baseline: 2026-08-16 · Branch: `feature/crm-google-sheet-import`
+> Baseline: 2026-08-16 · Updated on branch: `codex/customer-only-crm-schema`
 >
 > Đây là backlog sống. Số dòng bên dưới đúng tại thời điểm baseline và sẽ dịch chuyển khi code thay đổi. Khi hoàn thành một mục, đổi `[ ]` thành `[x]`, ghi PR/commit và ngày xác nhận.
 
@@ -28,9 +28,9 @@ Nguyên tắc:
 |---|---|---|---|---|
 | TD-001 | P0 | Dependency vulnerabilities | `npm audit`: 54 vulnerabilities, gồm 1 critical và 35 high | [ ] |
 | TD-002 | P0 | API nhận JSON không có runtime schema | Nhiều route đưa body trực tiếp vào Prisma/business logic | [ ] |
-| TD-003 | P0 | Excel CRM import không idempotent | Re-import cộng lại doanh thu/đơn/điểm | [ ] |
-| TD-004 | P1 | Migration CRM chưa được triển khai | `normalizedPhone` migration đã deploy & backfill an toàn | [x] |
-| TD-005 | P1 | 277 explicit `any` | 71 file; type-coverage threshold là 47 | [ ] |
+| TD-003 | P0 | Excel CRM import không idempotent | Đã chuyển sang snapshot hồ sơ và preview/confirm | [x] |
+| TD-004 | P1 | Khóa trùng SĐT CRM | `normalizedPhone` migration đã deploy & backfill an toàn | [x] |
+| TD-005 | P1 | 273 explicit `any` | Baseline mới sau CRM cleanup; ngưỡng hiện tại là 48 | [ ] |
 | TD-006 | P1 | Auth/session typing còn `any` | Role/id dựa vào cast, ảnh hưởng authorization | [ ] |
 | TD-007 | P1 | Money dùng `Float` | Có nguy cơ sai số cho doanh thu/chi tiêu | [ ] |
 | TD-008 | P1 | Date nghiệp vụ lưu bằng `String` | Khó validate, sort, range query và timezone | [ ] |
@@ -121,37 +121,27 @@ if (!parsed.success) {
 
 Không trả toàn bộ Zod issue cho client production nếu có thể lộ cấu trúc nội bộ.
 
-### TD-003 — Excel/CSV CRM import đang cộng trùng số liệu
+### TD-003 — Excel/CSV CRM import idempotent
 
 File: `app/api/crm/import-file/route.ts`.
 
-Điểm nợ kỹ thuật:
+Đã xử lý ngày 2026-08-16:
 
-- `:19,25,96`: dữ liệu Excel là `any`, chưa validate shape.
-- `:131`: đọc giá trị đơn hàng từ cột J.
-- `:150-152`: re-import cộng lại `totalSpent`, `totalOrders`, `loyaltyPoints`.
-- `:165-167`: ghi tổng/điểm mới sau khi cộng.
-- `:181-191`: tạo loyalty transaction mới mỗi lần import.
-- `:198-212`: customer mới cũng nhận doanh thu/điểm từ file.
-- `:222,247`: lỗi dùng `any`, chưa phân loại row error/client error.
-- Chưa giới hạn kích thước upload trước khi `arrayBuffer()`.
-- Không dùng `normalizedPhone` unique key mới.
-
-Rủi ro: cùng một file được import hai lần sẽ làm sai doanh thu và loyalty.
-
-Phương án đề xuất:
-
-- Nếu CRM chỉ quản lý hồ sơ: bỏ hoàn toàn cập nhật financial/loyalty khỏi endpoint này.
-- Nếu cần import đơn: tạo `ImportedOrder`/source record có unique source key rồi cộng theo order idempotently.
-- Dùng chung parser/normalizer với Google Sheet import.
-- Preview trước commit và transaction toàn batch.
-- Giới hạn file size và số dòng.
+- Excel/CSV và Google Sheet dùng chung parser A–M tại `lib/customer-import.ts`.
+- Bắt buộc SĐT Việt Nam hợp lệ và upsert theo `normalizedPhone`.
+- Preview khách mới/trùng/sai trước khi xác nhận cho cả file và Google Sheet.
+- `totalSpent` được hiểu là snapshot tổng hiện tại, không cộng dồn.
+- Không thay đổi `totalOrders`, `loyaltyPoints` và không tạo loyalty transaction khi import.
+- Khách đã tồn tại được giữ nguyên `status`; trạng thái trong Sheet chỉ dùng khi tạo khách mới.
+- Giới hạn 5 MB, tối đa 5.000 dòng và commit theo transaction toàn batch.
+- Có unit test cho mapping A–M, phone trùng, enum sai và quy tắc snapshot/status.
 
 Done when:
 
-- Import cùng file hai lần cho kết quả DB giống lần đầu.
-- Không tạo loyalty transaction trùng.
-- Có test duplicate phone trong file, duplicate với DB, blank phone, malformed amount và oversized file.
+- [x] Import cùng file hai lần không cộng lại tổng tiền/số đơn/điểm.
+- [x] Không tạo loyalty transaction từ dữ liệu hồ sơ khách.
+- [x] Có test parser, duplicate phone, blank phone và enum sai.
+- [ ] Bổ sung integration test endpoint cho file vượt 5 MB và transaction rollback.
 
 ## 4. P1 — dữ liệu và type safety
 
@@ -175,9 +165,9 @@ Việc còn lại:
 
 Không backfill mù trước khi xử lý duplicate cũ vì unique index có thể fail hoặc chọn nhầm canonical customer.
 
-### TD-005 — 277 explicit `any` trong 71 file
+### TD-005 — 273 explicit `any` trong repo
 
-Baseline được đo bằng đúng regex của `type_coverage.py`: `:\s*any`, `as any`, `<any>`. TypeScript compiler vẫn pass; đây là type escape hatch debt.
+Baseline cập nhật ngày 2026-08-16 bằng đúng regex của `type_coverage.py`: `:\s*any`, `as any`, `<any>`. TypeScript compiler vẫn pass; đây là type escape hatch debt. Các file import CRM và component CRM vừa sửa không còn explicit `any`.
 
 #### Thứ tự sửa
 
@@ -205,7 +195,6 @@ Baseline được đo bằng đúng regex của `type_coverage.py`: `:\s*any`, `
 | `app/api/facebook/posts/route.ts` | 6 | 14, 29, 58, 120, 182, 242 |
 | `app/api/settings/route.ts` | 6 | 11, 31, 45, 53, 108, 127 |
 | `app/inbox/_components/inbox-content.tsx` | 6 | 10, 60, 84, 91, 104, 119 |
-| `app/api/crm/import-file/route.ts` | 5 | 19, 25, 96, 222, 247 |
 | `app/api/orders/route.ts` | 5 | 9, 18, 52, 63, 72 |
 | `app/content/_components/content-content.tsx` | 5 | 79, 83, 87, 98, 196 |
 | `app/dashboard/_components/dashboard-content.tsx` | 5 | 13, 67, 200, 252, 367 |
@@ -216,7 +205,6 @@ Baseline được đo bằng đúng regex của `type_coverage.py`: `:\s*any`, `
 | `app/api/leads/route.ts` | 4 | 13, 25, 37, 49 |
 | `app/components/sidebar.tsx` | 4 | 63, 103, 104, 113 |
 | `app/connections/_components/connections_content.tsx` | 4 | 45, 258, 265, 299 |
-| `app/crm/_components/crm_content.tsx` | 4 | 161, 199, 236, 253 |
 | `app/sync-hub/_components/sync-hub-content.tsx` | 4 | 13, 178, 208, 351 |
 | `lib/auth-options.ts` | 4 | 49, 56, 58, 59 |
 | `app/analytics/_components/budget-chart.tsx` | 3 | 4, 12, 13 |
@@ -245,7 +233,6 @@ Baseline được đo bằng đúng regex của `type_coverage.py`: `:\s*any`, `
 | `app/api/automation/route.ts` | 1 | 36 |
 | `app/api/campaigns/route.ts` | 1 | 90 |
 | `app/api/connections/sync/route.ts` | 1 | 71 |
-| `app/api/crm/import-google-sheet/route.ts` | 1 | 244 |
 | `app/api/crm/loyalty/earn/route.ts` | 1 | 92 |
 | `app/api/crm/loyalty/history/route.ts` | 1 | 28 |
 | `app/api/crm/loyalty/redeem/route.ts` | 1 | 85 |
@@ -481,7 +468,7 @@ Hành động:
 ### Sprint A — Guardrails và dữ liệu CRM
 
 - [x] TD-004 deploy/backfill `normalizedPhone` an toàn.
-- [ ] TD-003 làm Excel import idempotent.
+- [x] TD-003 làm Excel import idempotent.
 - [ ] TD-002 thêm Zod cho Customer/CRM/Loyalty endpoints.
 - [ ] Thêm test CRM import và loyalty.
 - [ ] Loại `any` khỏi các file CRM API/UI đã chạm.

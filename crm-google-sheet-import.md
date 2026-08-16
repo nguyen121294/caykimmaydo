@@ -18,3 +18,8 @@ Import customer profiles from a public Google Sheet with duplicate preview and i
 ## Notes
 - Customer identity is normalized Vietnamese phone number first; rows without a usable phone are rejected.
 - Existing non-empty profile fields are only replaced by non-empty Sheet values.
+- Google Sheet and Excel/CSV use the same A-M customer profile layout.
+- Columns: STT, customer name, phone, email, contact account, address, source, tags, notes, loyalty tier, total spent snapshot, last purchase, status.
+- Existing customer status is preserved. Sheet status is only used when creating a new customer.
+- The import never increments order count or loyalty points and never creates loyalty transactions.
+- The five order-domain Customer columns are removed by a guarded, manually deployed migration after the application release.

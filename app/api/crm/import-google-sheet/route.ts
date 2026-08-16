@@ -4,28 +4,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { parse } from 'csv/sync';
 import { authOptions } from '@/lib/auth-options';
+import {
+  buildCustomerCreate,
+  buildCustomerUpdate,
+  prepareCustomerRows,
+} from '@/lib/customer-import';
 import { normalizeVietnamesePhone } from '@/lib/customer-phone';
 import { prisma } from '@/lib/prisma';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
-const MAX_DATA_ROWS = 5000;
 
 type SheetLocation = { spreadsheetId: string; gid: string };
-type CustomerRow = {
-  sourceKey: string;
-  rowNumber: number;
-  stt: string;
-  name: string;
-  phone: string;
-  normalizedPhone: string;
-  completedDate: string;
-  contactAccount: string;
-  address: string;
-  tailoringNeed: string;
-  measurementInfo: string;
-  noteInfo: string;
-  inactiveDays: number | null;
-};
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 function extractSheetLocation(value: string): SheetLocation | null {
   try {
@@ -66,73 +59,9 @@ async function fetchSheetRows(location: SheetLocation): Promise<string[][]> {
   return parse(csv, { bom: true, relax_column_count: true, skip_empty_lines: false });
 }
 
-function mergeNonEmpty(previous: CustomerRow, current: CustomerRow): CustomerRow {
-  return {
-    ...previous,
-    ...Object.fromEntries(
-      Object.entries(current).filter(([, value]) => value !== '' && value !== null),
-    ),
-    sourceKey: current.sourceKey,
-    rowNumber: current.rowNumber,
-    inactiveDays: current.inactiveDays ?? previous.inactiveDays,
-  } as CustomerRow;
-}
-
-function prepareRows(rows: string[][], location: SheetLocation, startRow: number) {
-  const uniqueRows = new Map<string, CustomerRow>();
-  const invalidRows: Array<{ rowNumber: number; reason: string }> = [];
-  let skippedEmpty = 0;
-  let repeatedInSheet = 0;
-
-  rows.slice(startRow - 1, startRow - 1 + MAX_DATA_ROWS).forEach((row, index) => {
-    const rowNumber = startRow + index;
-    const values = row.map(value => String(value ?? '').trim());
-    const name = values[2] || '';
-    const rawPhone = values[4] || '';
-    if (!name && !rawPhone) {
-      skippedEmpty++;
-      return;
-    }
-
-    const normalizedPhone = normalizeVietnamesePhone(rawPhone);
-    if (!normalizedPhone) {
-      invalidRows.push({ rowNumber, reason: 'Thiếu hoặc sai định dạng SĐT Việt Nam' });
-      return;
-    }
-    if (!name) {
-      invalidRows.push({ rowNumber, reason: 'Thiếu tên khách hàng' });
-      return;
-    }
-
-    const customer: CustomerRow = {
-      sourceKey: `${location.spreadsheetId}:${location.gid}:${values[0] || rowNumber}:${normalizedPhone}`,
-      rowNumber,
-      stt: values[0] || '',
-      name,
-      phone: rawPhone,
-      normalizedPhone,
-      completedDate: values[1] || '',
-      contactAccount: values[3] || '',
-      address: values[5] || '',
-      tailoringNeed: values[6] || '',
-      measurementInfo: values[7] || '',
-      noteInfo: values[8] || '',
-      inactiveDays: values[10]
-        ? Number(values[10].replace(/\D/g, '')) || 0
-        : null,
-    };
-
-    const previous = uniqueRows.get(normalizedPhone);
-    if (previous) repeatedInSheet++;
-    uniqueRows.set(normalizedPhone, previous ? mergeNonEmpty(previous, customer) : customer);
-  });
-
-  return { rows: [...uniqueRows.values()], invalidRows, skippedEmpty, repeatedInSheet };
-}
-
 async function getExistingCustomers() {
   const customers = await prisma.customer.findMany({
-    select: { id: true, name: true, phone: true, normalizedPhone: true },
+    select: { id: true, phone: true, normalizedPhone: true },
     orderBy: { createdAt: 'asc' },
   });
   const byPhone = new Map<string, (typeof customers)[number]>();
@@ -147,31 +76,16 @@ async function getExistingCustomers() {
   return byPhone;
 }
 
-function buildCustomerData(row: CustomerRow) {
-  return {
-    name: row.name,
-    phone: row.normalizedPhone,
-    normalizedPhone: row.normalizedPhone,
-    ...(row.contactAccount && { contactAccount: row.contactAccount }),
-    ...(row.address && { address: row.address }),
-    ...(row.tailoringNeed && { tailoringNeed: row.tailoringNeed }),
-    ...(row.measurementInfo && { measurementInfo: row.measurementInfo }),
-    ...(row.noteInfo && { noteInfo: row.noteInfo }),
-    ...(row.completedDate && { completedDate: row.completedDate }),
-    ...(row.inactiveDays !== null && { inactiveDays: row.inactiveDays }),
-    source: 'Google Sheet',
-  };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const action = body.action === 'import' ? 'import' : 'preview';
-    const startRow = Number.parseInt(String(body.startRow || '6'), 10);
-    const location = extractSheetLocation(String(body.spreadsheetUrl || ''));
+    const body: unknown = await req.json();
+    const payload = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+    const action = payload.action === 'import' ? 'import' : 'preview';
+    const startRow = Number.parseInt(String(payload.startRow || '2'), 10);
+    const location = extractSheetLocation(String(payload.spreadsheetUrl || ''));
     if (!location) {
       return NextResponse.json({ success: false, error: 'Vui lòng nhập đúng link Google Sheet.' }, { status: 400 });
     }
@@ -180,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     const sheetRows = await fetchSheetRows(location);
-    const prepared = prepareRows(sheetRows, location, startRow);
+    const prepared = prepareCustomerRows(sheetRows, startRow);
     const existingByPhone = await getExistingCustomers();
     const duplicateRows = prepared.rows.filter(row => existingByPhone.has(row.normalizedPhone));
     const newRows = prepared.rows.filter(row => !existingByPhone.has(row.normalizedPhone));
@@ -201,7 +115,7 @@ export async function POST(req: NextRequest) {
     };
 
     if (action === 'preview') {
-      return NextResponse.json({ success: true, action, spreadsheetId: location.spreadsheetId, gid: location.gid, preview });
+      return NextResponse.json({ success: true, action, ...location, preview });
     }
 
     let imported = 0;
@@ -210,13 +124,13 @@ export async function POST(req: NextRequest) {
       for (const row of prepared.rows) {
         const existing = existingByPhone.get(row.normalizedPhone);
         if (existing) {
-          await tx.customer.update({ where: { id: existing.id }, data: buildCustomerData(row) });
+          await tx.customer.update({ where: { id: existing.id }, data: buildCustomerUpdate(row) });
           updated++;
         } else {
           await tx.customer.upsert({
             where: { normalizedPhone: row.normalizedPhone },
-            update: buildCustomerData(row),
-            create: { ...buildCustomerData(row), status: 'Mới' },
+            update: buildCustomerUpdate(row),
+            create: buildCustomerCreate(row, 'Google Sheet'),
           });
           imported++;
         }
@@ -241,10 +155,13 @@ export async function POST(req: NextRequest) {
       preview,
       message: `Đã nhập ${imported} khách mới và cập nhật ${updated} khách trùng SĐT.`,
     });
-  } catch (error: any) {
-    const message = error?.name === 'TimeoutError'
-      ? 'Google Sheet phản hồi quá chậm. Vui lòng thử lại.'
-      : error?.message || 'Lỗi server khi import Google Sheet';
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+  } catch (error: unknown) {
+    const isTimeout = error instanceof Error && error.name === 'TimeoutError';
+    return NextResponse.json({
+      success: false,
+      error: isTimeout
+        ? 'Google Sheet phản hồi quá chậm. Vui lòng thử lại.'
+        : errorMessage(error, 'Lỗi server khi import Google Sheet'),
+    }, { status: 500 });
   }
 }

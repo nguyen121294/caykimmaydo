@@ -22,11 +22,6 @@ interface Customer {
   lastPurchaseDate: string | null;
   contactAccount: string | null;
   address: string | null;
-  tailoringNeed: string | null;
-  measurementInfo: string | null;
-  noteInfo: string | null;
-  completedDate: string | null;
-  inactiveDays: number;
   createdAt: string;
 }
 
@@ -64,6 +59,10 @@ interface ImportResult {
 const sourceOptions = ['Facebook', 'TikTok', 'Instagram', 'Zalo', 'Google', 'Google Sheet', 'Giới thiệu', 'Khác'];
 const statusOptions = ['Mới', 'Đang tư vấn', 'Đã mua', 'VIP', 'Không phản hồi'];
 
+function clientErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
+}
+
 const tierConfig: Record<string, { color: string; bg: string; icon: typeof Star }> = {
   New: { color: 'text-slate-600', bg: 'bg-slate-100', icon: Star },
   Silver: { color: 'text-slate-500', bg: 'bg-gradient-to-r from-slate-100 to-slate-200', icon: Award },
@@ -92,8 +91,8 @@ export default function CRMContent() {
   const [showImport, setShowImport] = useState(false);
   const [importMode, setImportMode] = useState<'google' | 'file'>('google');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importSheet, setImportSheet] = useState('QUẢN LÍ KHÁCH HÀNG');
-  const [importStartRow, setImportStartRow] = useState('6');
+  const [importSheet, setImportSheet] = useState('');
+  const [importStartRow, setImportStartRow] = useState('2');
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
   const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -136,16 +135,20 @@ export default function CRMContent() {
   };
 
   // === Import File (Excel/CSV) ===
-  const handleImportFile = async () => {
+  const handleImportFile = async (action: 'preview' | 'import') => {
     if (!importFile) { toast.error('Vui lòng chọn file Excel hoặc CSV'); return; }
     setImportLoading(true);
     setImportError(null);
-    setImportResult(null);
+    if (action === 'preview') {
+      setSheetPreview(null);
+      setImportResult(null);
+    }
     try {
       const fd = new FormData();
       fd.append('file', importFile);
       fd.append('sheetName', importSheet || '');
-      fd.append('startRow', importStartRow || '6');
+      fd.append('startRow', importStartRow || '2');
+      fd.append('action', action);
 
       const res = await fetch('/api/crm/import-file', {
         method: 'POST',
@@ -155,12 +158,19 @@ export default function CRMContent() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Không thể import file');
       }
-      setImportResult(data);
-      toast.success(data.message || `Import thành công ${data.imported} khách hàng`);
-      fetchData();
-    } catch (err: any) {
-      setImportError(err.message);
-      toast.error(err.message);
+      if (action === 'preview') {
+        setSheetPreview(data.preview);
+        toast.success('Đã kiểm tra dữ liệu và khách trùng');
+      } else {
+        setImportResult(data);
+        setSheetPreview(null);
+        toast.success(data.message || `Import thành công ${data.imported} khách hàng`);
+        fetchData();
+      }
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
     } finally {
       setImportLoading(false);
     }
@@ -181,7 +191,7 @@ export default function CRMContent() {
         body: JSON.stringify({
           action,
           spreadsheetUrl: googleSheetUrl,
-          startRow: importStartRow || '6',
+          startRow: importStartRow || '2',
         }),
       });
       const data = await res.json();
@@ -196,9 +206,10 @@ export default function CRMContent() {
         toast.success(data.message);
         fetchData();
       }
-    } catch (err: any) {
-      setImportError(err.message);
-      toast.error(err.message);
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
     } finally {
       setImportLoading(false);
     }
@@ -233,7 +244,7 @@ export default function CRMContent() {
       setEarnOrderId('');
       fetchData();
       openLoyalty({ ...selectedCustomer, loyaltyPoints: data.totalPoints, loyaltyTier: data.tier });
-    } catch (err: any) { toast.error(err.message); } finally { setEarnLoading(false); }
+    } catch (error: unknown) { toast.error(clientErrorMessage(error)); } finally { setEarnLoading(false); }
   };
 
   const handleRedeem = async (points: number) => {
@@ -250,7 +261,7 @@ export default function CRMContent() {
       toast.success(data.message);
       fetchData();
       openLoyalty({ ...selectedCustomer, loyaltyPoints: data.remainingPoints, loyaltyTier: data.tier });
-    } catch (err: any) { toast.error(err.message); } finally { setRedeemLoading(false); }
+    } catch (error: unknown) { toast.error(clientErrorMessage(error)); } finally { setRedeemLoading(false); }
   };
 
   const filtered = customers.filter(c => {
@@ -412,21 +423,21 @@ export default function CRMContent() {
                       id="customer-import-file"
                       type="file"
                       accept=".xlsx,.xls,.csv"
-                      onChange={e => { setImportFile(e.target.files?.[0] || null); setImportError(null); setImportResult(null); }}
+                      onChange={e => { setImportFile(e.target.files?.[0] || null); setImportError(null); setImportResult(null); setSheetPreview(null); }}
                       className="w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
                     />
                     {importFile && <p className="text-xs text-slate-500 mt-1">Đã chọn: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)</p>}
                   </div>
                   <div>
                     <label htmlFor="excel-sheet-name" className="text-sm font-medium text-slate-700 mb-1 block">Tên Sheet/Tab <span className="text-slate-400 font-normal">(để trống = tự động chọn)</span></label>
-                    <input id="excel-sheet-name" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="QUẢN LÍ KHÁCH HÀNG" value={importSheet} onChange={e => setImportSheet(e.target.value)} />
+                    <input id="excel-sheet-name" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="QUẢN LÍ KHÁCH HÀNG" value={importSheet} onChange={e => { setImportSheet(e.target.value); setSheetPreview(null); setImportResult(null); }} />
                   </div>
                 </>
               )}
 
               <div>
                 <label htmlFor="customer-import-start-row" className="text-sm font-medium text-slate-700 mb-1 block">Dữ liệu bắt đầu từ hàng</label>
-                <input id="customer-import-start-row" type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="6" value={importStartRow} onChange={e => { setImportStartRow(e.target.value); setSheetPreview(null); }} />
+                <input id="customer-import-start-row" type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" placeholder="2" value={importStartRow} onChange={e => { setImportStartRow(e.target.value); setSheetPreview(null); }} />
               </div>
 
               {importError && (
@@ -476,10 +487,12 @@ export default function CRMContent() {
               )}
 
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
-                <p><strong>Cấu trúc cột (A→K):</strong></p>
-                <p>STT | Ngày hoàn thành đơn | Tên khách | Tài khoản liên hệ | SĐT | Địa chỉ | Nhu cầu may đo | Thông tin số đo | Thông tin lưu ý | Giá trị đơn hàng | Ngày gián đoạn</p>
+                <p><strong>Cấu trúc cột (A→M):</strong></p>
+                <p>STT | Tên khách hàng | SĐT | Email | Tài khoản liên hệ | Địa chỉ | Nguồn khách | Tags | Ghi chú | Hạng thành viên | Tổng tiền đã chi tiêu | Lần mua gần nhất | Trạng thái</p>
                 <p className="mt-1">• SĐT được chuẩn hóa về dạng 0xxxxxxxxx để kiểm tra trùng.</p>
-                <p>• Chỉ nhập hồ sơ khách; không thay đổi doanh thu, số đơn hoặc điểm loyalty.</p>
+                <p>• Tổng chi tiêu là số tổng hiện tại (ghi đè), không cộng dồn khi import lại.</p>
+                <p>• Khách đã có trong CRM được giữ nguyên trạng thái hiện tại.</p>
+                <p>• Không thay đổi tổng số đơn hoặc điểm loyalty.</p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
@@ -497,10 +510,17 @@ export default function CRMContent() {
                   </button>
                 )
               ) : (
-                <button onClick={handleImportFile} disabled={importLoading || !importFile} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
-                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
-                  {importLoading ? 'Đang import...' : 'Import dữ liệu'}
-                </button>
+                sheetPreview ? (
+                  <button onClick={() => handleImportFile('import')} disabled={importLoading || sheetPreview.validCustomers === 0} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                    {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                    {importLoading ? 'Đang import...' : `Xác nhận import ${sheetPreview.validCustomers} khách`}
+                  </button>
+                ) : (
+                  <button onClick={() => handleImportFile('preview')} disabled={importLoading || !importFile} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                    {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                    {importLoading ? 'Đang kiểm tra...' : 'Kiểm tra trùng'}
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -570,13 +590,12 @@ export default function CRMContent() {
             </div>
 
             {/* Customer Details */}
-            {(selectedCustomer.address || selectedCustomer.tailoringNeed || selectedCustomer.measurementInfo) && (
+            {(selectedCustomer.address || selectedCustomer.contactAccount || selectedCustomer.email || selectedCustomer.notes) && (
               <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-1 text-sm">
                 {selectedCustomer.address && <p><span className="font-medium">Địa chỉ:</span> {selectedCustomer.address}</p>}
                 {selectedCustomer.contactAccount && <p><span className="font-medium">Tài khoản:</span> {selectedCustomer.contactAccount}</p>}
-                {selectedCustomer.tailoringNeed && <p><span className="font-medium">Nhu cầu may đo:</span> {selectedCustomer.tailoringNeed}</p>}
-                {selectedCustomer.measurementInfo && <p><span className="font-medium">Số đo:</span> {selectedCustomer.measurementInfo}</p>}
-                {selectedCustomer.noteInfo && <p><span className="font-medium">Lưu ý:</span> {selectedCustomer.noteInfo}</p>}
+                {selectedCustomer.email && <p><span className="font-medium">Email:</span> {selectedCustomer.email}</p>}
+                {selectedCustomer.notes && <p><span className="font-medium">Ghi chú:</span> {selectedCustomer.notes}</p>}
               </div>
             )}
 

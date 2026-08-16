@@ -1,30 +1,38 @@
 export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-options';
 import * as XLSX from 'xlsx';
+import { authOptions } from '@/lib/auth-options';
+import {
+  buildCustomerCreate,
+  buildCustomerUpdate,
+  prepareCustomerRows,
+} from '@/lib/customer-import';
+import { normalizeVietnamesePhone } from '@/lib/customer-phone';
+import { prisma } from '@/lib/prisma';
 
-function calculatePoints(orderValue: number): number {
-  return Math.floor(orderValue / 10000);
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
-function calculateTier(points: number): string {
-  if (points >= 700) return 'VIP';
-  if (points >= 300) return 'Gold';
-  if (points >= 100) return 'Silver';
-  return 'New';
-}
+async function getExistingCustomers() {
+  const customers = await prisma.customer.findMany({
+    select: { id: true, phone: true, normalizedPhone: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const byPhone = new Map<string, (typeof customers)[number]>();
 
-function normalizeMoney(val: any): number {
-  if (val === null || val === undefined || val === '') return 0;
-  if (typeof val === 'number') return Math.round(val);
-  return Number(String(val).replace(/\./g, '').replace(/,/g, '').replace(/[^\d-]/g, '')) || 0;
-}
-
-function normalizePhone(val: any): string {
-  if (!val) return '';
-  return String(val).trim().replace(/\s+/g, '');
+  customers.forEach(customer => {
+    if (customer.normalizedPhone) byPhone.set(customer.normalizedPhone, customer);
+  });
+  customers.forEach(customer => {
+    const phone = normalizeVietnamesePhone(customer.phone);
+    if (phone && !byPhone.has(phone)) byPhone.set(phone, customer);
+  });
+  return byPhone;
 }
 
 export async function POST(req: NextRequest) {
@@ -35,30 +43,30 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const sheetName = (formData.get('sheetName') as string) || '';
-    const startRow = parseInt((formData.get('startRow') as string) || '6', 10);
+    const fileValue = formData.get('file');
+    const file = fileValue instanceof File ? fileValue : null;
+    const sheetName = String(formData.get('sheetName') || '');
+    const action = formData.get('action') === 'import' ? 'import' : 'preview';
+    const startRow = Number.parseInt(String(formData.get('startRow') || '2'), 10);
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'Vui lòng chọn file Excel hoặc CSV để upload.' }, { status: 400 });
     }
-
-    // Validate file type
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!ext || !['xlsx', 'xls', 'csv'].includes(ext)) {
-      return NextResponse.json({
-        success: false,
-        error: 'Chỉ hỗ trợ file .xlsx, .xls hoặc .csv',
-      }, { status: 400 });
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({ success: false, error: 'File vượt quá giới hạn 5 MB.' }, { status: 400 });
+    }
+    if (!Number.isInteger(startRow) || startRow < 1) {
+      return NextResponse.json({ success: false, error: 'Hàng bắt đầu không hợp lệ.' }, { status: 400 });
     }
 
-    // Read file
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!extension || !['xlsx', 'xls', 'csv'].includes(extension)) {
+      return NextResponse.json({ success: false, error: 'Chỉ hỗ trợ file .xlsx, .xls hoặc .csv' }, { status: 400 });
+    }
 
     let workbook: XLSX.WorkBook;
     try {
-      workbook = XLSX.read(buffer, { type: 'buffer' });
+      workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer', cellDates: true });
     } catch {
       return NextResponse.json({
         success: false,
@@ -66,188 +74,108 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Select sheet
     const availableSheets = workbook.SheetNames;
     let targetSheet = sheetName.trim();
-
     if (!targetSheet) {
-      // Tự tìm sheet phù hợp
-      const match = availableSheets.find(s =>
-        s.toUpperCase().includes('KHÁCH') || s.toUpperCase().includes('KHACH') || s.toUpperCase().includes('CUSTOMER')
-      );
+      const match = availableSheets.find(name => {
+        const upper = name.toUpperCase();
+        return upper.includes('KHÁCH') || upper.includes('KHACH') || upper.includes('CUSTOMER');
+      });
       targetSheet = match || availableSheets[0];
     }
 
     if (!availableSheets.includes(targetSheet)) {
-      // Thử tìm case-insensitive
-      const found = availableSheets.find(s => s.toLowerCase() === targetSheet.toLowerCase());
-      if (found) {
-        targetSheet = found;
-      } else {
+      const found = availableSheets.find(name => name.toLowerCase() === targetSheet.toLowerCase());
+      if (!found) {
         return NextResponse.json({
           success: false,
           error: `Không tìm thấy sheet "${targetSheet}". Các sheet có sẵn: ${availableSheets.join(', ')}`,
         }, { status: 400 });
       }
+      targetSheet = found;
     }
 
     const worksheet = workbook.Sheets[targetSheet];
-    // Convert to array of arrays (header_index: 1 for 1-based)
-    const allRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    const allRows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+      header: 1,
+      defval: '',
+      raw: false,
+      dateNF: 'yyyy-mm-dd',
+    });
+    const prepared = prepareCustomerRows(allRows, startRow);
+    const existingByPhone = await getExistingCustomers();
+    const duplicateRows = prepared.rows.filter(row => existingByPhone.has(row.normalizedPhone));
+    const newRows = prepared.rows.filter(row => !existingByPhone.has(row.normalizedPhone));
+    const preview = {
+      totalRows: allRows.slice(startRow - 1).length,
+      validCustomers: prepared.rows.length,
+      newCustomers: newRows.length,
+      duplicateCustomers: duplicateRows.length,
+      repeatedInSheet: prepared.repeatedInSheet,
+      invalidRows: prepared.invalidRows.length,
+      skippedEmpty: prepared.skippedEmpty,
+      duplicateSample: duplicateRows.slice(0, 8).map(row => ({
+        rowNumber: row.rowNumber,
+        name: row.name,
+        phone: row.normalizedPhone,
+      })),
+      invalidSample: prepared.invalidRows.slice(0, 8),
+    };
 
-    // Skip rows before startRow (1-indexed)
-    const dataStartIdx = startRow - 1; // Convert to 0-indexed
-    if (dataStartIdx >= allRows.length) {
+    if (action === 'preview') {
       return NextResponse.json({
         success: true,
-        imported: 0,
-        updated: 0,
-        skipped: 0,
-        message: `Sheet "${targetSheet}" không có dữ liệu từ hàng ${startRow} trở đi.`,
+        action,
+        preview,
+        sheetUsed: targetSheet,
+        availableSheets,
       });
     }
 
-    const dataRows = allRows.slice(dataStartIdx);
-
     let imported = 0;
     let updated = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i];
-      if (!row || row.length === 0) { skipped++; continue; }
-
-      // Map columns: A=STT, B=Ngày hoàn thành, C=Tên khách, D=Tài khoản liên hệ,
-      // E=SĐT, F=Địa chỉ, G=Nhu cầu may đo, H=Thông tin số đo,
-      // I=Thông tin lưu ý, J=Giá trị đơn hàng, K=Ngày gián đoạn
-      const customerName = String(row[2] ?? '').trim();
-      const phone = normalizePhone(row[4]);
-      const contactAccount = String(row[3] ?? '').trim();
-      const address = String(row[5] ?? '').trim();
-      const tailoringNeed = String(row[6] ?? '').trim();
-      const measurementInfo = String(row[7] ?? '').trim();
-      const noteInfo = String(row[8] ?? '').trim();
-      const orderValue = normalizeMoney(row[9]);
-      const completedDate = String(row[1] ?? '').trim();
-      const inactiveDays = Number(String(row[10] ?? '0').replace(/[^\d]/g, '')) || 0;
-
-      // Skip empty rows
-      if (!customerName && !phone) {
-        skipped++;
-        continue;
-      }
-
-      const points = calculatePoints(orderValue);
-
-      try {
-        let existing = null;
-        if (phone) {
-          existing = await prisma.customer.findFirst({ where: { phone } });
-        }
-
+    await prisma.$transaction(async tx => {
+      for (const row of prepared.rows) {
+        const existing = existingByPhone.get(row.normalizedPhone);
         if (existing) {
-          const newTotalSpent = existing.totalSpent + orderValue;
-          const newTotalOrders = existing.totalOrders + (orderValue > 0 ? 1 : 0);
-          const newPoints = existing.loyaltyPoints + points;
-
-          await prisma.customer.update({
-            where: { id: existing.id },
-            data: {
-              name: customerName || existing.name,
-              contactAccount: contactAccount || existing.contactAccount,
-              address: address || existing.address,
-              tailoringNeed: tailoringNeed || existing.tailoringNeed,
-              measurementInfo: measurementInfo || existing.measurementInfo,
-              noteInfo: noteInfo || existing.noteInfo,
-              completedDate: completedDate || existing.completedDate,
-              inactiveDays,
-              totalSpent: newTotalSpent,
-              totalOrders: newTotalOrders,
-              loyaltyPoints: newPoints,
-              loyaltyTier: calculateTier(newPoints),
-              lastPurchaseDate: completedDate || existing.lastPurchaseDate,
-              source: 'Import File',
-            },
-          });
-
-          if (orderValue > 0 && points > 0) {
-            await prisma.loyaltyTransaction.create({
-              data: {
-                customerId: existing.id,
-                type: 'earn',
-                points,
-                amount: orderValue,
-                description: `Import file - đơn ${orderValue.toLocaleString('vi-VN')}đ`,
-              },
-            });
-          }
+          await tx.customer.update({ where: { id: existing.id }, data: buildCustomerUpdate(row) });
           updated++;
         } else {
-          const newCustomer = await prisma.customer.create({
-            data: {
-              name: customerName || 'Chưa có tên',
-              phone: phone || null,
-              contactAccount,
-              address,
-              tailoringNeed,
-              measurementInfo,
-              noteInfo: noteInfo || null,
-              completedDate,
-              inactiveDays,
-              totalSpent: orderValue,
-              totalOrders: orderValue > 0 ? 1 : 0,
-              loyaltyPoints: points,
-              loyaltyTier: calculateTier(points),
-              lastPurchaseDate: completedDate || null,
-              source: 'Import File',
-              status: orderValue > 0 ? 'Đã mua' : 'Mới',
-              tags: !phone ? 'Thiếu SĐT' : undefined,
-            },
+          await tx.customer.upsert({
+            where: { normalizedPhone: row.normalizedPhone },
+            update: buildCustomerUpdate(row),
+            create: buildCustomerCreate(row, 'Import File'),
           });
-
-          if (orderValue > 0 && points > 0) {
-            await prisma.loyaltyTransaction.create({
-              data: {
-                customerId: newCustomer.id,
-                type: 'earn',
-                points,
-                amount: orderValue,
-                description: `Import file - đơn ${orderValue.toLocaleString('vi-VN')}đ`,
-              },
-            });
-          }
           imported++;
         }
-      } catch (rowErr: any) {
-        errors.push(`Dòng ${startRow + i}: ${rowErr?.message || 'Lỗi không xác định'}`);
       }
-    }
 
-    // Log
-    await prisma.automationLog.create({
-      data: {
-        level: 'info',
-        source: 'import-file',
-        message: `Import file "${file.name}" (sheet: ${targetSheet}): ${imported} mới, ${updated} cập nhật, ${skipped} bỏ qua`,
-        details: JSON.stringify({ fileName: file.name, sheetName: targetSheet, startRow, imported, updated, skipped, errorCount: errors.length }),
-      },
+      await tx.automationLog.create({
+        data: {
+          level: 'info',
+          source: 'import-file',
+          message: `Import file "${file.name}" (sheet: ${targetSheet}): ${imported} mới, ${updated} cập nhật`,
+          details: JSON.stringify({ fileName: file.name, sheetName: targetSheet, startRow, imported, updated, preview }),
+        },
+      });
     });
 
+    const skipped = prepared.invalidRows.length + prepared.skippedEmpty;
     return NextResponse.json({
       success: true,
+      action,
       imported,
       updated,
       skipped,
+      preview,
       sheetUsed: targetSheet,
       availableSheets,
-      errors: errors.length > 0 ? errors : undefined,
-      message: `Import thành công: ${imported} khách mới, ${updated} cập nhật, ${skipped} bỏ qua${errors.length > 0 ? `, ${errors.length} dòng lỗi` : ''}`,
+      message: `Đã nhập ${imported} khách mới và cập nhật ${updated} khách trùng SĐT; bỏ qua ${skipped} dòng.`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json({
       success: false,
-      error: error?.message ?? 'Lỗi server khi import file',
+      error: errorMessage(error, 'Lỗi server khi import file'),
     }, { status: 500 });
   }
 }

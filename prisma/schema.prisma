@@ -327,14 +327,9 @@ model Customer {
   loyaltyPoints       Int                  @default(0)
   loyaltyTier         String               @default("New")
   lastPurchaseDate    String?
-  // Google Sheet extra fields
+  // Customer profile fields
   contactAccount      String?
   address             String?
-  tailoringNeed       String?
-  measurementInfo     String?
-  noteInfo            String?
-  completedDate       String?
-  inactiveDays        Int                  @default(0)
   // Relations
   loyaltyTransactions LoyaltyTransaction[]
   createdAt           DateTime             @default(now())

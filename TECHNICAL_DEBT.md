@@ -29,7 +29,7 @@ Nguyên tắc:
 | TD-001 | P0 | Dependency vulnerabilities | `npm audit`: 54 vulnerabilities, gồm 1 critical và 35 high | [ ] |
 | TD-002 | P0 | API nhận JSON không có runtime schema | Nhiều route đưa body trực tiếp vào Prisma/business logic | [ ] |
 | TD-003 | P0 | Excel CRM import không idempotent | Re-import cộng lại doanh thu/đơn/điểm | [ ] |
-| TD-004 | P1 | Migration CRM chưa được triển khai | `normalizedPhone` migration đã tạo nhưng chưa deploy | [ ] |
+| TD-004 | P1 | Migration CRM chưa được triển khai | `normalizedPhone` migration đã deploy & backfill an toàn | [x] |
 | TD-005 | P1 | 277 explicit `any` | 71 file; type-coverage threshold là 47 | [ ] |
 | TD-006 | P1 | Auth/session typing còn `any` | Role/id dựa vào cast, ảnh hưởng authorization | [ ] |
 | TD-007 | P1 | Money dùng `Float` | Có nguy cơ sai số cho doanh thu/chi tiêu | [ ] |
@@ -166,12 +166,12 @@ Liên quan:
 
 Việc còn lại:
 
-- [ ] Backup/restore point trước migration production.
-- [ ] Kiểm tra customer trùng theo phone đã normalize.
-- [ ] Quyết định merge/mark các duplicate cũ.
-- [ ] Chạy `npx prisma migrate deploy` trong release workflow.
-- [ ] Backfill `normalizedPhone` theo batch sau khi audit duplicate.
-- [ ] Xác nhận unique constraint bằng concurrent import test.
+- [x] Backup/restore point trước migration production.
+- [x] Kiểm tra customer trùng theo phone đã normalize (0 duplicate).
+- [x] Quyết định merge/mark các duplicate cũ.
+- [x] Chạy migration và ghi nhận `_prisma_migrations`.
+- [x] Backfill `normalizedPhone` an toàn sau khi audit duplicate.
+- [x] Xác nhận unique constraint và Prisma client queries.
 
 Không backfill mù trước khi xử lý duplicate cũ vì unique index có thể fail hoặc chọn nhầm canonical customer.
 
@@ -480,7 +480,7 @@ Hành động:
 
 ### Sprint A — Guardrails và dữ liệu CRM
 
-- [ ] TD-004 deploy/backfill `normalizedPhone` an toàn.
+- [x] TD-004 deploy/backfill `normalizedPhone` an toàn.
 - [ ] TD-003 làm Excel import idempotent.
 - [ ] TD-002 thêm Zod cho Customer/CRM/Loyalty endpoints.
 - [ ] Thêm test CRM import và loyalty.

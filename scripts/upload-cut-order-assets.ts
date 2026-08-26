@@ -134,6 +134,11 @@ async function main() {
       if (result.status === 'fulfilled') result.value === 'uploaded' ? uploaded++ : skipped++;
       else failures.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
     });
+    if (failures.length && uploaded + skipped === 0) {
+      console.error(JSON.stringify({ stoppedEarly: true, failureSample: failures.slice(0, 4) }, null, 2));
+      process.exitCode = 1;
+      return;
+    }
     if ((index + chunk.length) % 40 === 0 || index + chunk.length === items.length) {
       console.log(`Progress ${index + chunk.length}/${items.length}: ${uploaded} uploaded, ${skipped} skipped, ${failures.length} failed`);
     }

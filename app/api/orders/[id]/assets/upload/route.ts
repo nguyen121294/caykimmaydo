@@ -27,7 +27,9 @@ async function ensurePublicBucket(config: ReturnType<typeof storageConfig>) {
   const headers = storageHeaders(config.serviceKey);
   const current = await fetch(`${config.baseUrl}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`, { headers, cache: 'no-store' });
   if (current.ok) return;
-  if (current.status !== 404) throw new Error(`Không kiểm tra được bucket (${current.status}).`);
+  const currentError = await current.text();
+  const bucketMissing = current.status === 404 || (current.status === 400 && /not found|does not exist/i.test(currentError));
+  if (!bucketMissing) throw new Error(`Không kiểm tra được bucket (${current.status}): ${currentError}`);
   const created = await fetch(`${config.baseUrl}/storage/v1/bucket`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },

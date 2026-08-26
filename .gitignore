@@ -38,3 +38,10 @@ next-env.d.ts
 
 # AG Kit
 .agents
+
+# Temporary, scratch & backups
+.codex-tmp/
+backups/
+docs/*.xlsx
+*.xlsx
+*.zip

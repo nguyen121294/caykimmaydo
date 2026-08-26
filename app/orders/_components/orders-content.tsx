@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins, FileSpreadsheet, Link2, Loader2, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/app/components/page-header';
 import { Modal, Input, Select } from '@/app/components/form-controls';
@@ -33,6 +33,30 @@ const departments = [
 
 const productTypes = ['Áo dài', 'Vest', 'Đầm', 'Sơ mi', 'Quần', 'Khác'];
 
+interface OrderImportPreview {
+  totalRows: number;
+  validOrders: number;
+  newOrders: number;
+  duplicateOrders: number;
+  repeatedInSheet: number;
+  invalidRows: number;
+  skippedEmpty: number;
+  duplicateSample: Array<{ rowNumber: number; orderId: string; customerName: string }>;
+  invalidSample: Array<{ rowNumber: number; reason: string }>;
+}
+
+interface OrderImportResult {
+  message: string;
+  imported: number;
+  updated: number;
+  skipped: number;
+  sheetUsed: string;
+}
+
+function clientErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
+}
+
 // formatMoney imported from @/lib/utils
 
 function getStatusBadge(status: string) {
@@ -47,20 +71,46 @@ export default function OrdersContent() {
   const [data, setData] = useState<any>({ orders: [], checklists: [] });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
+  const [missingPhoneOnly, setMissingPhoneOnly] = useState(false);
+  const [initialCustomerId, setInitialCustomerId] = useState('');
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [googleSheetNames, setGoogleSheetNames] = useState<string[]>([]);
+  const [googleSheetName, setGoogleSheetName] = useState('');
+  const [importStartRow, setImportStartRow] = useState('2');
+  const [sheetListLoading, setSheetListLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<OrderImportPreview | null>(null);
+  const [importResult, setImportResult] = useState<OrderImportResult | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
+      if (orderSearch.trim()) params.set('q', orderSearch.trim());
+      if (missingPhoneOnly) params.set('missingPhone', 'true');
       const res = await fetch(`/api/orders?${params.toString()}`);
       const json = await res?.json?.();
       setData(json ?? { orders: [], checklists: [] });
     } catch {} finally { setLoading(false); }
-  };
+  }, [statusFilter, orderSearch, missingPhoneOnly]);
 
-  useEffect(() => { fetchData(); }, [statusFilter]);
+  useEffect(() => {
+    const timer = window.setTimeout(fetchData, 250);
+    return () => window.clearTimeout(timer);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const customerId = new URLSearchParams(window.location.search).get('customerId') ?? '';
+    if (customerId) {
+      setInitialCustomerId(customerId);
+      setShowOrderForm(true);
+    }
+  }, []);
 
   const orders = data?.orders ?? [];
   const checklists = data?.checklists ?? [];
@@ -83,6 +133,90 @@ export default function OrdersContent() {
       fetchData();
     } catch (e: any) {
       toast.error(e?.message ?? 'Lỗi thêm đơn');
+    }
+  }
+
+  async function handleCompletePhone(order: any) {
+    const phone = window.prompt(`Nhập SĐT thật cho ${order.customerName}:`, '');
+    if (phone === null || !phone.trim()) return;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: order.id, phone }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Không thể cập nhật SĐT');
+      if (json?.order?.needsCustomerPhone) throw new Error('SĐT chưa hợp lệ, vui lòng nhập đủ 10 số.');
+      toast.success('Đã cập nhật SĐT và liên kết CRM');
+      fetchData();
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
+    }
+  }
+
+  async function loadGoogleSheetNames() {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    setSheetListLoading(true);
+    setImportError(null);
+    setGoogleSheetNames([]);
+    setGoogleSheetName('');
+    setImportPreview(null);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadsheetUrl: googleSheetUrl }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Không thể tải danh sách Sheet/Tab');
+      setGoogleSheetNames(json.sheetNames);
+      if (json.sheetNames.length === 1) setGoogleSheetName(json.sheetNames[0]);
+      toast.success(`Đã tìm thấy ${json.sheetNames.length} Sheet/Tab`);
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
+    } finally {
+      setSheetListLoading(false);
+    }
+  }
+
+  async function handleGoogleSheetImport(action: 'preview' | 'import') {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    if (!googleSheetName) { toast.error('Vui lòng chọn đúng Sheet/Tab Orders'); return; }
+    setImportLoading(true);
+    setImportError(null);
+    if (action === 'preview') { setImportPreview(null); setImportResult(null); }
+    try {
+      const res = await fetch('/api/orders/import-google-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          spreadsheetUrl: googleSheetUrl,
+          sheetName: googleSheetName,
+          startRow: importStartRow || '2',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Không thể import Google Sheet');
+      if (action === 'preview') {
+        setImportPreview(json.preview);
+        toast.success('Đã kiểm tra dữ liệu Orders và mã đơn trùng');
+      } else {
+        setImportResult(json);
+        setImportPreview(null);
+        toast.success(json.message);
+        fetchData();
+      }
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
+    } finally {
+      setImportLoading(false);
     }
   }
 
@@ -155,6 +289,12 @@ export default function OrdersContent() {
         >
           <Download size={16} /> Xuất CSV / Excel
         </button>
+        <button
+          onClick={() => { setShowImport(true); setImportError(null); setImportPreview(null); setImportResult(null); }}
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-all"
+        >
+          <FileSpreadsheet size={16} /> Import Google Sheet
+        </button>
         <select
           value={statusFilter}
           onChange={(e: any) => setStatusFilter(e?.target?.value ?? '')}
@@ -165,6 +305,22 @@ export default function OrdersContent() {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        <div className="relative min-w-[220px]">
+          <Search size={15} className="absolute left-3 top-3 text-gray-400" />
+          <input
+            value={orderSearch}
+            onChange={(e) => setOrderSearch(e.target.value)}
+            placeholder="Tìm mã, khách, SĐT..."
+            className="w-full rounded-lg bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => { setMissingPhoneOnly(value => !value); if (!missingPhoneOnly) setOrderSearch('1111111111'); }}
+          className={`rounded-lg px-3 py-2.5 text-sm font-medium shadow-sm ${missingPhoneOnly ? 'bg-amber-500 text-white' : 'bg-white text-amber-700'}`}
+        >
+          Cần bổ sung SĐT
+        </button>
         <div className="text-sm text-gray-500">{orders?.length ?? 0} đơn hàng</div>
       </div>
 
@@ -258,11 +414,27 @@ export default function OrdersContent() {
                     <td className="px-4 py-3 font-mono text-xs font-bold text-indigo-600">{o?.orderId ?? ''}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{o?.customerName ?? ''}</div>
-                      <div className="text-xs text-gray-500">{o?.phone ?? ''}</div>
+                      <div className={`text-xs ${o?.needsCustomerPhone ? 'font-semibold text-amber-600' : 'text-gray-500'}`}>
+                        {o?.phone ?? ''}{o?.needsCustomerPhone ? ' · Cần bổ sung' : ''}
+                      </div>
+                      {o?.needsCustomerPhone && (
+                        <button type="button" onClick={() => handleCompletePhone(o)} className="mt-1 text-xs font-semibold text-indigo-600 hover:underline">
+                          Bổ sung SĐT
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div>{o?.product ?? ''}</div>
                       {o?.productType && <div className="text-xs text-gray-500">{o.productType}</div>}
+                      {Array.isArray(o?.assets) && o.assets.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {o.assets.map((asset: any) => (
+                            <a key={asset.id} href={asset.url} target="_blank" rel="noreferrer" className="rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 hover:bg-purple-100">
+                              {asset.type === 'PRODUCT' ? 'Hình SP' : asset.type === 'DEPOSIT_BILL' ? 'Bill cọc' : asset.type === 'BALANCE_BILL' ? 'Bill còn lại' : 'Bill vải'}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs">{o?.quantity ?? 1}</td>
                     <td className="px-4 py-3 text-right font-semibold">{formatMoney(o?.total)}</td>
@@ -330,15 +502,148 @@ export default function OrdersContent() {
         </div>
       )}
 
+      {showImport && (
+        <Modal title="Import / cập nhật Orders từ Google Sheet" onClose={() => setShowImport(false)}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="orders-google-sheet-url" className="mb-1.5 block text-xs font-semibold text-gray-700">Link Google Sheet công khai</label>
+              <div className="relative">
+                <Link2 size={15} className="absolute left-3 top-3 text-gray-400" />
+                <input
+                  id="orders-google-sheet-url"
+                  type="url"
+                  className="w-full rounded-lg border border-gray-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                  value={googleSheetUrl}
+                  onChange={(e) => { setGoogleSheetUrl(e.target.value); setGoogleSheetNames([]); setGoogleSheetName(''); setImportPreview(null); setImportResult(null); setImportError(null); }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">Dùng được cùng link với CRM và Sales; chọn riêng tab Orders bên dưới.</p>
+              <button
+                type="button"
+                onClick={loadGoogleSheetNames}
+                disabled={sheetListLoading || !googleSheetUrl.trim()}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+              >
+                {sheetListLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                {sheetListLoading ? 'Đang tải danh sách...' : 'Tải danh sách Sheet/Tab'}
+              </button>
+            </div>
+
+            {googleSheetNames.length > 0 && (
+              <div>
+                <label htmlFor="orders-google-sheet-name" className="mb-1.5 block text-xs font-semibold text-gray-700">Chọn Sheet/Tab Orders *</label>
+                <select
+                  id="orders-google-sheet-name"
+                  className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  value={googleSheetName}
+                  onChange={(e) => { setGoogleSheetName(e.target.value); setImportPreview(null); setImportResult(null); setImportError(null); }}
+                >
+                  <option value="">-- Chọn đúng tab dữ liệu Orders --</option>
+                  {googleSheetNames.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="orders-import-start-row" className="mb-1.5 block text-xs font-semibold text-gray-700">Dữ liệu bắt đầu từ hàng</label>
+              <input
+                id="orders-import-start-row"
+                type="number"
+                min="2"
+                className="w-full rounded-lg border border-gray-200 p-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                value={importStartRow}
+                onChange={(e) => { setImportStartRow(e.target.value); setImportPreview(null); setImportResult(null); }}
+              />
+              <p className="mt-1 text-xs text-gray-500">Hàng tiêu đề phải nằm ngay phía trên. Ví dụ tiêu đề ở hàng 4 thì nhập dữ liệu bắt đầu từ hàng 5.</p>
+            </div>
+
+            {importError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-500" />
+                <p className="text-xs text-red-700">{importError}</p>
+              </div>
+            )}
+
+            {importPreview && (
+              <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Kết quả kiểm tra tab “{googleSheetName}”</p>
+                  <p className="mt-0.5 text-xs text-blue-700">Tìm thấy {importPreview.validOrders} đơn hợp lệ từ {importPreview.totalRows} dòng dữ liệu.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-gray-500">Đơn mới</p><p className="text-lg font-bold text-emerald-600">{importPreview.newOrders}</p></div>
+                  <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-gray-500">Cập nhật</p><p className="text-lg font-bold text-amber-600">{importPreview.duplicateOrders}</p></div>
+                  <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-gray-500">Trùng trong Sheet</p><p className="text-lg font-bold text-amber-600">{importPreview.repeatedInSheet}</p></div>
+                  <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-gray-500">Không hợp lệ</p><p className="text-lg font-bold text-red-600">{importPreview.invalidRows}</p></div>
+                </div>
+                {importPreview.duplicateSample.length > 0 && (
+                  <div className="text-xs text-amber-800">
+                    <p className="mb-1 font-medium">Đơn sẽ được cập nhật theo mã:</p>
+                    {importPreview.duplicateSample.map(item => <p key={`${item.rowNumber}-${item.orderId}`}>Hàng {item.rowNumber}: {item.orderId} · {item.customerName}</p>)}
+                  </div>
+                )}
+                {importPreview.invalidSample.length > 0 && (
+                  <div className="text-xs text-red-700">
+                    <p className="mb-1 font-medium">Dòng sẽ bị bỏ qua:</p>
+                    {importPreview.invalidSample.map(item => <p key={item.rowNumber}>Hàng {item.rowNumber}: {item.reason}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {importResult && (
+              <div className="space-y-1 rounded-lg border border-green-200 bg-green-50 p-3">
+                <p className="text-sm font-medium text-green-800">{importResult.message}</p>
+                <p className="text-xs text-green-600">Sheet đã dùng: {importResult.sheetUsed}</p>
+              </div>
+            )}
+
+            <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+              <p><strong>Cột bắt buộc:</strong> Mã đơn hàng, Tên khách hàng, Sản phẩm.</p>
+              <p>Hệ thống nhận cả cấu trúc Excel Orders gốc và cấu trúc file xuất từ nút “Xuất CSV / Excel”.</p>
+              <p>Đơn trùng mã sẽ chỉ cập nhật các cột có dữ liệu trong Sheet; các cột không có sẽ được giữ nguyên.</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowImport(false)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700">Đóng</button>
+              {importPreview ? (
+                <button
+                  onClick={() => handleGoogleSheetImport('import')}
+                  disabled={importLoading || importPreview.validOrders === 0}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                  {importLoading ? 'Đang import...' : `Xác nhận cập nhật ${importPreview.validOrders} đơn`}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleGoogleSheetImport('preview')}
+                  disabled={importLoading || !googleSheetUrl.trim() || !googleSheetName}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  {importLoading ? 'Đang kiểm tra...' : 'Kiểm tra dữ liệu'}
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {showOrderForm && (
-        <OrderForm onClose={() => setShowOrderForm(false)} onSave={handleAddOrder} />
+        <OrderForm initialCustomerId={initialCustomerId} onClose={() => { setShowOrderForm(false); setInitialCustomerId(''); }} onSave={handleAddOrder} />
       )}
     </div>
   );
 }
 
-function OrderForm({ onClose, onSave }: { onClose: () => void; onSave: (form: any) => void }) {
+function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: string; onClose: () => void; onSave: (form: any) => void }) {
+  const [customers, setCustomers] = useState<Array<{ id: string; name: string; phone: string | null }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
+  const [customerSearch, setCustomerSearch] = useState('');
   const [form, setForm] = useState<any>({
+    customerId: initialCustomerId,
     customerName: '',
     phone: '',
     product: '',
@@ -349,22 +654,66 @@ function OrderForm({ onClose, onSave }: { onClose: () => void; onSave: (form: an
     orderDate: '',
     tryDate: '',
     deliveryDate: '',
+    deliveryAddress: '',
+    salesOwnerId: '',
+    fabricCost: '',
+    tailorCost: '',
+    shippingFee: '',
+    productImageUrl: '',
+    depositBillUrl: '',
+    balanceBillUrl: '',
+    fabricBillUrl: '',
     department: 'Tư vấn / Sale',
     status: 'Mới nhận',
     note: '',
   });
 
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/customers?limit=500').then(res => res.ok ? res.json() : []),
+      fetch('/api/users').then(res => res.ok ? res.json() : []),
+    ]).then(([customerRows, userRows]) => {
+      setCustomers(Array.isArray(customerRows) ? customerRows : []);
+      setUsers(Array.isArray(userRows) ? userRows : []);
+      if (initialCustomerId) {
+        const selected = customerRows.find((customer: any) => customer.id === initialCustomerId);
+        if (selected) setForm((current: any) => ({ ...current, customerId: selected.id, customerName: selected.name, phone: selected.phone ?? '' }));
+      }
+    }).catch(() => undefined);
+  }, [initialCustomerId]);
+
+  const filteredCustomers = customers.filter(customer => {
+    const query = customerSearch.trim().toLocaleLowerCase('vi');
+    return !query || customer.name.toLocaleLowerCase('vi').includes(query) || customer.phone?.includes(query);
+  }).slice(0, 50);
+
+  function selectCustomer(customerId: string) {
+    const customer = customers.find(item => item.id === customerId);
+    setForm({
+      ...form,
+      customerId,
+      customerName: customer?.name ?? '',
+      phone: customer?.phone ?? '',
+    });
+  }
+
   function submit(e: any) {
     e.preventDefault();
-    if (!form.customerName || !form.phone || !form.product || !form.deliveryDate) {
-      toast.error('Vui lòng nhập tên khách, SDT, sản phẩm và ngày giao');
+    if (!form.customerName || !form.product || !form.deliveryDate) {
+      toast.error('Vui lòng nhập tên khách, sản phẩm và ngày giao');
       return;
     }
     if (Number(form.deposit ?? 0) > Number(form.total ?? 0)) {
       toast.error('Tiền cọc không được lớn hơn tổng giá trị');
       return;
     }
-    onSave(form);
+    const assets = [
+      ['PRODUCT', form.productImageUrl],
+      ['DEPOSIT_BILL', form.depositBillUrl],
+      ['BALANCE_BILL', form.balanceBillUrl],
+      ['FABRIC_BILL', form.fabricBillUrl],
+    ].filter(([, url]) => String(url ?? '').trim()).map(([type, url]) => ({ type, url }));
+    onSave({ ...form, assets });
   }
 
   const remain = Number(form.total || 0) - Number(form.deposit || 0);
@@ -372,8 +721,22 @@ function OrderForm({ onClose, onSave }: { onClose: () => void; onSave: (form: an
   return (
     <Modal title="Thêm đơn hàng mới" onClose={onClose}>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="md:col-span-2 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+          <label className="mb-1 block text-xs font-semibold text-indigo-900">Chọn khách đã có trong CRM</label>
+          <input
+            value={customerSearch}
+            onChange={(e) => setCustomerSearch(e.target.value)}
+            placeholder="Gõ tên hoặc SĐT để lọc..."
+            className="mb-2 w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm outline-none"
+          />
+          <select value={form.customerId} onChange={(e) => selectCustomer(e.target.value)} className="w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm">
+            <option value="">Khách mới — nhập thông tin bên dưới</option>
+            {filteredCustomers.map(customer => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone || 'chưa có SĐT'}</option>)}
+          </select>
+          <p className="mt-1.5 text-xs text-indigo-700">Khách mới có SĐT hợp lệ sẽ tự tạo trong CRM. Thiếu SĐT sẽ lưu là 1111111111 và chưa tạo CRM.</p>
+        </div>
         <Input label="Tên khách hàng *" value={form.customerName} onChange={(v) => setForm({ ...form, customerName: v })} />
-        <Input label="Số điện thoại *" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+        <Input label="Số điện thoại" value={form.phone} onChange={(v) => setForm({ ...form, customerId: '', phone: v })} placeholder="Để trống nếu chưa có" />
         <Input label="Sản phẩm *" value={form.product} onChange={(v) => setForm({ ...form, product: v })} placeholder="VD: Áo dài thêu hoa sen" />
         <Select label="Loại sản phẩm" value={form.productType} options={productTypes} onChange={(v) => setForm({ ...form, productType: v })} />
         <Input label="Số lượng" type="number" value={form.quantity} onChange={(v) => setForm({ ...form, quantity: v })} />
@@ -383,8 +746,23 @@ function OrderForm({ onClose, onSave }: { onClose: () => void; onSave: (form: an
         <Input label="Ngày nhận đơn" type="date" value={form.orderDate} onChange={(v) => setForm({ ...form, orderDate: v })} />
         <Input label="Ngày hẹn thử" type="date" value={form.tryDate} onChange={(v) => setForm({ ...form, tryDate: v })} />
         <Input label="Ngày giao hàng *" type="date" value={form.deliveryDate} onChange={(v) => setForm({ ...form, deliveryDate: v })} />
+        <Input label="Địa chỉ giao" value={form.deliveryAddress} onChange={(v) => setForm({ ...form, deliveryAddress: v })} />
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-gray-700">Nhân viên xử lý</span>
+          <select value={form.salesOwnerId} onChange={(e) => setForm({ ...form, salesOwnerId: e.target.value })} className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm">
+            <option value="">Tự động: người đang tạo</option>
+            {users.map(user => <option key={user.id} value={user.id}>{user.name || user.email}</option>)}
+          </select>
+        </label>
         <Select label="Bộ phận phụ trách" value={form.department} options={departments} onChange={(v) => setForm({ ...form, department: v })} />
         <Select label="Trạng thái" value={form.status} options={orderStatuses} onChange={(v) => setForm({ ...form, status: v })} />
+        <Input label="Chi phí vải thực tế" type="number" value={form.fabricCost} onChange={(v) => setForm({ ...form, fabricCost: v })} />
+        <Input label="Tiền công may" type="number" value={form.tailorCost} onChange={(v) => setForm({ ...form, tailorCost: v })} />
+        <Input label="Phí ship" type="number" value={form.shippingFee} onChange={(v) => setForm({ ...form, shippingFee: v })} />
+        <Input label="Link hình sản phẩm" value={form.productImageUrl} onChange={(v) => setForm({ ...form, productImageUrl: v })} />
+        <Input label="Link bill đặt cọc" value={form.depositBillUrl} onChange={(v) => setForm({ ...form, depositBillUrl: v })} />
+        <Input label="Link bill chuyển khoản còn lại" value={form.balanceBillUrl} onChange={(v) => setForm({ ...form, balanceBillUrl: v })} />
+        <Input label="Link bill vải" value={form.fabricBillUrl} onChange={(v) => setForm({ ...form, fabricBillUrl: v })} />
         <div className="md:col-span-2">
           <Input label="Ghi chú" value={form.note} onChange={(v) => setForm({ ...form, note: v })} />
         </div>

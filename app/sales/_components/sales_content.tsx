@@ -1,7 +1,7 @@
 'use client';
 import { formatMoney as fmt } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
-import { Kanban, Plus, RefreshCw, X, DollarSign, User } from 'lucide-react';
+import { AlertCircle, DollarSign, FileSpreadsheet, Kanban, Link2, Loader2, Plus, RefreshCw, Search, User, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Lead {
@@ -19,6 +19,26 @@ interface Lead {
   createdAt: string;
 }
 
+interface LeadImportPreview {
+  totalRows: number;
+  validLeads: number;
+  newLeads: number;
+  duplicateLeads: number;
+  repeatedInSheet: number;
+  invalidRows: number;
+  skippedEmpty: number;
+  duplicateSample: Array<{ rowNumber: number; name: string; phone: string }>;
+  invalidSample: Array<{ rowNumber: number; reason: string }>;
+}
+
+interface LeadImportResult {
+  message: string;
+  imported: number;
+  updated: number;
+  skipped: number;
+  sheetUsed: string;
+}
+
 const stages = [
   { key: 'Mới', label: 'Mới', color: 'bg-blue-500', bgLight: 'bg-blue-50 border-blue-200' },
   { key: 'Đang tư vấn', label: 'Đang tư vấn', color: 'bg-amber-500', bgLight: 'bg-amber-50 border-amber-200' },
@@ -30,11 +50,25 @@ const stages = [
 
 const sourceOptions = ['Facebook', 'TikTok', 'Instagram', 'Zalo', 'Google', 'Giới thiệu', 'Khác'];
 
+function clientErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
+}
+
 export default function SalesContent() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', source: 'Facebook', stage: 'Mới', value: '', assignee: '', nextAction: '', notes: '' });
+  const [showImport, setShowImport] = useState(false);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [googleSheetNames, setGoogleSheetNames] = useState<string[]>([]);
+  const [googleSheetName, setGoogleSheetName] = useState('');
+  const [importStartRow, setImportStartRow] = useState('2');
+  const [sheetListLoading, setSheetListLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<LeadImportPreview | null>(null);
+  const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -75,6 +109,74 @@ export default function SalesContent() {
     } catch { toast.error('Lỗi cập nhật'); }
   };
 
+  const loadGoogleSheetNames = async () => {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    setSheetListLoading(true);
+    setImportError(null);
+    setGoogleSheetNames([]);
+    setGoogleSheetName('');
+    setImportPreview(null);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadsheetUrl: googleSheetUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Không thể tải danh sách Sheet/Tab');
+      setGoogleSheetNames(data.sheetNames);
+      if (data.sheetNames.length === 1) setGoogleSheetName(data.sheetNames[0]);
+      toast.success(`Đã tìm thấy ${data.sheetNames.length} Sheet/Tab`);
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
+    } finally {
+      setSheetListLoading(false);
+    }
+  };
+
+  const handleGoogleSheetImport = async (action: 'preview' | 'import') => {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    if (!googleSheetName) { toast.error('Vui lòng chọn đúng Sheet/Tab Sales'); return; }
+    setImportLoading(true);
+    setImportError(null);
+    if (action === 'preview') {
+      setImportPreview(null);
+      setImportResult(null);
+    }
+    try {
+      const res = await fetch('/api/sales/import-google-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          spreadsheetUrl: googleSheetUrl,
+          sheetName: googleSheetName,
+          startRow: importStartRow || '2',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Không thể import Google Sheet');
+      if (action === 'preview') {
+        setImportPreview(data.preview);
+        toast.success('Đã kiểm tra dữ liệu Sales và lead trùng');
+      } else {
+        setImportResult(data);
+        setImportPreview(null);
+        toast.success(data.message);
+        fetchData();
+      }
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const totalValue = leads.reduce((s, l) => s + l.value, 0);
   const wonValue = leads.filter(l => l.stage === 'Chốt đơn').reduce((s, l) => s + l.value, 0);
   // Using shared formatMoney from lib/utils
@@ -88,9 +190,12 @@ export default function SalesContent() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Quản lý quy trình bán hàng dạng Kanban</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5">
             <RefreshCw size={14} /> Làm mới
+          </button>
+          <button onClick={() => { setShowImport(true); setImportError(null); setImportPreview(null); setImportResult(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5">
+            <FileSpreadsheet size={14} /> Import Google Sheet
           </button>
           <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5">
             <Plus size={14} /> Thêm lead
@@ -164,6 +269,129 @@ export default function SalesContent() {
           })}
         </div>
       </div>
+
+      {showImport && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <FileSpreadsheet size={20} className="text-green-600" /> Import Sales từ Google Sheet
+              </h2>
+              <button aria-label="Đóng" onClick={() => setShowImport(false)}><X size={20} /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="sales-google-sheet-url" className="text-sm font-medium text-slate-700 mb-1.5 block">Link Google Sheet công khai</label>
+                <div className="relative">
+                  <Link2 size={15} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    id="sales-google-sheet-url"
+                    type="url"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-lg border text-sm"
+                    placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                    value={googleSheetUrl}
+                    onChange={e => { setGoogleSheetUrl(e.target.value); setGoogleSheetNames([]); setGoogleSheetName(''); setImportPreview(null); setImportResult(null); setImportError(null); }}
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-1.5">Có thể dùng cùng link với CRM; chọn tab Sales ở bước kế tiếp.</p>
+                <button
+                  type="button"
+                  onClick={loadGoogleSheetNames}
+                  disabled={sheetListLoading || !googleSheetUrl.trim()}
+                  className="mt-3 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {sheetListLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {sheetListLoading ? 'Đang tải danh sách...' : 'Tải danh sách Sheet/Tab'}
+                </button>
+              </div>
+
+              {googleSheetNames.length > 0 && (
+                <div>
+                  <label htmlFor="sales-google-sheet-name" className="text-sm font-medium text-slate-700 mb-1.5 block">Chọn Sheet/Tab Sales *</label>
+                  <select
+                    id="sales-google-sheet-name"
+                    className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white"
+                    value={googleSheetName}
+                    onChange={e => { setGoogleSheetName(e.target.value); setImportPreview(null); setImportResult(null); setImportError(null); }}
+                  >
+                    <option value="">-- Chọn đúng tab dữ liệu Sales --</option>
+                    {googleSheetNames.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="sales-import-start-row" className="text-sm font-medium text-slate-700 mb-1 block">Dữ liệu bắt đầu từ hàng</label>
+                <input id="sales-import-start-row" type="number" min="1" className="w-full px-3 py-2.5 rounded-lg border text-sm" value={importStartRow} onChange={e => { setImportStartRow(e.target.value); setImportPreview(null); setImportResult(null); }} />
+              </div>
+
+              {importError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-red-700">{importError}</p>
+                </div>
+              )}
+
+              {importPreview && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Kết quả kiểm tra tab “{googleSheetName}”</p>
+                    <p className="text-xs text-blue-700 mt-0.5">Tìm thấy {importPreview.validLeads} lead hợp lệ từ {importPreview.totalRows} dòng dữ liệu.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Lead mới</p><p className="text-lg font-bold text-emerald-600">{importPreview.newLeads}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Trùng Sales</p><p className="text-lg font-bold text-amber-600">{importPreview.duplicateLeads}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Trùng trong Sheet</p><p className="text-lg font-bold text-amber-600">{importPreview.repeatedInSheet}</p></div>
+                    <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Không hợp lệ</p><p className="text-lg font-bold text-red-600">{importPreview.invalidRows}</p></div>
+                  </div>
+                  {importPreview.duplicateSample.length > 0 && (
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium mb-1">Lead sẽ được cập nhật theo SĐT:</p>
+                      {importPreview.duplicateSample.map(item => <p key={`${item.rowNumber}-${item.phone}`}>Hàng {item.rowNumber}: {item.name} · {item.phone}</p>)}
+                    </div>
+                  )}
+                  {importPreview.invalidSample.length > 0 && (
+                    <div className="text-xs text-red-700">
+                      <p className="font-medium mb-1">Dòng sẽ bị bỏ qua:</p>
+                      {importPreview.invalidSample.map(item => <p key={item.rowNumber}>Hàng {item.rowNumber}: {item.reason}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 space-y-1">
+                  <p className="text-sm font-medium text-green-800">{importResult.message}</p>
+                  <p className="text-xs text-green-600">Sheet đã dùng: {importResult.sheetUsed}</p>
+                </div>
+              )}
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 space-y-1">
+                <p><strong>Cấu trúc cột Sales (A→K):</strong></p>
+                <p>STT | Tên lead | SĐT | Email | Nguồn | Giai đoạn | Giá trị | Người phụ trách | Hành động tiếp theo | Ngày tiếp theo | Ghi chú</p>
+                <p>• Giai đoạn: Mới, Đang tư vấn, Báo giá, Đặt cọc, Chốt đơn hoặc Thua.</p>
+                <p>• Lead trùng SĐT sẽ được cập nhật, không tạo thêm bản sao.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowImport(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-sm">Đóng</button>
+              {importPreview ? (
+                <button onClick={() => handleGoogleSheetImport('import')} disabled={importLoading || importPreview.validLeads === 0} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />}
+                  {importLoading ? 'Đang import...' : `Xác nhận import ${importPreview.validLeads} lead`}
+                </button>
+              ) : (
+                <button onClick={() => handleGoogleSheetImport('preview')} disabled={importLoading || !googleSheetUrl.trim() || !googleSheetName} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                  {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+                  {importLoading ? 'Đang kiểm tra...' : 'Kiểm tra dữ liệu'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Modal */}
       {showAdd && (

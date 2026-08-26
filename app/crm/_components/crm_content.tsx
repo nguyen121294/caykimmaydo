@@ -1,7 +1,7 @@
 'use client';
 import { formatMoney as fmt } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
-import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown, Link2 } from 'lucide-react';
+import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown, Link2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Customer {
@@ -94,6 +94,9 @@ export default function CRMContent() {
   const [importSheet, setImportSheet] = useState('');
   const [importStartRow, setImportStartRow] = useState('2');
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [googleSheetNames, setGoogleSheetNames] = useState<string[]>([]);
+  const [googleSheetName, setGoogleSheetName] = useState('');
+  const [sheetListLoading, setSheetListLoading] = useState(false);
   const [sheetPreview, setSheetPreview] = useState<SheetPreview | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
@@ -178,6 +181,7 @@ export default function CRMContent() {
 
   const handleGoogleSheet = async (action: 'preview' | 'import') => {
     if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    if (!googleSheetName) { toast.error('Vui lòng chọn đúng Sheet/Tab cần import'); return; }
     setImportLoading(true);
     setImportError(null);
     if (action === 'preview') {
@@ -191,6 +195,7 @@ export default function CRMContent() {
         body: JSON.stringify({
           action,
           spreadsheetUrl: googleSheetUrl,
+          sheetName: googleSheetName,
           startRow: importStartRow || '2',
         }),
       });
@@ -212,6 +217,34 @@ export default function CRMContent() {
       toast.error(message);
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  const loadGoogleSheetNames = async () => {
+    if (!googleSheetUrl.trim()) { toast.error('Vui lòng dán link Google Sheet'); return; }
+    setSheetListLoading(true);
+    setImportError(null);
+    setGoogleSheetNames([]);
+    setGoogleSheetName('');
+    setSheetPreview(null);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spreadsheetUrl: googleSheetUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Không thể tải danh sách Sheet/Tab');
+      setGoogleSheetNames(data.sheetNames);
+      if (data.sheetNames.length === 1) setGoogleSheetName(data.sheetNames[0]);
+      toast.success(`Đã tìm thấy ${data.sheetNames.length} Sheet/Tab`);
+    } catch (error: unknown) {
+      const message = clientErrorMessage(error);
+      setImportError(message);
+      toast.error(message);
+    } finally {
+      setSheetListLoading(false);
     }
   };
 
@@ -343,13 +376,14 @@ export default function CRMContent() {
                 <th className="text-left px-4 py-3 font-semibold text-slate-700">Chi tiêu</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-700">Mua gần nhất</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-700">Trạng thái</th>
+                <th className="text-left px-4 py-3 font-semibold text-slate-700">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Chưa có khách hàng nào</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-slate-400">Chưa có khách hàng nào</td></tr>
               ) : filtered.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => openLoyalty(c)}>
                   <td className="px-4 py-3">
@@ -369,6 +403,11 @@ export default function CRMContent() {
                     <select className="text-xs px-2 py-1 rounded-lg border bg-white" value={c.status} onChange={e => handleStatusChange(c.id, e.target.value)}>
                       {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
+                  </td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <a href={`/orders?customerId=${encodeURIComponent(c.id)}`} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100">
+                      <ShoppingCart size={13} /> Tạo đơn
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -411,9 +450,32 @@ export default function CRMContent() {
                     className="w-full px-3 py-2.5 rounded-lg border text-sm"
                     placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0"
                     value={googleSheetUrl}
-                    onChange={e => { setGoogleSheetUrl(e.target.value); setSheetPreview(null); setImportResult(null); setImportError(null); }}
+                    onChange={e => { setGoogleSheetUrl(e.target.value); setGoogleSheetNames([]); setGoogleSheetName(''); setSheetPreview(null); setImportResult(null); setImportError(null); }}
                   />
                   <p className="text-xs text-slate-500 mt-1.5">Sheet chỉ cần quyền “Anyone with the link – Viewer”. Không cần cấp quyền chỉnh sửa.</p>
+                  <button
+                    type="button"
+                    onClick={loadGoogleSheetNames}
+                    disabled={sheetListLoading || !googleSheetUrl.trim()}
+                    className="mt-3 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {sheetListLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    {sheetListLoading ? 'Đang tải danh sách...' : 'Tải danh sách Sheet/Tab'}
+                  </button>
+                  {googleSheetNames.length > 0 && (
+                    <div className="mt-3">
+                      <label htmlFor="crm-google-sheet-name" className="text-sm font-medium text-slate-700 mb-1.5 block">Chọn Sheet/Tab khách hàng *</label>
+                      <select
+                        id="crm-google-sheet-name"
+                        className="w-full px-3 py-2.5 rounded-lg border text-sm bg-white"
+                        value={googleSheetName}
+                        onChange={e => { setGoogleSheetName(e.target.value); setSheetPreview(null); setImportResult(null); }}
+                      >
+                        <option value="">-- Chọn đúng tab dữ liệu CRM --</option>
+                        {googleSheetNames.map(name => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -504,7 +566,7 @@ export default function CRMContent() {
                     {importLoading ? 'Đang import...' : `Xác nhận import ${sheetPreview.validCustomers} khách`}
                   </button>
                 ) : (
-                  <button onClick={() => handleGoogleSheet('preview')} disabled={importLoading || !googleSheetUrl.trim()} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
+                  <button onClick={() => handleGoogleSheet('preview')} disabled={importLoading || !googleSheetUrl.trim() || !googleSheetName} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1.5 disabled:opacity-50">
                     {importLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
                     {importLoading ? 'Đang kiểm tra...' : 'Kiểm tra trùng'}
                   </button>

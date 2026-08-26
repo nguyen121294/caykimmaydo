@@ -9,18 +9,22 @@ datasource db {
 }
 
 model User {
-  id               String            @id @default(cuid())
-  name             String?
-  email            String            @unique
-  emailVerified    DateTime?
-  image            String?
-  password         String?
-  role             String            @default("user")
-  accounts         Account[]
-  sessions         Session[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  financeAuditLogs FinanceAuditLog[]
+  id                 String            @id @default(cuid())
+  name               String?
+  email              String            @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  role               String            @default("user")
+  accounts           Account[]
+  sessions           Session[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  financeAuditLogs   FinanceAuditLog[]
+  assignedOrders     Order[]           @relation("OrderSalesOwner")
+  createdOrders      Order[]           @relation("OrderCreatedBy")
+  updatedOrders      Order[]           @relation("OrderUpdatedBy")
+  createdOrderAssets OrderAsset[]      @relation("OrderAssetCreatedBy")
 }
 
 model Account {
@@ -58,33 +62,80 @@ model VerificationToken {
 }
 
 model Order {
-  id           String   @id @default(cuid())
-  orderId      String   @unique
-  customerName String
-  phone        String?
-  product      String
-  productType  String?
-  quantity     Int?     @default(1)
-  fabricType   String?
-  tailorName   String?
-  orderDate    String?
-  expectedDate String?
-  actualDate   String?
-  tryDate      String?
-  deliveryDate String?
-  price        String?
-  total        Float?   @default(0)
-  deposit      Float?   @default(0)
-  department   String?
-  status       String   @default("Mới")
-  hasMedia     String?  @default("No")
-  hasFeedback  String?  @default("No")
-  mediaLink    String?
-  notes        String?
-  action       String?
-  source       String?  @default("Khác")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String       @id @default(cuid())
+  orderId            String       @unique
+  customerName       String
+  phone              String?
+  customerId         String?
+  customer           Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  product            String
+  productType        String?
+  quantity           Int?         @default(1)
+  fabricType         String?
+  tailorName         String?
+  orderDate          String?
+  expectedDate       String?
+  actualDate         String?
+  tryDate            String?
+  deliveryDate       String?
+  deliveryAddress    String?
+  price              String?
+  total              Float?       @default(0)
+  deposit            Float?       @default(0)
+  listPrice          Float?       @default(0)
+  discountAmount     Float?       @default(0)
+  paymentMethod      String?
+  paymentAccount     String?
+  tailorCost         Float?       @default(0)
+  fabricCost         Float?       @default(0)
+  shippingFee        Float?       @default(0)
+  department         String?
+  status             String       @default("Mới")
+  hasMedia           String?      @default("No")
+  hasFeedback        String?      @default("No")
+  mediaLink          String?
+  notes              String?
+  action             String?
+  source             String?      @default("Khác")
+  needsCustomerPhone Boolean      @default(false)
+  importBatchId      String?
+  salesOwnerId       String?
+  salesOwner         User?        @relation("OrderSalesOwner", fields: [salesOwnerId], references: [id], onDelete: SetNull)
+  createdById        String?
+  createdBy          User?        @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedById        String?
+  updatedBy          User?        @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  assets             OrderAsset[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([customerId])
+  @@index([salesOwnerId])
+  @@index([needsCustomerPhone])
+  @@index([importBatchId])
+}
+
+enum OrderAssetType {
+  PRODUCT
+  DEPOSIT_BILL
+  BALANCE_BILL
+  FABRIC_BILL
+}
+
+model OrderAsset {
+  id          String         @id @default(cuid())
+  orderId     String
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type        OrderAssetType
+  url         String
+  storagePath String?
+  fileName    String?
+  mimeType    String?
+  createdById String?
+  createdBy   User?          @relation("OrderAssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+
+  @@index([orderId, type])
 }
 
 model Task {
@@ -381,6 +432,7 @@ model Customer {
   address             String?
   // Relations
   loyaltyTransactions LoyaltyTransaction[]
+  orders              Order[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }

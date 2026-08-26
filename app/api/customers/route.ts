@@ -12,11 +12,25 @@ function getPhoneData(phone: unknown) {
   return { phone: normalizedPhone, normalizedPhone };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const customers = await prisma.customer.findMany({ orderBy: { createdAt: 'desc' } });
+    const url = new URL(req.url);
+    const search = url.searchParams.get('q')?.trim() ?? '';
+    const id = url.searchParams.get('id')?.trim() ?? '';
+    const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 200), 1), 500);
+    const customers = await prisma.customer.findMany({
+      where: id ? { id } : search ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search } },
+          { normalizedPhone: { contains: search } },
+        ],
+      } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
     return NextResponse.json(customers);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

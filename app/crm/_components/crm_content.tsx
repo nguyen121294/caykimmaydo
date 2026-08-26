@@ -84,6 +84,8 @@ export default function CRMContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSource, setFilterSource] = useState('all');
+  const [filterTier, setFilterTier] = useState('all');
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '', source: 'Facebook', status: 'Mới', tags: '', notes: '' });
 
@@ -297,10 +299,24 @@ export default function CRMContent() {
     } catch (error: unknown) { toast.error(clientErrorMessage(error)); } finally { setRedeemLoading(false); }
   };
 
+  const normalizedQuery = search.trim().toLowerCase();
   const filtered = customers.filter(c => {
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search) || c.email?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !normalizedQuery ||
+      c.name?.toLowerCase().includes(normalizedQuery) ||
+      (c.phone && c.phone.toLowerCase().includes(normalizedQuery)) ||
+      (c.email && c.email.toLowerCase().includes(normalizedQuery)) ||
+      (c.address && c.address.toLowerCase().includes(normalizedQuery)) ||
+      (c.tags && c.tags.toLowerCase().includes(normalizedQuery)) ||
+      (c.notes && c.notes.toLowerCase().includes(normalizedQuery)) ||
+      (c.lastOrder && c.lastOrder.toLowerCase().includes(normalizedQuery)) ||
+      (c.contactAccount && c.contactAccount.toLowerCase().includes(normalizedQuery)) ||
+      (c.zaloId && c.zaloId.toLowerCase().includes(normalizedQuery)) ||
+      (c.source && c.source.toLowerCase().includes(normalizedQuery));
+
     const matchStatus = filterStatus === 'all' || c.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchSource = filterSource === 'all' || c.source === filterSource;
+    const matchTier = filterTier === 'all' || c.loyaltyTier === filterTier;
+    return matchSearch && matchStatus && matchSource && matchTier;
   });
 
   const stats = {
@@ -351,15 +367,33 @@ export default function CRMContent() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm" placeholder="Tìm theo tên, SĐT, email..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+            placeholder="Tìm theo tên, SĐT, email, địa chỉ, ghi chú, nhãn, mã đơn, nick MXH..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
-        <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="all">Tất cả trạng thái</option>
-          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="flex flex-wrap sm:flex-nowrap gap-2">
+          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="all">Tất cả trạng thái</option>
+            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterSource} onChange={e => setFilterSource(e.target.value)}>
+            <option value="all">Tất cả nguồn</option>
+            {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterTier} onChange={e => setFilterTier(e.target.value)}>
+            <option value="all">Tất cả hạng VIP</option>
+            <option value="New">New</option>
+            <option value="Silver">Silver</option>
+            <option value="Gold">Gold</option>
+            <option value="VIP">VIP</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}

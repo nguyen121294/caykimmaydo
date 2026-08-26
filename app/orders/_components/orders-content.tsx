@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins, FileSpreadsheet, Link2, Loader2, RefreshCw, Search } from 'lucide-react';
+import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins, FileSpreadsheet, Link2, Loader2, RefreshCw, Search, Trash2, Receipt, CreditCard, Scissors, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/app/components/page-header';
 import { Modal, Input, Select } from '@/app/components/form-controls';
@@ -119,16 +119,49 @@ export default function OrdersContent() {
   const totalDeposit = orders.reduce((sum: number, o: any) => sum + Number(o?.deposit ?? 0), 0);
   const totalRemain = totalRevenue - totalDeposit;
 
-  async function handleAddOrder(form: any) {
+  async function handleAddOrder(payload: { orderData: any; files?: Array<{ type: string; file: File }> } | any) {
     try {
+      const orderData = payload.orderData ?? payload;
+      const files = payload.files ?? [];
+
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(orderData),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Lỗi');
-      toast.success('Đã thêm đơn hàng mới');
+      if (!res.ok) throw new Error(json?.error || 'Lỗi tạo đơn hàng');
+
+      const createdOrder = json?.order;
+      if (files.length > 0 && createdOrder?.id) {
+        let uploadedCount = 0;
+        for (const item of files) {
+          try {
+            const fd = new FormData();
+            fd.append('file', item.file);
+            fd.append('type', item.type);
+            const uploadRes = await fetch(`/api/orders/${createdOrder.id}/assets/upload`, {
+              method: 'POST',
+              body: fd,
+            });
+            if (uploadRes.ok) uploadedCount++;
+          } catch (uploadErr) {
+            console.error('Upload asset error:', uploadErr);
+          }
+        }
+        if (uploadedCount > 0) {
+          toast.success(`Đã tạo đơn ${createdOrder.orderId || ''} và tải lên ${uploadedCount} ảnh thành công!`);
+        } else {
+          toast.success(`Đã tạo đơn ${createdOrder.orderId || ''} thành công!`);
+        }
+      } else {
+        if (!orderData.phone || orderData.phone === '1111111111') {
+          toast.success(`Đã tạo đơn ${createdOrder?.orderId || ''} thành công (chưa có SĐT nên chưa tạo hồ sơ CRM).`);
+        } else {
+          toast.success(`Đã tạo đơn ${createdOrder?.orderId || ''} và đồng bộ CRM thành công!`);
+        }
+      }
+
       setShowOrderForm(false);
       fetchData();
     } catch (e: any) {
@@ -638,10 +671,86 @@ export default function OrdersContent() {
   );
 }
 
-function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: string; onClose: () => void; onSave: (form: any) => void }) {
+function ImageUploadBox({
+  label,
+  file,
+  onChange,
+  onRemove,
+  icon: Icon,
+  accept = 'image/*',
+}: {
+  label: string;
+  file: File | null;
+  onChange: (file: File) => void;
+  onRemove: () => void;
+  icon: any;
+  accept?: string;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  return (
+    <div className="space-y-1.5">
+      <span className="block text-xs font-semibold text-gray-700">{label}</span>
+      {file && previewUrl ? (
+        <div className="relative flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-2.5">
+          <img src={previewUrl} alt={file.name} className="h-14 w-14 rounded-lg object-cover border border-gray-200 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-gray-900">{file.name}</p>
+            <p className="text-[11px] text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+          </div>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+            title="Xóa ảnh"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ) : (
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/60 p-3 text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50/30">
+          <Icon size={20} className="text-gray-400" />
+          <span className="text-xs font-medium text-indigo-600 hover:underline">Chọn hoặc kéo thả ảnh</span>
+          <span className="text-[10px] text-gray-400">PNG, JPG, WebP (&lt; 4MB)</span>
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(e) => {
+              const selected = e.target.files?.[0];
+              if (selected) {
+                if (selected.size > 4 * 1024 * 1024) {
+                  toast.error('Kích thước ảnh vượt quá 4MB');
+                  return;
+                }
+                onChange(selected);
+              }
+            }}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: string; onClose: () => void; onSave: (payload: any) => void }) {
   const [customers, setCustomers] = useState<Array<{ id: string; name: string; phone: string | null }>>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [productFile, setProductFile] = useState<File | null>(null);
+  const [depositBillFile, setDepositBillFile] = useState<File | null>(null);
+  const [balanceBillFile, setBalanceBillFile] = useState<File | null>(null);
+  const [fabricBillFile, setFabricBillFile] = useState<File | null>(null);
   const [form, setForm] = useState<any>({
     customerId: initialCustomerId,
     customerName: '',
@@ -659,10 +768,6 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
     fabricCost: '',
     tailorCost: '',
     shippingFee: '',
-    productImageUrl: '',
-    depositBillUrl: '',
-    balanceBillUrl: '',
-    fabricBillUrl: '',
     department: 'Tư vấn / Sale',
     status: 'Mới nhận',
     note: '',
@@ -707,13 +812,14 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
       toast.error('Tiền cọc không được lớn hơn tổng giá trị');
       return;
     }
-    const assets = [
-      ['PRODUCT', form.productImageUrl],
-      ['DEPOSIT_BILL', form.depositBillUrl],
-      ['BALANCE_BILL', form.balanceBillUrl],
-      ['FABRIC_BILL', form.fabricBillUrl],
-    ].filter(([, url]) => String(url ?? '').trim()).map(([type, url]) => ({ type, url }));
-    onSave({ ...form, assets });
+
+    const selectedFiles: Array<{ type: string; file: File }> = [];
+    if (productFile) selectedFiles.push({ type: 'PRODUCT', file: productFile });
+    if (depositBillFile) selectedFiles.push({ type: 'DEPOSIT_BILL', file: depositBillFile });
+    if (balanceBillFile) selectedFiles.push({ type: 'BALANCE_BILL', file: balanceBillFile });
+    if (fabricBillFile) selectedFiles.push({ type: 'FABRIC_BILL', file: fabricBillFile });
+
+    onSave({ orderData: form, files: selectedFiles });
   }
 
   const remain = Number(form.total || 0) - Number(form.deposit || 0);
@@ -736,7 +842,15 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
           <p className="mt-1.5 text-xs text-indigo-700">Khách mới có SĐT hợp lệ sẽ tự tạo trong CRM. Thiếu SĐT sẽ lưu là 1111111111 và chưa tạo CRM.</p>
         </div>
         <Input label="Tên khách hàng *" value={form.customerName} onChange={(v) => setForm({ ...form, customerName: v })} />
-        <Input label="Số điện thoại" value={form.phone} onChange={(v) => setForm({ ...form, customerId: '', phone: v })} placeholder="Để trống nếu chưa có" />
+        
+        <div className="space-y-1">
+          <Input label="Số điện thoại" value={form.phone} onChange={(v) => setForm({ ...form, customerId: '', phone: v })} placeholder="Để trống nếu chưa có" />
+          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            <AlertCircle size={13} className="shrink-0 mt-0.5 text-amber-600" />
+            <span><strong>Lưu ý:</strong> Không có SĐT thì đơn hàng vẫn được lưu đầy đủ nhưng CRM <strong>chưa tạo hồ sơ</strong> (để tránh trùng lặp). Bổ sung SĐT sau sẽ tự tạo CRM.</span>
+          </div>
+        </div>
+
         <Input label="Sản phẩm *" value={form.product} onChange={(v) => setForm({ ...form, product: v })} placeholder="VD: Áo dài thêu hoa sen" />
         <Select label="Loại sản phẩm" value={form.productType} options={productTypes} onChange={(v) => setForm({ ...form, productType: v })} />
         <Input label="Số lượng" type="number" value={form.quantity} onChange={(v) => setForm({ ...form, quantity: v })} />
@@ -759,10 +873,44 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
         <Input label="Chi phí vải thực tế" type="number" value={form.fabricCost} onChange={(v) => setForm({ ...form, fabricCost: v })} />
         <Input label="Tiền công may" type="number" value={form.tailorCost} onChange={(v) => setForm({ ...form, tailorCost: v })} />
         <Input label="Phí ship" type="number" value={form.shippingFee} onChange={(v) => setForm({ ...form, shippingFee: v })} />
-        <Input label="Link hình sản phẩm" value={form.productImageUrl} onChange={(v) => setForm({ ...form, productImageUrl: v })} />
-        <Input label="Link bill đặt cọc" value={form.depositBillUrl} onChange={(v) => setForm({ ...form, depositBillUrl: v })} />
-        <Input label="Link bill chuyển khoản còn lại" value={form.balanceBillUrl} onChange={(v) => setForm({ ...form, balanceBillUrl: v })} />
-        <Input label="Link bill vải" value={form.fabricBillUrl} onChange={(v) => setForm({ ...form, fabricBillUrl: v })} />
+
+        {/* Direct Image Upload Fields */}
+        <div className="md:col-span-2 border-t border-gray-100 pt-3">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
+            <Camera size={14} className="text-indigo-600" /> Tải lên hình ảnh &amp; Bill đính kèm
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <ImageUploadBox
+              label="1. Ảnh mẫu sản phẩm"
+              file={productFile}
+              onChange={setProductFile}
+              onRemove={() => setProductFile(null)}
+              icon={Camera}
+            />
+            <ImageUploadBox
+              label="2. Bill đặt cọc"
+              file={depositBillFile}
+              onChange={setDepositBillFile}
+              onRemove={() => setDepositBillFile(null)}
+              icon={CreditCard}
+            />
+            <ImageUploadBox
+              label="3. Bill tất toán còn lại"
+              file={balanceBillFile}
+              onChange={setBalanceBillFile}
+              onRemove={() => setBalanceBillFile(null)}
+              icon={Receipt}
+            />
+            <ImageUploadBox
+              label="4. Bill tiền vải"
+              file={fabricBillFile}
+              onChange={setFabricBillFile}
+              onRemove={() => setFabricBillFile(null)}
+              icon={Scissors}
+            />
+          </div>
+        </div>
+
         <div className="md:col-span-2">
           <Input label="Ghi chú" value={form.note} onChange={(v) => setForm({ ...form, note: v })} />
         </div>

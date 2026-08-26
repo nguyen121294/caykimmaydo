@@ -12,6 +12,20 @@ function getPhoneData(phone: unknown) {
   return { phone: normalizedPhone, normalizedPhone };
 }
 
+function sanitizeCustomerPayload(data: Record<string, any>) {
+  const result: Record<string, any> = { ...data };
+  if ('loyaltyPoints' in result) {
+    result.loyaltyPoints = Math.max(0, parseInt(String(result.loyaltyPoints || '0'), 10) || 0);
+  }
+  if ('totalSpent' in result) {
+    result.totalSpent = Math.max(0, parseFloat(String(result.totalSpent || '0')) || 0);
+  }
+  if ('totalOrders' in result) {
+    result.totalOrders = Math.max(0, parseInt(String(result.totalOrders || '0'), 10) || 0);
+  }
+  return result;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -49,9 +63,18 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const data = await req.json();
+    const rawData = await req.json();
+    const data = sanitizeCustomerPayload(rawData);
+    const name = String(data.name || '').trim();
+    if (!name) {
+      return NextResponse.json({ error: 'Tên khách hàng là bắt buộc' }, { status: 400 });
+    }
     const customer = await prisma.customer.create({
-      data: { ...data, ...getPhoneData(data.phone) },
+      data: {
+        ...data,
+        name,
+        ...getPhoneData(data.phone),
+      },
     });
     return NextResponse.json(customer, { status: 201 });
   } catch (error: any) {
@@ -67,7 +90,9 @@ export async function PATCH(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { id, ...data } = await req.json();
+    const rawData = await req.json();
+    const { id, ...rawFields } = rawData;
+    const data = sanitizeCustomerPayload(rawFields);
     const phoneData = 'phone' in data ? getPhoneData(data.phone) : {};
     const customer = await prisma.customer.update({
       where: { id },

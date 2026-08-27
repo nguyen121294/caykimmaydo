@@ -6,7 +6,7 @@ import {
   LayoutDashboard, BarChart3, Film, Package, MessageSquare,
   Users, Bell, Settings, BookOpen, Menu, X, LogOut, Scissors,
   UserCheck, Kanban, Megaphone, MessageCircle, Wallet,
-  FileSpreadsheet, Plug, ChevronDown, ChevronRight, ShieldCheck, Share2, Camera, RefreshCw
+  FileSpreadsheet, Plug, ChevronDown, ChevronRight, ShieldCheck, Share2, Camera, RefreshCw, Calendar
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -23,6 +23,7 @@ const navGroups = [
     items: [
       { href: '/crm', label: 'CRM Khách hàng', icon: UserCheck },
       { href: '/sales', label: 'Sales Pipeline', icon: Kanban },
+      { href: '/care', label: 'Lịch Hẹn & CSKH', icon: Calendar },
       { href: '/orders', label: 'Đơn Hàng', icon: Package },
     ]
   },

@@ -25,7 +25,9 @@ import {
   Pencil,
   MapPin,
   Instagram,
-  Sparkles
+  Sparkles,
+  Download,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -176,6 +178,37 @@ export default function CRMContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const downloadCustomerTemplate = () => {
+    const headers = [
+      'STT',
+      'Họ và tên',
+      'Số điện thoại',
+      'Email',
+      'Tài khoản Instagram / MXH',
+      'Địa chỉ',
+      'Nguồn khách',
+      'Nhãn / Tags',
+      'Ghi chú',
+      'Hạng thành viên',
+      'Tổng chi tiêu',
+      'Ngày mua gần nhất',
+      'Trạng thái'
+    ];
+    const sampleRows = [
+      ['1', 'Nguyễn Văn A', '0901234567', 'nguyenvana@gmail.com', '@maydo.official', '120 Phổ Quang, P.9, Q.Phú Nhuận, TP.HCM', 'Instagram', 'VIP, Đã may 3 lần', 'Thích đầm dạ hội lụa, phom ôm', 'Silver', '2500000', '2026-08-20', 'Đã mua'],
+      ['2', 'Trần Thị B', '0987654321', '', '@maydo.hn', 'Hà Nội', 'Facebook', 'Khách mới', 'Tư vấn may áo dài truyền thống', 'New', '0', '', 'Mới']
+    ];
+    const csvContent = '\uFEFF' + [headers.join(','), ...sampleRows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template-import-khach-hang-maydo.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Đã tải xuống file template mẫu import khách hàng');
+  };
+
   const handleAdd = async () => {
     if (!form.name.trim()) { toast.error('Vui lòng nhập tên khách hàng'); return; }
     setAddSaving(true);
@@ -240,6 +273,27 @@ export default function CRMContent() {
       toast.error(clientErrorMessage(error));
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDeleteCustomer = async (id: string, name: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa khách hàng "${name}" không?\nThao tác này sẽ xóa hồ sơ khách hàng.`)) return;
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Lỗi xóa khách hàng');
+      toast.success(`Đã xóa khách hàng "${name}" thành công`);
+      if (editId === id) {
+        setShowEdit(false);
+        setEditId(null);
+      }
+      fetchData();
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
     }
   };
 
@@ -454,6 +508,9 @@ export default function CRMContent() {
           <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5 font-medium transition-colors">
             <RefreshCw size={14} /> Làm mới
           </button>
+          <button onClick={downloadCustomerTemplate} className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm" title="Tải file Excel/CSV mẫu để chuẩn bị dữ liệu">
+            <Download size={14} className="text-indigo-600" /> Tải template mẫu
+          </button>
           <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setSheetPreview(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 font-medium transition-colors">
             <FileSpreadsheet size={14} /> Import khách hàng
           </button>
@@ -599,6 +656,13 @@ export default function CRMContent() {
                       >
                         <ShoppingCart size={12} /> Tạo đơn
                       </a>
+                      <button
+                        onClick={() => handleDeleteCustomer(c.id, c.name)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-white hover:bg-red-50 hover:text-red-600 border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-400 transition-colors"
+                        title="Xóa khách hàng"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -811,12 +875,23 @@ export default function CRMContent() {
                 <textarea className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-indigo-500" rows={2} placeholder="Ghi chú sở thích, số đo, lưu ý đặc biệt..." value={editForm.notes} onChange={e => setEditForm({...editForm, notes: e.target.value})} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-5 border-t border-slate-100 pt-3">
-              <button onClick={() => setShowEdit(false)} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium">Hủy</button>
-              <button onClick={handleSaveEdit} disabled={editSaving} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
-                {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
-                {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
-              </button>
+            <div className="flex items-center justify-between mt-5 border-t border-slate-100 pt-3">
+              {editId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCustomer(editId, editForm.name)}
+                  className="px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 size={14} /> Xóa khách hàng
+                </button>
+              )}
+              <div className="flex justify-end gap-2 ml-auto">
+                <button onClick={() => setShowEdit(false)} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium">Hủy</button>
+                <button onClick={handleSaveEdit} disabled={editSaving} className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium flex items-center gap-1.5 disabled:opacity-50">
+                  {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />}
+                  {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -827,10 +902,26 @@ export default function CRMContent() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowImport(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <FileSpreadsheet size={20} className="text-green-600" /> Import danh sách khách hàng
-              </h2>
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet size={20} className="text-green-600" />
+                <h2 className="text-lg font-bold text-slate-900">Import danh sách khách hàng</h2>
+              </div>
               <button aria-label="Đóng" onClick={() => setShowImport(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+
+            {/* Template Download Banner in Modal */}
+            <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-indigo-900">Chưa có file mẫu chuẩn 13 cột?</p>
+                <p className="text-[11px] text-indigo-700 mt-0.5">Tải template mẫu có sẵn các cột STT, Họ tên, SĐT, Email, Instagram, Chi tiêu, Hạng VIP...</p>
+              </div>
+              <button
+                type="button"
+                onClick={downloadCustomerTemplate}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors shadow-sm"
+              >
+                <Download size={13} /> Tải template mẫu
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1 mb-4">

@@ -117,7 +117,22 @@ export async function DELETE(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await req.json();
-    await prisma.customer.delete({ where: { id } });
+    if (!id) return NextResponse.json({ error: 'Thiếu ID khách hàng' }, { status: 400 });
+
+    await prisma.$transaction(async (tx) => {
+      // Disconnect linked orders
+      await tx.order.updateMany({
+        where: { customerId: id },
+        data: { customerId: null, needsCustomerPhone: true },
+      });
+      // Delete loyalty transactions
+      await tx.loyaltyTransaction.deleteMany({
+        where: { customerId: id },
+      });
+      // Delete customer
+      await tx.customer.delete({ where: { id } });
+    });
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

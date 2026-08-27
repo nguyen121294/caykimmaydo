@@ -297,64 +297,110 @@ export default function OrdersContent() {
     a.download = `du-lieu-don-hang-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     toast.success('Đã xuất file CSV');
-  }
+  };
+
+  const downloadOrdersTemplate = () => {
+    const headers = [
+      'Mã đơn hàng',
+      'Tên khách hàng',
+      'Số điện thoại',
+      'Sản phẩm',
+      'Số lượng',
+      'Tổng tiền',
+      'Tiền cọc',
+      'Ngày nhận đơn',
+      'Hạn giao hàng',
+      'Bộ phận',
+      'Trạng thái',
+      'Thợ may',
+      'Ghi chú'
+    ];
+    const sampleRows = [
+      ['MD-2026-001', 'Đặng Mai Anh', '0939286319', 'Đầm dạ hội may đo lụa', '1', '2000000', '1000000', '2026-08-05', '2026-08-20', 'May', 'Đang may', 'Thợ Hạnh', 'Vải lụa satin đỏ, may 2 lớp'],
+      ['MD-2026-002', 'Quyên Lê', '0855956368', 'Áo dài cách tân', '1', '1760000', '1000000', '2026-07-30', '2026-08-15', 'Hoàn thiện', 'Đã giao', 'Thợ Lan', 'Giao tận nhà']
+    ];
+    const csvContent = '\uFEFF' + [headers.join(','), ...sampleRows.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template-import-don-hang-maydo.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Đã tải xuống file template mẫu import đơn hàng');
+  };
+
+  const handleOrderStatusChange = async (orderId: string, status: string) => {
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId, status }),
+      });
+      if (!res.ok) throw new Error('Lỗi cập nhật trạng thái đơn hàng');
+      setData((prev: any) => ({
+        ...prev,
+        orders: (prev?.orders || []).map((o: any) => o.id === orderId ? { ...o, status } : o),
+      }));
+      toast.success(`Đã đổi trạng thái thành "${status}"`);
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: string, orderCode: string) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa đơn hàng "${orderCode}" không?\nThao tác này không thể hoàn tác.`)) return;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: orderId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Lỗi xóa đơn hàng');
+      toast.success(`Đã xóa đơn hàng "${orderCode}"`);
+      fetchData();
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Đơn Hàng & Sản Xuất"
-        description="Quản lý đơn hàng, doanh thu, tiền cọc và tiến độ"
-        icon={Package}
-        onRefresh={fetchData}
-      />
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setShowOrderForm(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-        >
-          <Plus size={16} /> Thêm đơn hàng
-        </button>
-        <button
-          onClick={exportCSV}
-          className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:shadow-md transition-all"
-        >
-          <Download size={16} /> Xuất CSV / Excel
-        </button>
-        <button
-          onClick={() => { setShowImport(true); setImportError(null); setImportPreview(null); setImportResult(null); }}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-all"
-        >
-          <FileSpreadsheet size={16} /> Import Google Sheet
-        </button>
-        <select
-          value={statusFilter}
-          onChange={(e: any) => setStatusFilter(e?.target?.value ?? '')}
-          className="px-3 py-2.5 text-sm bg-white rounded-lg shadow-sm border-0 outline-none ml-auto"
-        >
-          <option value="">Tất cả trạng thái</option>
-          {orderStatuses?.map?.((s: string) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
-        <div className="relative min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-3 text-gray-400" />
-          <input
-            value={orderSearch}
-            onChange={(e) => setOrderSearch(e.target.value)}
-            placeholder="Tìm mã, khách, SĐT..."
-            className="w-full rounded-lg bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none"
-          />
+      {/* Header matching CRM & Care standard */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Package className="text-indigo-600" size={28} /> Đơn Hàng &amp; Sản Xuất
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">Quản lý đơn hàng may đo, doanh thu, tiền cọc và tiến độ sản xuất</p>
         </div>
-        <button
-          type="button"
-          onClick={() => { setMissingPhoneOnly(value => !value); if (!missingPhoneOnly) setOrderSearch('1111111111'); }}
-          className={`rounded-lg px-3 py-2.5 text-sm font-medium shadow-sm ${missingPhoneOnly ? 'bg-amber-500 text-white' : 'bg-white text-amber-700'}`}
-        >
-          Cần bổ sung SĐT
-        </button>
-        <div className="text-sm text-gray-500">{orders?.length ?? 0} đơn hàng</div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5 font-medium transition-colors">
+            <RefreshCw size={14} /> Làm mới
+          </button>
+          <button onClick={downloadOrdersTemplate} className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm" title="Tải file Excel/CSV mẫu để import đơn hàng">
+            <Download size={14} className="text-indigo-600" /> Tải template mẫu
+          </button>
+          <button
+            onClick={() => { setShowImport(true); setImportError(null); setImportPreview(null); setImportResult(null); }}
+            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm flex items-center gap-1.5 font-medium transition-colors"
+          >
+            <FileSpreadsheet size={14} /> Import Google Sheet
+          </button>
+          <button
+            onClick={exportCSV}
+            className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm"
+          >
+            <Download size={14} /> Xuất CSV / Excel
+          </button>
+          <button
+            onClick={() => setShowOrderForm(true)}
+            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5 font-medium shadow-sm transition-colors"
+          >
+            <Plus size={14} /> Thêm đơn hàng
+          </button>
+        </div>
       </div>
 
       {/* Financial KPIs */}
@@ -418,10 +464,44 @@ export default function OrdersContent() {
         </div>
       </div>
 
+      {/* Filters and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            value={orderSearch}
+            onChange={(e) => setOrderSearch(e.target.value)}
+            placeholder="Tìm theo mã đơn, tên khách, số điện thoại, sản phẩm..."
+            className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+          />
+        </div>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e: any) => setStatusFilter(e?.target?.value ?? '')}
+            className="px-3 py-2.5 text-sm bg-white rounded-lg border border-slate-200 outline-none focus:border-indigo-500"
+          >
+            <option value="">Tất cả trạng thái</option>
+            {orderStatuses?.map?.((s: string) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { setMissingPhoneOnly(value => !value); if (!missingPhoneOnly) setOrderSearch('1111111111'); }}
+            className={`rounded-lg px-3 py-2.5 text-sm font-medium border transition-colors ${missingPhoneOnly ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'}`}
+          >
+            Cần bổ sung SĐT
+          </button>
+          <div className="text-xs text-slate-500 whitespace-nowrap pl-1 font-medium">({orders?.length ?? 0} đơn)</div>
+        </div>
+      </div>
+
       {/* Orders Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-5 border-b">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700">Danh Sách Đơn Hàng</h3>
+          <span className="text-xs text-slate-400">💡 Bạn có thể bấm vào cột Trạng thái để sửa trực tiếp</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -437,13 +517,14 @@ export default function OrdersContent() {
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Ngày giao</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Bộ phận</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-600">Trạng thái</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-600">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {(orders ?? [])?.map?.((o: any) => {
                 const remain = Number(o?.total ?? 0) - Number(o?.deposit ?? 0);
                 return (
-                  <tr key={o?.id} className="hover:bg-gray-50">
+                  <tr key={o?.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-bold text-indigo-600">{o?.orderId ?? ''}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{o?.customerName ?? ''}</div>
@@ -476,14 +557,32 @@ export default function OrdersContent() {
                     <td className="px-4 py-3 font-mono text-xs">{o?.deliveryDate ?? o?.expectedDate ?? ''}</td>
                     <td className="px-4 py-3 text-xs">{o?.department ?? ''}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(o?.status ?? '')}`}>{o?.status ?? ''}</span>
+                      <select
+                        className={`text-xs px-2.5 py-1 rounded-lg border border-slate-200 font-medium cursor-pointer outline-none transition-colors ${getStatusBadge(o?.status ?? '')}`}
+                        value={o?.status ?? 'Mới nhận'}
+                        onChange={(e) => handleOrderStatusChange(o.id, e.target.value)}
+                        title="Bấm để đổi trạng thái đơn hàng trực tiếp"
+                      >
+                        {orderStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDeleteOrder(o.id, o.orderId || o.customerName)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-white hover:bg-red-50 hover:text-red-600 border border-slate-200 p-1.5 text-xs text-slate-400 transition-colors"
+                          title="Xóa đơn hàng"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               }) ?? []}
               {orders?.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-400">Chưa có đơn hàng nào. Nhấn &quot;Thêm đơn hàng&quot; để bắt đầu.</td>
+                  <td colSpan={11} className="px-4 py-12 text-center text-gray-400">Chưa có đơn hàng nào. Nhấn &quot;Thêm đơn hàng&quot; để bắt đầu.</td>
                 </tr>
               )}
             </tbody>
@@ -538,6 +637,21 @@ export default function OrdersContent() {
       {showImport && (
         <Modal title="Import / cập nhật Orders từ Google Sheet" onClose={() => setShowImport(false)}>
           <div className="space-y-4">
+            {/* Template Download Banner in Modal */}
+            <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3.5 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-indigo-900">Chưa có file mẫu đơn hàng chuẩn?</p>
+                <p className="text-[11px] text-indigo-700 mt-0.5">Tải template mẫu gồm Mã đơn, Khách hàng, SĐT, Sản phẩm, Tổng tiền, Cọc, Hạn giao...</p>
+              </div>
+              <button
+                type="button"
+                onClick={downloadOrdersTemplate}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors shadow-sm"
+              >
+                <Download size={13} /> Tải template mẫu
+              </button>
+            </div>
+
             <div>
               <label htmlFor="orders-google-sheet-url" className="mb-1.5 block text-xs font-semibold text-gray-700">Link Google Sheet công khai</label>
               <div className="relative">

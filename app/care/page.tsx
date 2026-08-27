@@ -1,3 +1,4 @@
+import DashboardShell from '@/app/components/dashboard-shell';
 import CareContent from './_components/care_content';
 
 export const metadata = {
@@ -7,8 +8,8 @@ export const metadata = {
 
 export default function CarePage() {
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <DashboardShell>
       <CareContent />
-    </div>
+    </DashboardShell>
   );
 }

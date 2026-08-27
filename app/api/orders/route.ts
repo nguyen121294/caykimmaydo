@@ -220,3 +220,26 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json() as Record<string, unknown>;
+    const id = optionalText(body.id);
+    if (!id) return NextResponse.json({ error: 'Thiếu id đơn hàng' }, { status: 400 });
+
+    await prisma.$transaction(async tx => {
+      const order = await tx.order.findUnique({ where: { id } });
+      if (!order) throw new Error('Không tìm thấy đơn hàng');
+      await tx.orderAsset.deleteMany({ where: { orderId: id } });
+      await tx.order.delete({ where: { id } });
+      await refreshCustomerSummary(tx, order.customerId);
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Error' }, { status: 500 });
+  }
+}
+

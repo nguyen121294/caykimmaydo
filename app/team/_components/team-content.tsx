@@ -1,26 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
-import { signOut } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Modal, Input, Select } from '@/app/components/form-controls';
+import { parseTaskViewBuffer } from '@/lib/task-import';
 
-const departments = [
-  'Tư vấn / Sale',
-  'Đo số',
-  'Thiết kế / Rập',
-  'Cắt vải',
-  'May',
-  'Thử đồ',
-  'Chỉnh sửa',
-  'Hoàn thiện / QC',
-  'Giao hàng',
-  'Chăm sóc khách hàng',
-];
-
-const taskStatuses = ['Chưa làm', 'Đang làm', 'Chờ duyệt', 'Hoàn thành', 'Trễ hạn'];
-const priorities = ['Thấp', 'Trung bình', 'Cao', 'Gấp'];
+const taskStatuses = ['Giao việc', 'Đang thực thi', 'Đã hoàn thành', 'Huỷ'];
 
 const roleData = {
   OWNER: {
@@ -117,89 +103,134 @@ const roleData = {
   },
 };
 
-function formatDate(d: any) {
-  if (!d) return '';
-  try {
-    return new Date(d).toLocaleDateString('vi-VN');
-  } catch {
-    return '';
+function statusBadge(s: string) {
+  if (s === 'Đã hoàn thành') {
+    return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   }
+  if (s === 'Đang thực thi') {
+    return 'bg-blue-50 text-blue-700 border-blue-200';
+  }
+  if (s === 'Giao việc') {
+    return 'bg-amber-50 text-amber-700 border-amber-200';
+  }
+  if (s === 'Huỷ' || s === 'Hủy') {
+    return 'bg-slate-100 text-slate-500 border-slate-200 line-through';
+  }
+  return 'bg-slate-50 text-slate-700 border-slate-200';
 }
 
-function priorityColor(p: string) {
-  if (p === 'Gấp') return 'bg-red-100 text-red-700 border-red-200';
-  if (p === 'Cao') return 'bg-orange-100 text-orange-700 border-orange-200';
-  if (p === 'Trung bình') return 'bg-amber-100 text-amber-700 border-amber-200';
-  return 'bg-gray-100 text-gray-700 border-gray-200';
-}
-
-function statusColor(s: string) {
-  if (s === 'Hoàn thành') return 'bg-green-100 text-green-700';
-  if (s === 'Đang làm') return 'bg-blue-100 text-blue-700';
-  if (s === 'Chờ duyệt') return 'bg-amber-100 text-amber-700';
-  if (s === 'Trễ hạn') return 'bg-red-100 text-red-700';
-  return 'bg-gray-100 text-gray-700';
+function assigneeBadge(name: string | null) {
+  if (!name) return 'bg-slate-100 text-slate-600';
+  if (name.includes('Ngọc')) return 'bg-purple-100 text-purple-800 border-purple-200';
+  if (name.includes('Hà')) return 'bg-sky-100 text-sky-800 border-sky-200';
+  if (name.includes('Thoa')) return 'bg-rose-100 text-rose-800 border-rose-200';
+  return 'bg-indigo-100 text-indigo-800 border-indigo-200';
 }
 
 export default function TeamContent() {
-  const [view, setView] = useState('tasks');
+  const [view, setView] = useState<'tasks' | 'roles'>('tasks');
   const [tasks, setTasks] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [showUserForm, setShowUserForm] = useState(false);
-  const [showResetForm, setShowResetForm] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-
-  const emptyUser = { name: '', email: '', password: '', role: 'user' };
-  const [userForm, setUserForm] = useState(emptyUser);
-  const [resetForm, setResetForm] = useState({ newPassword: '' });
-
-  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+
+  // Filters & Search
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [filterDept, setFilterDept] = useState('all');
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(30);
+
+  // Form modal
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [expandedRole, setExpandedRole] = useState<string | null>(null);
-  const [filterDept, setFilterDept] = useState('all');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const emptyTask = {
     name: '',
-    department: departments[0],
-    assignee: '',
-    orderId: '',
-    priority: 'Trung bình',
-    startDate: '',
+    department: '',
+    assignee: 'Ngọc',
     deadline: '',
-    status: 'Chưa làm',
+    status: 'Giao việc',
     description: '',
     note: '',
-    checklist: [] as any[],
+    sourceUrl: '',
+    sourceUrl2: '',
   };
   const [form, setForm] = useState<any>(emptyTask);
 
-  async function loadAll() {
+  async function loadTasks() {
     setLoading(true);
     try {
-      const [tRes, oRes, uRes] = await Promise.all([
-        fetch('/api/tasks'),
-        fetch('/api/orders'),
-        fetch('/api/users'),
-      ]);
-      const tData = await tRes.json();
-      const oData = await oRes.json();
-      const uData = await uRes.json();
-      setTasks(Array.isArray(tData) ? tData : []);
-      setOrders(Array.isArray(oData) ? oData : []);
-      setUsers(Array.isArray(uData) ? uData : []);
-    } catch (e) {
-      toast.error('Lỗi tải dữ liệu');
+      const res = await fetch('/api/tasks');
+      const data = await res.json();
+      const list = data?.tasks ?? (Array.isArray(data) ? data : []);
+      setTasks(list);
+    } catch {
+      toast.error('Lỗi tải danh sách công việc');
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadAll();
+    loadTasks();
   }, []);
+
+  async function syncLocalExcel() {
+    if (!confirm('Đồng bộ lại toàn bộ dữ liệu từ file docs/taskview.xlsx?')) return;
+    setSyncing(true);
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync-file' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi đồng bộ');
+      toast.success(data.message || 'Đã đồng bộ thành công');
+      loadTasks();
+    } catch (e: any) {
+      toast.error(e.message || 'Lỗi đồng bộ file Excel');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      toast.info('Đang đọc file Excel...');
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const items = parseTaskViewBuffer(buffer);
+      if (items.length === 0) {
+        toast.error('Không tìm thấy dữ liệu công việc trong file.');
+        return;
+      }
+
+      if (confirm(`Tìm thấy ${items.length} công việc. Bạn có muốn nạp vào bảng công việc không?`)) {
+        setSyncing(true);
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'import', items, overwrite: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Lỗi import');
+        toast.success(`Đã nạp ${data.count} công việc thành công!`);
+        loadTasks();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi xử lý file Excel');
+    } finally {
+      setSyncing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -209,80 +240,45 @@ export default function TeamContent() {
 
   function openEdit(t: any) {
     setEditing(t);
+    const sources = Array.isArray(t.checklist)
+      ? t.checklist.map((c: any) => c.url || c.text).filter((u: any) => typeof u === 'string' && u.startsWith('http'))
+      : [];
+
     setForm({
       name: t.name || '',
-      department: t.department || departments[0],
+      department: t.department || '',
       assignee: t.assignee || '',
-      orderId: t.orderId || '',
-      priority: t.priority || 'Trung bình',
-      startDate: t.startDate ? new Date(t.startDate).toISOString().slice(0, 10) : '',
-      deadline: t.deadline ? new Date(t.deadline).toISOString().slice(0, 10) : '',
-      status: t.status || 'Chưa làm',
+      deadline: t.deadline || '',
+      status: t.status || 'Giao việc',
       description: t.description || '',
       note: t.note || '',
-      checklist: Array.isArray(t.checklist) ? t.checklist : [],
+      sourceUrl: sources[0] || '',
+      sourceUrl2: sources[1] || '',
     });
     setShowForm(true);
   }
 
-  function generatePassword() {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    let pass = '';
-    for (let i = 0; i < 10; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return pass;
-  }
-
-  async function saveUserForm() {
-    if (!userForm.name || !userForm.email || !userForm.password) {
-      toast.error('Vui lòng nhập đầy đủ thông tin');
-      return;
-    }
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userForm),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Lỗi tạo tài khoản');
-      }
-      toast.success('Đã tạo tài khoản');
-      setShowUserForm(false);
-      loadAll();
-    } catch (e: any) {
-      toast.error(e.message || 'Lỗi lưu tài khoản');
-    }
-  }
-
-  async function saveResetForm() {
-    if (!resetForm.newPassword) {
-      toast.error('Vui lòng nhập mật khẩu mới');
-      return;
-    }
-    try {
-      const res = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: selectedUser.id, newPassword: resetForm.newPassword }),
-      });
-      if (!res.ok) throw new Error('Update failed');
-      toast.success('Đã reset mật khẩu');
-      setShowResetForm(false);
-    } catch (e) {
-      toast.error('Lỗi reset mật khẩu');
-    }
-  }
-
   async function saveForm() {
-    if (!form.name || !form.department) {
-      toast.error('Vui lòng nhập tên task và phòng ban');
+    if (!form.name && !form.department && !form.description) {
+      toast.error('Vui lòng nhập tên công việc hoặc chi tiết');
       return;
     }
     try {
-      const payload = { ...form };
+      const checklist: any[] = [];
+      if (form.sourceUrl) checklist.push({ text: 'Nguồn 1', url: form.sourceUrl, done: form.status === 'Đã hoàn thành' });
+      if (form.sourceUrl2) checklist.push({ text: 'Nguồn 2', url: form.sourceUrl2, done: form.status === 'Đã hoàn thành' });
+
+      const payload = {
+        name: form.name || form.department || 'Công việc',
+        department: form.department || 'Tổng hợp',
+        description: form.description || form.name || '',
+        assignee: form.assignee || null,
+        deadline: form.deadline || null,
+        status: form.status || 'Giao việc',
+        note: form.note || null,
+        checklist,
+      };
+
       if (editing) {
         const res = await fetch('/api/tasks', {
           method: 'PATCH',
@@ -290,7 +286,7 @@ export default function TeamContent() {
           body: JSON.stringify({ id: editing.id, ...payload }),
         });
         if (!res.ok) throw new Error('Update failed');
-        toast.success('Đã cập nhật task');
+        toast.success('Đã cập nhật công việc');
       } else {
         const res = await fetch('/api/tasks', {
           method: 'POST',
@@ -298,641 +294,649 @@ export default function TeamContent() {
           body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error('Create failed');
-        toast.success('Đã thêm task');
+        toast.success('Đã thêm công việc mới');
       }
       setShowForm(false);
-      loadAll();
-    } catch (e) {
-      toast.error('Lỗi lưu task');
+      loadTasks();
+    } catch (e: any) {
+      toast.error(e.message || 'Lỗi lưu công việc');
     }
   }
 
   async function deleteTask(id: string) {
-    if (!confirm('Xóa task này?')) return;
+    if (!confirm('Bạn có chắc chắn muốn xóa công việc này?')) return;
     try {
       const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      toast.success('Đã xóa');
-      loadAll();
+      toast.success('Đã xóa công việc');
+      loadTasks();
     } catch {
-      toast.error('Lỗi xóa');
+      toast.error('Lỗi xóa công việc');
     }
   }
 
-  async function updateField(id: string, patch: any) {
+  async function updateStatus(id: string, status: string) {
     try {
       const res = await fetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...patch }),
+        body: JSON.stringify({ id, status }),
       });
       if (!res.ok) throw new Error('Update failed');
-      loadAll();
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
+      toast.success('Đã đổi trạng thái');
     } catch {
-      toast.error('Lỗi cập nhật');
+      toast.error('Lỗi cập nhật trạng thái');
     }
   }
 
-  function addChecklistItem() {
-    setForm({ ...form, checklist: [...(form.checklist || []), { text: '', done: false }] });
-  }
-
-  function updateChecklist(idx: number, text: string) {
-    const next = [...(form.checklist || [])];
-    next[idx] = { ...next[idx], text };
-    setForm({ ...form, checklist: next });
-  }
-
-  function removeChecklistItem(idx: number) {
-    const next = (form.checklist || []).filter((_: any, i: number) => i !== idx);
-    setForm({ ...form, checklist: next });
-  }
-
-  async function toggleChecklistOnTask(task: any, idx: number) {
-    const next = (task.checklist || []).map((it: any, i: number) =>
-      i === idx ? { ...it, done: !it.done } : it,
-    );
-    await updateField(task.id, { checklist: next });
-  }
-
-  const filteredTasks = useMemo(() => {
-    if (filterDept === 'all') return tasks;
-    return tasks.filter((t) => t.department === filterDept);
-  }, [tasks, filterDept]);
-
-  const grouped = useMemo(() => {
-    const map: any = {};
-    departments.forEach((d) => (map[d] = []));
-    filteredTasks.forEach((t) => {
-      const d = t.department || departments[0];
-      if (!map[d]) map[d] = [];
-      map[d].push(t);
+  // Unique options for filters
+  const assignees = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach((t) => {
+      if (t.assignee) set.add(t.assignee);
     });
-    return map;
-  }, [filteredTasks]);
+    return Array.from(set).sort();
+  }, [tasks]);
+
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    tasks.forEach((t) => {
+      if (t.department) set.add(t.department);
+    });
+    return Array.from(set).sort();
+  }, [tasks]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
+    let cancelled = 0;
+
+    tasks.forEach((t) => {
+      if (t.status === 'Đã hoàn thành') completed++;
+      else if (t.status === 'Đang thực thi') inProgress++;
+      else if (t.status === 'Huỷ' || t.status === 'Hủy') cancelled++;
+      else pending++;
+    });
+
+    return { total: tasks.length, completed, inProgress, pending, cancelled };
+  }, [tasks]);
+
+  // Filtered List
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+      if (filterAssignee !== 'all' && t.assignee !== filterAssignee) return false;
+      if (filterDept !== 'all' && t.department !== filterDept) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const matchName = (t.name || '').toLowerCase().includes(q);
+        const matchDept = (t.department || '').toLowerCase().includes(q);
+        const matchDesc = (t.description || '').toLowerCase().includes(q);
+        const matchAssignee = (t.assignee || '').toLowerCase().includes(q);
+        const matchNote = (t.note || '').toLowerCase().includes(q);
+        if (!matchName && !matchDept && !matchDesc && !matchAssignee && !matchNote) return false;
+      }
+      return true;
+    });
+  }, [tasks, filterStatus, filterAssignee, filterDept, search]);
+
+  // Paginated List
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTasks.slice(start, start + pageSize);
+  }, [filteredTasks, currentPage, pageSize]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap gap-4 items-center justify-between">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Header tinh gọn: Không có nút Đơn hàng và Đăng xuất */}
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-slate-600 hover:text-slate-900">←</Link>
-            <h1 className="text-xl font-bold text-slate-900">Team & Quy trình</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/orders" className="text-sm text-slate-600 hover:text-slate-900">Đơn hàng</Link>
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="text-sm text-slate-600 hover:text-slate-900"
+            <Link
+              href="/"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
+              title="Quay lại trang chủ"
             >
-              Đăng xuất
+              ←
+            </Link>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Team & Bảng Công Việc</h1>
+              <p className="text-xs text-slate-500">Quản lý phân công, tiến độ và quy trình làm việc xưởng</p>
+            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="inline-flex bg-slate-100 rounded-lg p-1 border border-slate-200/80">
+            <button
+              onClick={() => setView('tasks')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition ${
+                view === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📋 Bảng công việc ({tasks.length})
+            </button>
+            <button
+              onClick={() => setView('roles')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition ${
+                view === 'roles' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👥 Vai trò & Quy trình
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <div className="inline-flex bg-white rounded-lg border border-slate-200 p-1">
-            <button
-              onClick={() => setView('tasks')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                view === 'tasks' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Bảng công việc
-            </button>
-            <button
-              onClick={() => setView('roles')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                view === 'roles' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Vai trò & Quy trình
-            </button>
-            <button
-              onClick={() => setView('users')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
-                view === 'users' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tài khoản
-            </button>
-          </div>
-          {view === 'tasks' && (
-            <div className="flex items-center gap-2">
-              <select
-                value={filterDept}
-                onChange={(e) => setFilterDept(e.target.value)}
-                className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white"
-              >
-                <option value="all">Tất cả phòng ban</option>
-                {departments.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              <button
-                onClick={openCreate}
-                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800"
-              >
-                + Thêm task
-              </button>
-            </div>
-          )}
-        </div>
-
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {view === 'tasks' && (
-          <div>
-            {loading ? (
-              <div className="text-center py-12 text-slate-500">Đang tải...</div>
-            ) : (
-              <div className="space-y-6">
-                {departments.map((dept) => {
-                  const list = grouped[dept] || [];
-                  if (filterDept !== 'all' && filterDept !== dept) return null;
-                  if (list.length === 0 && filterDept === 'all') return null;
-                  return (
-                    <div key={dept} className="bg-white rounded-lg border border-slate-200">
-                      <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                        <h3 className="font-semibold text-slate-900">{dept}</h3>
-                        <span className="text-xs text-slate-500">{list.length} task</span>
-                      </div>
-                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {list.length === 0 ? (
-                          <div className="text-sm text-slate-400 col-span-full">Chưa có task</div>
-                        ) : (
-                          list.map((t: any) => {
-                            const cl = Array.isArray(t.checklist) ? t.checklist : [];
-                            const total = cl.length;
-                            const done = cl.filter((it: any) => it.done).length;
-                            const pct = total ? Math.round((done / total) * 100) : 0;
-                            const isLate =
-                              t.deadline &&
-                              new Date(t.deadline) < new Date() &&
-                              t.status !== 'Hoàn thành';
-                            return (
-                              <div
-                                key={t.id}
-                                className="border border-slate-200 rounded-md p-3 hover:shadow-sm transition"
-                              >
-                                <div className="flex items-start justify-between gap-2 mb-2">
-                                  <button
-                                    onClick={() => openEdit(t)}
-                                    className="text-left font-medium text-slate-900 hover:text-slate-700"
-                                  >
-                                    {t.name}
-                                  </button>
-                                  <span
-                                    className={`px-2 py-0.5 text-xs rounded border ${priorityColor(
-                                      t.priority,
-                                    )}`}
-                                  >
-                                    {t.priority}
-                                  </span>
-                                </div>
-                                {t.assignee && (
-                                  <div className="text-xs text-slate-600 mb-1">
-                                    👤 {t.assignee}
-                                  </div>
-                                )}
-                                {t.orderId && (
-                                  <div className="text-xs text-slate-600 mb-1">
-                                    📦 {t.orderId}
-                                  </div>
-                                )}
-                                {t.deadline && (
-                                  <div
-                                    className={`text-xs mb-2 ${
-                                      isLate ? 'text-red-600 font-medium' : 'text-slate-600'
-                                    }`}
-                                  >
-                                    ⏰ {formatDate(t.deadline)}
-                                    {isLate ? ' (Trễ)' : ''}
-                                  </div>
-                                )}
-                                {total > 0 && (
-                                  <div className="mb-2">
-                                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                                      <span>{done}/{total} mục</span>
-                                      <span>{pct}%</span>
-                                    </div>
-                                    <div className="h-1.5 w-full bg-slate-100 rounded-full">
-                                      <div
-                                        className="h-1.5 bg-green-500 rounded-full"
-                                        style={{ width: `${pct}%` }}
-                                      />
-                                    </div>
-                                    <div className="mt-2 space-y-1">
-                                      {cl.slice(0, 3).map((it: any, idx: number) => (
-                                        <label
-                                          key={idx}
-                                          className="flex items-center gap-2 text-xs text-slate-700"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={!!it.done}
-                                            onChange={() => toggleChecklistOnTask(t, idx)}
-                                          />
-                                          <span className={it.done ? 'line-through text-slate-400' : ''}>
-                                            {it.text}
-                                          </span>
-                                        </label>
-                                      ))}
-                                      {cl.length > 3 && (
-                                        <div className="text-xs text-slate-400">
-                                          +{cl.length - 3} mục khác...
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="flex items-center justify-between gap-2 mt-2">
-                                  <select
-                                    value={t.status}
-                                    onChange={(e) => updateField(t.id, { status: e.target.value })}
-                                    className={`text-xs px-2 py-1 rounded ${statusColor(
-                                      t.status,
-                                    )} border-0 cursor-pointer`}
-                                  >
-                                    {taskStatuses.map((s) => (
-                                      <option key={s} value={s}>{s}</option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => deleteTask(t.id)}
-                                    className="text-xs text-red-500 hover:text-red-700"
-                                  >
-                                    Xóa
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+          <div className="space-y-5">
+            {/* KPI Cards Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="text-xs font-medium text-slate-500">Tổng công việc</div>
+                <div className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</div>
               </div>
-            )}
-          </div>
-        )}
-
-        {view === 'users' && (
-          <div>
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => {
-                  setUserForm(emptyUser);
-                  setShowUserForm(true);
-                }}
-                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800"
-              >
-                + Thêm tài khoản
-              </button>
+              <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200 shadow-sm">
+                <div className="text-xs font-medium text-emerald-700">Đã hoàn thành</div>
+                <div className="text-2xl font-bold text-emerald-700 mt-1">{stats.completed}</div>
+              </div>
+              <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200 shadow-sm">
+                <div className="text-xs font-medium text-blue-700">Đang thực thi</div>
+                <div className="text-2xl font-bold text-blue-700 mt-1">{stats.inProgress}</div>
+              </div>
+              <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 shadow-sm">
+                <div className="text-xs font-medium text-amber-700">Giao việc (Chờ)</div>
+                <div className="text-2xl font-bold text-amber-700 mt-1">{stats.pending}</div>
+              </div>
+              <div className="bg-slate-100 p-3.5 rounded-xl border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
+                <div className="text-xs font-medium text-slate-500">Huỷ / Tạm dừng</div>
+                <div className="text-2xl font-bold text-slate-600 mt-1">{stats.cancelled}</div>
+              </div>
             </div>
-            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Họ tên</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium">Vai trò</th>
-                    <th className="px-4 py-3 font-medium">Ngày tạo</th>
-                    <th className="px-4 py-3 font-medium text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{u.name}</td>
-                      <td className="px-4 py-3">{u.email}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded text-xs ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
-                          {u.role === 'admin' ? 'Admin' : 'User'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">{formatDate(u.createdAt)}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedUser(u);
-                            setResetForm({ newPassword: '' });
-                            setShowResetForm(true);
-                          }}
-                          className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
-                        >
-                          Reset mật khẩu
-                        </button>
-                      </td>
-                    </tr>
+
+            {/* Action Bar & Filters */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="🔍 Tìm kiếm công việc, chi tiết, người phụ trách, link nguồn..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full text-xs sm:text-sm pl-3 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50/50"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Selects */}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => {
+                    setFilterStatus(e.target.value);
+                    setPage(1);
+                  }}
+                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value="all">Tất cả tình trạng</option>
+                  {taskStatuses.map((s) => (
+                    <option key={s} value={s}>{s}</option>
                   ))}
-                  {users.length === 0 && (
+                </select>
+
+                <select
+                  value={filterAssignee}
+                  onChange={(e) => {
+                    setFilterAssignee(e.target.value);
+                    setPage(1);
+                  }}
+                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value="all">Tất cả người phụ trách</option>
+                  {assignees.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={filterDept}
+                  onChange={(e) => {
+                    setFilterDept(e.target.value);
+                    setPage(1);
+                  }}
+                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[150px] truncate"
+                >
+                  <option value="all">Tất cả nhóm</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+
+                {/* Import / Sync / Create Actions */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={syncing}
+                  className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5"
+                  title="Tải lên file Excel để nạp công việc"
+                >
+                  📥 Upload Excel
+                </button>
+
+                <button
+                  onClick={syncLocalExcel}
+                  disabled={syncing}
+                  className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5"
+                  title="Đồng bộ lại từ docs/taskview.xlsx"
+                >
+                  {syncing ? '⏳ Đang đồng bộ...' : '🔄 Đồng bộ file gốc'}
+                </button>
+
+                <button
+                  onClick={openCreate}
+                  className="text-xs px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg transition shadow-sm flex items-center gap-1.5"
+                >
+                  + Thêm việc
+                </button>
+              </div>
+            </div>
+
+            {/* Task Table View */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-100/80 text-slate-700 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                        Chưa có tài khoản nào
-                      </td>
+                      <th className="py-3 px-3 w-12 text-center">STT</th>
+                      <th className="py-3 px-3 w-36">Tình trạng</th>
+                      <th className="py-3 px-3 w-28">Deadline</th>
+                      <th className="py-3 px-3 w-44">Nhóm công việc</th>
+                      <th className="py-3 px-4 min-w-[240px]">Chi tiết công việc</th>
+                      <th className="py-3 px-3 w-32">Người phụ trách</th>
+                      <th className="py-3 px-3 w-48">Nguồn / File đính kèm</th>
+                      <th className="py-3 px-3 w-20 text-right">Thao tác</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                          Đang tải danh sách công việc...
+                        </td>
+                      </tr>
+                    ) : paginatedTasks.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                          Không tìm thấy công việc nào phù hợp với bộ lọc.
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedTasks.map((t, idx) => {
+                        const stt = (currentPage - 1) * pageSize + idx + 1;
+                        const links = Array.isArray(t.checklist)
+                          ? t.checklist.filter((c: any) => c.url && typeof c.url === 'string')
+                          : [];
+
+                        return (
+                          <tr
+                            key={t.id}
+                            className={`hover:bg-slate-50/80 transition-colors ${
+                              t.status === 'Đã hoàn thành' ? 'bg-emerald-50/10' : ''
+                            }`}
+                          >
+                            <td className="py-3 px-3 text-center font-medium text-slate-400">
+                              {stt}
+                            </td>
+                            <td className="py-3 px-3">
+                              <select
+                                value={t.status}
+                                onChange={(e) => updateStatus(t.id, e.target.value)}
+                                className={`text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none transition ${statusBadge(
+                                  t.status
+                                )}`}
+                              >
+                                {taskStatuses.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-3 px-3 font-medium text-slate-600">
+                              {t.deadline ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <span>📅</span>
+                                  <span>{t.deadline}</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 font-medium text-slate-900">
+                              <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
+                                {t.department || t.name || 'Tổng hợp'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-normal text-slate-800 whitespace-pre-line leading-relaxed">
+                                {t.description || t.name}
+                              </div>
+                              {t.note && (
+                                <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded inline-block">
+                                  📝 {t.note}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {t.assignee ? (
+                                <span
+                                  className={`inline-block font-semibold px-2.5 py-0.5 rounded-full border text-[11px] ${assigneeBadge(
+                                    t.assignee
+                                  )}`}
+                                >
+                                  {t.assignee}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3">
+                              {links.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {links.map((link: any, i: number) => {
+                                    let label = `🔗 Nguồn ${i + 1}`;
+                                    if (link.url.includes('docs.google.com/spreadsheets')) label = '📊 Google Sheet';
+                                    else if (link.url.includes('instagram.com')) label = '📸 Instagram';
+                                    else if (link.url.includes('apps.abacus.ai') || link.url.includes('maydo.abacusai')) label = '⚡ App/Agent';
+                                    else if (link.url.includes('chatgpt.com') || link.url.includes('gemini.google')) label = '🤖 AI Chat';
+
+                                    return (
+                                      <a
+                                        key={i}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-800 px-2 py-0.5 rounded transition border border-indigo-100"
+                                        title={link.url}
+                                      >
+                                        {label} ↗
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">Không có</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => openEdit(t)}
+                                  className="text-slate-500 hover:text-indigo-600 p-1 rounded hover:bg-slate-100 transition"
+                                  title="Chỉnh sửa"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => deleteTask(t.id)}
+                                  className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition"
+                                  title="Xóa"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination footer */}
+              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span>Hiển thị</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="border border-slate-200 rounded px-2 py-1 bg-white font-medium focus:outline-none"
+                  >
+                    <option value={20}>20</option>
+                    <option value={30}>30</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={filteredTasks.length}>Tất cả ({filteredTasks.length})</option>
+                  </select>
+                  <span>dòng trên trang (Tổng {filteredTasks.length} công việc)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    ← Trước
+                  </button>
+                  <span className="font-semibold text-slate-800">
+                    Trang {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Sau →
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
+        {/* Tab: Vai trò & Quy trình (Luôn mở đầy đủ 100%) */}
         {view === 'roles' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(roleData).map(([key, role]: any) => {
-              const expanded = expandedRole === key;
-              return (
+          <div className="space-y-6">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Bản đồ Vai trò & Trách nhiệm Xưởng May</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Toàn bộ quy trình và nhiệm vụ hằng ngày, hằng tuần của từng vị trí được hiển thị chi tiết bên dưới.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Object.entries(roleData).map(([key, role]) => (
                 <div
                   key={key}
-                  className="bg-white rounded-lg border border-slate-200 overflow-hidden"
+                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col"
                 >
-                  <button
-                    onClick={() => setExpandedRole(expanded ? null : key)}
-                    className={`w-full bg-gradient-to-r ${role.color} text-white p-4 flex items-center gap-3 text-left`}
-                  >
-                    <span className="text-3xl">{role.icon}</span>
-                    <div className="flex-1">
-                      <h3 className="font-bold">{role.name}</h3>
-                      <p className="text-xs opacity-90">{role.description}</p>
+                  {/* Card Header Gradient */}
+                  <div className={`bg-gradient-to-r ${role.color} text-white p-5 flex items-start gap-3.5`}>
+                    <span className="text-3xl bg-white/20 p-2 rounded-xl backdrop-blur-sm shadow-inner">
+                      {role.icon}
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-bold tracking-tight">{role.name}</h3>
+                      <p className="text-xs text-white/90 leading-relaxed mt-1">{role.description}</p>
                     </div>
-                    <span>{expanded ? '−' : '+'}</span>
-                  </button>
-                  {expanded && (
-                    <div className="p-4 space-y-3">
+                  </div>
+
+                  {/* Card Body - Luôn mở 100% */}
+                  <div className="p-5 space-y-4 flex-1 flex flex-col justify-between bg-white">
+                    <div className="space-y-4">
+                      {/* Daily Tasks */}
                       <div>
-                        <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                          Hằng ngày
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          Nhiệm vụ Hằng ngày
                         </h4>
-                        <ul className="text-sm text-slate-700 space-y-1">
+                        <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                           {role.dailyTasks.map((t: string, i: number) => (
-                            <li key={i}>• {t}</li>
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-emerald-600 font-bold text-sm leading-none">•</span>
+                              <span>{t}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
+
+                      {/* Weekly Tasks */}
                       <div>
-                        <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                          Hằng tuần
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                          Nhiệm vụ Hằng tuần
                         </h4>
-                        <ul className="text-sm text-slate-700 space-y-1">
+                        <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                           {role.weeklyTasks.map((t: string, i: number) => (
-                            <li key={i}>• {t}</li>
+                            <li key={i} className="flex items-start gap-1.5">
+                              <span className="text-indigo-600 font-bold text-sm leading-none">•</span>
+                              <span>{t}</span>
+                            </li>
                           ))}
                         </ul>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                          Công cụ
-                        </h4>
-                        <div className="flex flex-wrap gap-1">
-                          {role.tools.map((t: string, i: number) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 text-xs bg-slate-100 text-slate-700 rounded"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
 
-      {showUserForm && (
-        <Modal title="Thêm tài khoản mới" onClose={() => setShowUserForm(false)}>
-          <div className="space-y-4">
-            <Input
-              label="Họ tên *"
-              value={userForm.name}
-              onChange={(v: string) => setUserForm({ ...userForm, name: v })}
-            />
-            <Input
-              label="Email (Tên đăng nhập) *"
-              value={userForm.email}
-              onChange={(v: string) => setUserForm({ ...userForm, email: v })}
-            />
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="block text-sm font-medium text-slate-700">Mật khẩu *</label>
-                <button
-                  type="button"
-                  onClick={() => setUserForm({ ...userForm, password: generatePassword() })}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  Tạo ngẫu nhiên
-                </button>
-              </div>
-              <input
-                type="text"
-                value={userForm.password}
-                onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
-                placeholder="Nhập hoặc tạo mật khẩu"
-              />
-            </div>
-            <Select
-              label="Vai trò"
-              value={userForm.role}
-              options={['user', 'admin']}
-              onChange={(v: string) => setUserForm({ ...userForm, role: v })}
-            />
-          </div>
-          <div className="flex gap-3 pt-4 mt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={saveUserForm}
-              className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md"
-            >
-              Tạo tài khoản
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUserForm(false)}
-              className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-            >
-              Hủy
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {showResetForm && selectedUser && (
-        <Modal title={`Reset mật khẩu: ${selectedUser.name}`} onClose={() => setShowResetForm(false)}>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="block text-sm font-medium text-slate-700">Mật khẩu mới *</label>
-                <button
-                  type="button"
-                  onClick={() => setResetForm({ newPassword: generatePassword() })}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  Tạo ngẫu nhiên
-                </button>
-              </div>
-              <input
-                type="text"
-                value={resetForm.newPassword}
-                onChange={(e) => setResetForm({ newPassword: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
-                placeholder="Nhập hoặc tạo mật khẩu mới"
-              />
-            </div>
-          </div>
-          <div className="flex gap-3 pt-4 mt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={saveResetForm}
-              className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-            >
-              Lưu mật khẩu
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowResetForm(false)}
-              className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-            >
-              Hủy
-            </button>
-          </div>
-        </Modal>
-      )}
-
-      {showForm && (
-        <Modal
-          title={editing ? 'Sửa task' : 'Thêm task mới'}
-          onClose={() => setShowForm(false)}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Input
-              label="Tên task *"
-              value={form.name}
-              onChange={(v: string) => setForm({ ...form, name: v })}
-            />
-            <Select
-              label="Phòng ban *"
-              value={form.department}
-              options={departments}
-              onChange={(v: string) => setForm({ ...form, department: v })}
-            />
-            <Input
-              label="Người phụ trách"
-              value={form.assignee}
-              onChange={(v: string) => setForm({ ...form, assignee: v })}
-            />
-            <Select
-              label="Đơn hàng liên quan"
-              value={form.orderId}
-              options={['', ...orders.map((o) => o.orderId)]}
-              onChange={(v: string) => setForm({ ...form, orderId: v })}
-            />
-            <Select
-              label="Mức độ ưu tiên"
-              value={form.priority}
-              options={priorities}
-              onChange={(v: string) => setForm({ ...form, priority: v })}
-            />
-            <Select
-              label="Trạng thái"
-              value={form.status}
-              options={taskStatuses}
-              onChange={(v: string) => setForm({ ...form, status: v })}
-            />
-            <Input
-              label="Ngày bắt đầu"
-              type="date"
-              value={form.startDate}
-              onChange={(v: string) => setForm({ ...form, startDate: v })}
-            />
-            <Input
-              label="Deadline"
-              type="date"
-              value={form.deadline}
-              onChange={(v: string) => setForm({ ...form, deadline: v })}
-            />
-          </div>
-          <div className="mt-3">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
-              rows={2}
-            />
-          </div>
-          <div className="mt-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-slate-700">Checklist</label>
-              <button
-                type="button"
-                onClick={addChecklistItem}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                + Thêm mục
-              </button>
-            </div>
-            <div className="space-y-2">
-              {(form.checklist || []).map((it: any, idx: number) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!it.done}
-                    onChange={(e) => {
-                      const next = [...form.checklist];
-                      next[idx] = { ...next[idx], done: e.target.checked };
-                      setForm({ ...form, checklist: next });
-                    }}
-                  />
-                  <input
-                    type="text"
-                    value={it.text}
-                    onChange={(e) => updateChecklist(idx, e.target.value)}
-                    className="flex-1 px-2 py-1 text-sm border border-slate-200 rounded"
-                    placeholder="Nội dung mục..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeChecklistItem(idx)}
-                    className="text-red-500 text-sm"
-                  >
-                    ×
-                  </button>
+                    {/* Tools */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        🛠️ Công cụ làm việc
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {role.tools.map((t: string, i: number) => (
+                          <span
+                            key={i}
+                            className="px-2.5 py-1 text-[11px] font-medium bg-slate-100 text-slate-700 rounded-lg border border-slate-200/60"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="mt-3">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Ghi chú</label>
-            <textarea
-              value={form.note}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-md"
-              rows={2}
+        )}
+      </main>
+
+      {/* Modal Thêm/Chỉnh sửa công việc */}
+      {showForm && (
+        <Modal
+          title={editing ? 'Chỉnh sửa công việc' : 'Thêm công việc mới'}
+          onClose={() => setShowForm(false)}
+        >
+          <div className="space-y-4 text-xs">
+            <Input
+              label="Nhóm công việc / Hạng mục *"
+              placeholder="VD: Chốt sản phẩm, Chuẩn bị launching, Marketing..."
+              value={form.department}
+              onChange={(v: string) => setForm({ ...form, department: v })}
             />
-          </div>
-          <div className="flex gap-3 pt-4 mt-4 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={saveForm}
-              className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md"
-            >
-              {editing ? 'Cập nhật' : 'Thêm task'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-            >
-              Hủy
-            </button>
+
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">
+                Chi tiết công việc *
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Mô tả cụ thể nội dung công việc cần thực hiện..."
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Người phụ trách"
+                placeholder="VD: Ngọc, Hà, Thoa..."
+                value={form.assignee}
+                onChange={(v: string) => setForm({ ...form, assignee: v })}
+              />
+
+              <Input
+                label="Deadline (Hạn hoàn thành)"
+                placeholder="VD: 15/05/2026 hoặc trước tháng 5"
+                value={form.deadline}
+                onChange={(v: string) => setForm({ ...form, deadline: v })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Tình trạng"
+                value={form.status}
+                onChange={(v: string) => setForm({ ...form, status: v })}
+                options={taskStatuses}
+              />
+
+              <Input
+                label="File hoàn thành / Ghi chú"
+                placeholder="Ghi chú hoàn tất..."
+                value={form.note}
+                onChange={(v: string) => setForm({ ...form, note: v })}
+              />
+            </div>
+
+            <Input
+              label="Link Nguồn 1 (Google Docs, Sheet, Instagram, App...)"
+              placeholder="https://..."
+              value={form.sourceUrl}
+              onChange={(v: string) => setForm({ ...form, sourceUrl: v })}
+            />
+
+            <Input
+              label="Link Nguồn 2 (Nếu có)"
+              placeholder="https://..."
+              value={form.sourceUrl2}
+              onChange={(v: string) => setForm({ ...form, sourceUrl2: v })}
+            />
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={saveForm}
+                className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition font-medium"
+              >
+                {editing ? 'Cập nhật' : 'Thêm mới'}
+              </button>
+            </div>
           </div>
         </Modal>
       )}

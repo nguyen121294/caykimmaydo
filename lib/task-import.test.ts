@@ -17,6 +17,7 @@ test('parseTaskViewRows maps status and columns accurately', () => {
     ['No.', 'Tình trạng', 'Deadline', 'Công việc', 'Chi tiết', 'Name', 'File hoàn thành (nếu có)', 'Nguồn ', 'Nguồn 2'],
     [1, 'Đã hoàn thành', new Date(2026, 5, 2), 'Chốt sản phẩm', 'Chốt giá vải', 'Hà', 'Xong', 'https://example.com', null],
     [2, 'Đang thực thi', '25/2', 'Launching', 'Bài post', 'Ngọc', null, null, null],
+    [null, null, null, null, null, null, null, null, null],
   ];
 
   const tasks = parseTaskViewRows(rows);

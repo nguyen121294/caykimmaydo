@@ -29,7 +29,7 @@ export function parseSyncPeriod(value: unknown): SyncDateRange | null {
     }
   }
 
-  const days = value === '7' || value === '30' || value === '90' ? Number(value) : 30;
+  const days = value === '3' || value === '7' || value === '30' || value === '90' ? Number(value) : 3;
   const end = new Date();
   const start = new Date(end);
   start.setUTCDate(start.getUTCDate() - days + 1);

@@ -62,17 +62,13 @@ export function parseTaskViewRows(rows: any[][]): TaskViewItem[] {
     const src1Val = row[7];
     const src2Val = row[8];
 
-    // Skip empty row
-    if (
-      (noVal === null || noVal === undefined || String(noVal).trim() === '') &&
-      !statusVal &&
-      !deptVal &&
-      !detailVal &&
-      !assigneeVal &&
-      !fileVal &&
-      !src1Val &&
-      !src2Val
-    ) {
+    // Check if row has valid task identifiers (either STT or Dept/Detail)
+    const hasNo = noVal !== null && noVal !== undefined && String(noVal).trim() !== '';
+    const hasDeptOrDetail =
+      (deptVal !== null && deptVal !== undefined && String(deptVal).trim() !== '') ||
+      (detailVal !== null && detailVal !== undefined && String(detailVal).trim() !== '');
+
+    if (!hasNo && !hasDeptOrDetail) {
       continue;
     }
 
@@ -124,7 +120,7 @@ export function parseTaskViewBuffer(buffer: Buffer): TaskViewItem[] {
   if (!sheetName) return [];
   const worksheet = workbook.Sheets[sheetName];
 
-  // Recalculate full range to ensure no rows are missed
+  // Recalculate full range to ensure valid rows are read
   let maxR = 0;
   let maxC = 0;
   for (const key of Object.keys(worksheet)) {

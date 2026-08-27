@@ -40,7 +40,7 @@ const formatInputDate = (date: Date) => {
 
 const defaultEndDate = formatInputDate(new Date());
 const initialStartDate = new Date();
-initialStartDate.setDate(initialStartDate.getDate() - 6);
+initialStartDate.setDate(initialStartDate.getDate() - 2);
 const defaultStartDate = formatInputDate(initialStartDate);
 
 export default function SyncHubContent() {

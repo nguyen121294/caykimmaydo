@@ -40,7 +40,6 @@ const navGroups = [
     label: 'Marketing',
     items: [
       { href: '/marketing', label: 'Marketing', icon: Megaphone },
-      { href: '/manychat', label: 'ManyChat', icon: MessageCircle },
     ]
   },
   {
@@ -48,7 +47,6 @@ const navGroups = [
     items: [
       { href: '/sync-hub', label: 'Đồng Bộ Hub', icon: RefreshCw },
       { href: '/finance', label: 'Tài Chính', icon: Wallet, adminOnly: true },
-      { href: '/import-export', label: 'Import / Export', icon: FileSpreadsheet },
       { href: '/connections', label: 'Kết Nối', icon: Plug },
       { href: '/automation', label: 'Nhật Ký', icon: Bell },
       { href: '/settings', label: 'Cài Đặt', icon: Settings },

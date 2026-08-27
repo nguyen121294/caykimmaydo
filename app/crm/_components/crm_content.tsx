@@ -1,7 +1,43 @@
 'use client';
 import { formatMoney as fmt } from '@/lib/utils';
 import { useState, useEffect, useCallback } from 'react';
-import { UserCheck, Plus, Search, Phone, Mail, Tag, RefreshCw, X, FileSpreadsheet, Star, Gift, Award, History, ChevronDown, ChevronUp, Loader2, AlertCircle, Crown, Link2, ShoppingCart, Pencil, MapPin, Instagram, Sparkles } from 'lucide-react';
+import {
+  UserCheck,
+  Plus,
+  Search,
+  Phone,
+  Mail,
+  Tag,
+  RefreshCw,
+  X,
+  FileSpreadsheet,
+  Star,
+  Gift,
+  Award,
+  History,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  AlertCircle,
+  Crown,
+  Link2,
+  ShoppingCart,
+  Pencil,
+  MapPin,
+  Instagram,
+  Sparkles,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  Flame,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Ban,
+  CheckCircle,
+  ShoppingBag,
+  MessageSquare
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Customer {
@@ -20,6 +56,11 @@ interface Customer {
   loyaltyPoints: number;
   loyaltyTier: string;
   lastPurchaseDate: string | null;
+  lastCareDate: string | null;
+  nextCareDate: string | null;
+  nextCareAction: string | null;
+  noCare: boolean;
+  noCareReason: string | null;
   contactAccount: string | null;
   address: string | null;
   createdAt: string;
@@ -65,6 +106,21 @@ function clientErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Đã xảy ra lỗi không xác định';
 }
 
+function getDaysDiff(targetDateStr: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateStr);
+  target.setHours(0, 0, 0, 0);
+  const diffTime = target.getTime() - today.getTime();
+  return Math.round(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function addDaysToDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 const tierConfig: Record<string, { color: string; bg: string; icon: typeof Star }> = {
   New: { color: 'text-slate-600', bg: 'bg-slate-100', icon: Star },
   Silver: { color: 'text-slate-500', bg: 'bg-gradient-to-r from-slate-100 to-slate-200', icon: Award },
@@ -92,6 +148,11 @@ const defaultCustomerForm = {
   loyaltyPoints: 0,
   totalSpent: 0,
   lastPurchaseDate: '',
+  lastCareDate: '',
+  nextCareDate: '',
+  nextCareAction: '',
+  noCare: false,
+  noCareReason: '',
   status: 'Mới',
   tags: '',
   notes: '',
@@ -104,6 +165,11 @@ export default function CRMContent() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
   const [filterTier, setFilterTier] = useState('all');
+
+  // Care follow-up filter & sorting
+  const [careFilter, setCareFilter] = useState<'all' | 'due_today' | 'upcoming' | 'day15_care' | 'no_care'>('all');
+  const [sortField, setSortField] = useState<'nextCareDate' | 'totalSpent' | 'createdAt'>('nextCareDate');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Add state
   const [showAdd, setShowAdd] = useState(false);
@@ -186,6 +252,11 @@ export default function CRMContent() {
       loyaltyPoints: customer.loyaltyPoints || 0,
       totalSpent: customer.totalSpent || 0,
       lastPurchaseDate: customer.lastPurchaseDate || '',
+      lastCareDate: customer.lastCareDate || '',
+      nextCareDate: customer.nextCareDate || '',
+      nextCareAction: customer.nextCareAction || '',
+      noCare: customer.noCare || false,
+      noCareReason: customer.noCareReason || '',
       status: customer.status || 'Mới',
       tags: customer.tags || '',
       notes: customer.notes || '',
@@ -218,12 +289,72 @@ export default function CRMContent() {
     }
   };
 
+  const setQuickCare = async (customerId: string, daysAhead: number, actionName: string) => {
+    const targetDate = addDaysToDate(daysAhead);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: customerId,
+          nextCareDate: targetDate,
+          nextCareAction: actionName,
+          noCare: false,
+        }),
+      });
+      if (!res.ok) throw new Error('Lỗi đặt lịch hẹn');
+      setCustomers(prev => prev.map(c => c.id === customerId ? {
+        ...c,
+        nextCareDate: targetDate,
+        nextCareAction: actionName,
+        noCare: false,
+      } : c));
+      toast.success(`Đã hẹn chăm sóc vào ${targetDate} (+${daysAhead} ngày)`);
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
+    }
+  };
+
+  const toggleNoCare = async (customer: Customer) => {
+    const newNoCare = !customer.noCare;
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: customer.id,
+          noCare: newNoCare,
+          ...(newNoCare ? { nextCareDate: null } : {}),
+        }),
+      });
+      if (!res.ok) throw new Error('Lỗi cập nhật');
+      setCustomers(prev => prev.map(c => c.id === customer.id ? {
+        ...c,
+        noCare: newNoCare,
+        ...(newNoCare ? { nextCareDate: null } : {}),
+      } : c));
+      toast.success(newNoCare ? 'Đã bật cờ: Dừng chăm sóc khách hàng này' : 'Đã mở lại chăm sóc cho khách hàng');
+    } catch (error: unknown) {
+      toast.error(clientErrorMessage(error));
+    }
+  };
+
   const handleStatusChange = async (id: string, status: string) => {
     try {
       await fetch('/api/customers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
       setCustomers(prev => prev.map(c => c.id === id ? { ...c, status } : c));
       toast.success('Đã cập nhật trạng thái');
     } catch { toast.error('Lỗi cập nhật trạng thái'); }
+  };
+
+  // Toggle sorting by nextCareDate
+  const handleSortCareDate = () => {
+    if (sortField === 'nextCareDate') {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField('nextCareDate');
+      setSortOrder('asc');
+    }
   };
 
   // === Import File (Excel/CSV) ===
@@ -387,6 +518,7 @@ export default function CRMContent() {
     } catch (error: unknown) { toast.error(clientErrorMessage(error)); } finally { setRedeemLoading(false); }
   };
 
+  // Filtered & Sorted Customers
   const normalizedQuery = search.trim().toLowerCase();
   const filtered = customers.filter(c => {
     const matchSearch = !normalizedQuery ||
@@ -398,21 +530,59 @@ export default function CRMContent() {
       (c.notes && c.notes.toLowerCase().includes(normalizedQuery)) ||
       (c.lastOrder && c.lastOrder.toLowerCase().includes(normalizedQuery)) ||
       (c.contactAccount && c.contactAccount.toLowerCase().includes(normalizedQuery)) ||
+      (c.nextCareAction && c.nextCareAction.toLowerCase().includes(normalizedQuery)) ||
       (c.zaloId && c.zaloId.toLowerCase().includes(normalizedQuery)) ||
       (c.source && c.source.toLowerCase().includes(normalizedQuery));
 
     const matchStatus = filterStatus === 'all' || c.status === filterStatus;
     const matchSource = filterSource === 'all' || c.source === filterSource;
     const matchTier = filterTier === 'all' || c.loyaltyTier === filterTier;
-    return matchSearch && matchStatus && matchSource && matchTier;
+
+    let matchCare = true;
+    if (careFilter === 'due_today') {
+      matchCare = !c.noCare && !!c.nextCareDate && getDaysDiff(c.nextCareDate) <= 0;
+    } else if (careFilter === 'upcoming') {
+      matchCare = !c.noCare && !!c.nextCareDate && getDaysDiff(c.nextCareDate) > 0 && getDaysDiff(c.nextCareDate) <= 7;
+    } else if (careFilter === 'day15_care') {
+      // Khách đã mua > 15 ngày chưa có lịch hẹn tiếp
+      matchCare = !c.noCare && !!c.lastPurchaseDate && getDaysDiff(c.lastPurchaseDate) <= -15 && !c.nextCareDate;
+    } else if (careFilter === 'no_care') {
+      matchCare = c.noCare === true;
+    }
+
+    return matchSearch && matchStatus && matchSource && matchTier && matchCare;
   });
 
+  // Sorting
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortField === 'nextCareDate') {
+      // Prioritize noCare to the bottom
+      if (a.noCare && !b.noCare) return 1;
+      if (!a.noCare && b.noCare) return -1;
+
+      // When both are active:
+      if (!a.nextCareDate && b.nextCareDate) return 1;
+      if (a.nextCareDate && !b.nextCareDate) return -1;
+      if (!a.nextCareDate && !b.nextCareDate) return 0;
+
+      const diffA = getDaysDiff(a.nextCareDate!);
+      const diffB = getDaysDiff(b.nextCareDate!);
+      return sortOrder === 'asc' ? diffA - diffB : diffB - diffA;
+    } else if (sortField === 'totalSpent') {
+      return sortOrder === 'asc' ? a.totalSpent - b.totalSpent : b.totalSpent - a.totalSpent;
+    } else {
+      return sortOrder === 'asc' ? a.createdAt.localeCompare(b.createdAt) : b.createdAt.localeCompare(a.createdAt);
+    }
+  });
+
+  // KPI Calculations
   const stats = {
     total: customers.length,
-    newCount: customers.filter(c => c.loyaltyTier === 'New').length,
-    silver: customers.filter(c => c.loyaltyTier === 'Silver').length,
-    gold: customers.filter(c => c.loyaltyTier === 'Gold').length,
-    vip: customers.filter(c => c.loyaltyTier === 'VIP').length,
+    activeCare: customers.filter(c => !c.noCare).length,
+    dueToday: customers.filter(c => !c.noCare && c.nextCareDate && getDaysDiff(c.nextCareDate) <= 0).length,
+    upcoming: customers.filter(c => !c.noCare && c.nextCareDate && getDaysDiff(c.nextCareDate) > 0 && getDaysDiff(c.nextCareDate) <= 7).length,
+    day15Care: customers.filter(c => !c.noCare && c.lastPurchaseDate && getDaysDiff(c.lastPurchaseDate) <= -15 && !c.nextCareDate).length,
+    noCareCount: customers.filter(c => c.noCare).length,
   };
 
   return (
@@ -421,66 +591,142 @@ export default function CRMContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <UserCheck className="text-indigo-600" size={28} /> CRM Khách Hàng
+            <UserCheck className="text-indigo-600" size={28} /> CRM &amp; Chăm Sóc Khách Hàng
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Quản lý hồ sơ khách hàng, phân loại kênh Instagram & tích điểm thành viên</p>
+          <p className="text-slate-500 text-sm mt-1">Quản lý hồ sơ khách hàng, ngày mua cuối, lịch hẹn chăm sóc &amp; tích điểm thành viên</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5">
+          <button onClick={fetchData} className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm flex items-center gap-1.5 font-medium transition-colors">
             <RefreshCw size={14} /> Làm mới
           </button>
-          <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setSheetPreview(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5">
+          <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setSheetPreview(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 font-medium transition-colors">
             <FileSpreadsheet size={14} /> Import khách hàng
           </button>
-          <button onClick={() => { setForm(defaultCustomerForm); setShowAdd(true); }} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5">
+          <button onClick={() => { setForm(defaultCustomerForm); setShowAdd(true); }} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1.5 font-medium shadow-sm transition-colors">
             <Plus size={14} /> Thêm khách hàng
           </button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {[
-          { label: 'Tổng khách', value: stats.total, color: 'bg-blue-50 text-blue-700' },
-          { label: 'New', value: stats.newCount, color: 'bg-slate-50 text-slate-700' },
-          { label: 'Silver', value: stats.silver, color: 'bg-slate-100 text-slate-600' },
-          { label: 'Gold', value: stats.gold, color: 'bg-amber-50 text-amber-700' },
-          { label: 'VIP', value: stats.vip, color: 'bg-purple-50 text-purple-700' },
-        ].map(k => (
-          <div key={k.label} className={`rounded-xl p-4 ${k.color}`}>
-            <p className="text-xs font-medium opacity-80">{k.label}</p>
-            <p className="text-2xl font-bold mt-1">{k.value}</p>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="rounded-xl p-4 bg-blue-50 text-blue-700 border border-blue-100">
+          <p className="text-xs font-semibold uppercase tracking-wider opacity-80">Tổng khách hàng</p>
+          <p className="text-2xl font-bold mt-1">{stats.total}</p>
+          <p className="text-[11px] opacity-75 mt-0.5">{stats.activeCare} đang chăm sóc</p>
+        </div>
+        <div
+          onClick={() => setCareFilter('due_today')}
+          className={`rounded-xl p-4 cursor-pointer transition-all border ${stats.dueToday > 0 ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200'}`}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider">Cần gọi hôm nay</p>
+            {stats.dueToday > 0 && <Flame size={14} className="text-red-500 animate-bounce" />}
           </div>
-        ))}
+          <p className="text-2xl font-bold mt-1">{stats.dueToday}</p>
+          <p className="text-[11px] opacity-75 mt-0.5">{stats.dueToday > 0 ? 'Bấm để lọc danh sách' : 'Không có việc trễ'}</p>
+        </div>
+        <div
+          onClick={() => setCareFilter('upcoming')}
+          className="rounded-xl p-4 bg-amber-50 text-amber-700 border border-amber-100 cursor-pointer hover:bg-amber-100 transition-all"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider opacity-80">Hẹn 7 ngày tới</p>
+          <p className="text-2xl font-bold mt-1">{stats.upcoming}</p>
+          <p className="text-[11px] opacity-75 mt-0.5">Khách đã hẹn trước</p>
+        </div>
+        <div
+          onClick={() => setCareFilter('day15_care')}
+          className="rounded-xl p-4 bg-purple-50 text-purple-700 border border-purple-100 cursor-pointer hover:bg-purple-100 transition-all"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider opacity-80">Mua sau 15 ngày</p>
+          <p className="text-2xl font-bold mt-1">{stats.day15Care}</p>
+          <p className="text-[11px] opacity-75 mt-0.5">Chăm sóc mẫu vải mới</p>
+        </div>
+        <div
+          onClick={() => setCareFilter('no_care')}
+          className="rounded-xl p-4 bg-slate-50 text-slate-600 border border-slate-200 cursor-pointer hover:bg-slate-100 transition-all"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider opacity-80">Dừng chăm sóc</p>
+          <p className="text-2xl font-bold mt-1">{stats.noCareCount}</p>
+          <p className="text-[11px] opacity-75 mt-0.5">Không làm phiền</p>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Care Filter Bar & Search */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-            placeholder="Tìm theo tên, SĐT, email, địa chỉ, ghi chú, nhãn, mã đơn, nick MXH..."
+            placeholder="Tìm theo tên, SĐT, email, địa chỉ, hành động chăm sóc, ghi chú, nick MXH..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex flex-wrap sm:flex-nowrap gap-2">
-          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="all">Tất cả trạng thái</option>
-            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterSource} onChange={e => setFilterSource(e.target.value)}>
-            <option value="all">Tất cả nguồn</option>
-            {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={filterTier} onChange={e => setFilterTier(e.target.value)}>
-            <option value="all">Tất cả hạng VIP</option>
-            <option value="New">New</option>
-            <option value="Silver">Silver</option>
-            <option value="Gold">Gold</option>
-            <option value="VIP">VIP</option>
-          </select>
+
+        {/* Care Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setCareFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${careFilter === 'all' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            Tất cả ({customers.length})
+          </button>
+          <button
+            onClick={() => setCareFilter('due_today')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${careFilter === 'due_today' ? 'bg-red-600 text-white shadow-sm font-semibold' : 'text-red-700 hover:bg-red-50'}`}
+          >
+            <AlertTriangle size={12} /> Cần gọi hôm nay / Trễ ({stats.dueToday})
+          </button>
+          <button
+            onClick={() => setCareFilter('upcoming')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${careFilter === 'upcoming' ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-amber-700 hover:bg-amber-50'}`}
+          >
+            <Calendar size={12} /> Sắp tới 7 ngày ({stats.upcoming})
+          </button>
+          <button
+            onClick={() => setCareFilter('day15_care')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${careFilter === 'day15_care' ? 'bg-purple-600 text-white shadow-sm font-semibold' : 'text-purple-700 hover:bg-purple-50'}`}
+          >
+            <ShoppingBag size={12} /> Mua sau 15 ngày ({stats.day15Care})
+          </button>
+          <button
+            onClick={() => setCareFilter('no_care')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap flex items-center gap-1 ${careFilter === 'no_care' ? 'bg-slate-800 text-white shadow-sm font-semibold' : 'text-slate-600 hover:bg-slate-200'}`}
+          >
+            <Ban size={12} /> Dừng CS ({stats.noCareCount})
+          </button>
+        </div>
+      </div>
+
+      {/* Second Row Filters (Source, Tier, Status) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select className="px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white outline-none focus:border-indigo-500" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="all">Tất cả trạng thái</option>
+          {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white outline-none focus:border-indigo-500" value={filterSource} onChange={e => setFilterSource(e.target.value)}>
+          <option value="all">Tất cả nguồn</option>
+          {sourceOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="px-3 py-2 rounded-lg border border-slate-200 text-xs bg-white outline-none focus:border-indigo-500" value={filterTier} onChange={e => setFilterTier(e.target.value)}>
+          <option value="all">Tất cả hạng VIP</option>
+          <option value="New">New</option>
+          <option value="Silver">Silver</option>
+          <option value="Gold">Gold</option>
+          <option value="VIP">VIP</option>
+        </select>
+
+        {/* Sort indicator notice */}
+        <div className="ml-auto text-xs text-slate-500 flex items-center gap-1.5">
+          <span>Đang sắp xếp:</span>
+          <button
+            onClick={handleSortCareDate}
+            className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-100 flex items-center gap-1 hover:bg-indigo-100 transition-colors"
+          >
+            Ngày hẹn CS ({sortOrder === 'asc' ? 'Gần nhất / Quá hạn trước' : 'Xa nhất trước'})
+            {sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+          </button>
         </div>
       </div>
 
@@ -488,96 +734,232 @@ export default function CRMContent() {
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Khách hàng</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Liên hệ</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Nguồn</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Điểm</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Hạng</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Chi tiêu</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Mua gần nhất</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Trạng thái</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-700">Thao tác</th>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-700">Khách hàng &amp; Liên hệ</th>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-700">Chi tiêu &amp; Điểm</th>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-700">Chăm sóc lần cuối</th>
+                <th
+                  onClick={handleSortCareDate}
+                  className="text-left px-4 py-3.5 font-semibold text-indigo-900 bg-indigo-50/70 hover:bg-indigo-100 cursor-pointer transition-colors select-none"
+                  title="Bấm để sắp xếp theo ngày hẹn chăm sóc"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={13} className="text-indigo-600" />
+                    <span>Hẹn chăm sóc tiếp theo</span>
+                    {sortField === 'nextCareDate' ? (
+                      sortOrder === 'asc' ? <ArrowUp size={13} className="text-indigo-600" /> : <ArrowDown size={13} className="text-indigo-600" />
+                    ) : (
+                      <ArrowUpDown size={13} className="text-slate-400" />
+                    )}
+                  </div>
+                </th>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-700">Trạng thái</th>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-700">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={9} className="text-center py-12 text-slate-400">Đang tải...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-12 text-slate-400">Chưa có khách hàng nào</td></tr>
-              ) : filtered.map(c => (
-                <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-slate-900">{c.name}</p>
-                    {c.contactAccount && (
-                      <p className="text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-100 rounded px-1.5 py-0.5 inline-flex items-center gap-1 mt-0.5">
-                        <Instagram size={10} /> {c.contactAccount}
-                      </p>
-                    )}
-                    {c.address && (
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate max-w-xs" title={c.address}>
-                        <MapPin size={10} className="shrink-0 text-slate-400" /> {c.address}
-                      </p>
-                    )}
-                    {c.tags && (
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Tag size={10} /> {c.tags}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {c.phone ? (
-                      <p className="flex items-center gap-1 text-slate-700 font-medium"><Phone size={12} className="text-slate-400" /> {c.phone}</p>
-                    ) : (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-normal">Chưa có SĐT</span>
-                    )}
-                    {c.email && <p className="flex items-center gap-1 text-slate-500 text-xs mt-0.5"><Mail size={12} className="text-slate-400" /> {c.email}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 font-medium">{c.source || 'Khác'}</span>
-                  </td>
-                  <td
-                    className="px-4 py-3 font-bold text-indigo-600 cursor-pointer hover:underline"
-                    onClick={() => openLoyalty(c)}
-                    title="Bấm để xem lịch sử tích điểm / đổi điểm"
-                  >
-                    ⭐ {c.loyaltyPoints}
-                  </td>
-                  <td
-                    className="px-4 py-3 cursor-pointer"
-                    onClick={() => openLoyalty(c)}
-                    title="Bấm để xem hạng & ưu đãi"
-                  >
-                    <TierBadge tier={c.loyaltyTier} />
-                  </td>
-                  <td className="px-4 py-3 font-medium text-emerald-600">{fmt(c.totalSpent)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{c.lastPurchaseDate || '—'}</td>
-                  <td className="px-4 py-3">
-                    <select className="text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white outline-none focus:border-indigo-500" value={c.status} onChange={e => handleStatusChange(c.id, e.target.value)}>
-                      {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors"
-                        title="Chỉnh sửa thông tin khách hàng"
+                <tr><td colSpan={6} className="text-center py-12 text-slate-400">Đang tải dữ liệu CRM...</td></tr>
+              ) : sorted.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-12 text-slate-400">Chưa có khách hàng nào phù hợp với bộ lọc</td></tr>
+              ) : sorted.map(c => {
+                const daysDiff = c.nextCareDate ? getDaysDiff(c.nextCareDate) : null;
+                const isOverdue = daysDiff !== null && daysDiff < 0;
+                const isDueToday = daysDiff !== null && daysDiff === 0;
+                const isUpcoming = daysDiff !== null && daysDiff > 0 && daysDiff <= 7;
+
+                const lastCareDisplay = c.lastCareDate || c.lastPurchaseDate;
+                const isFromPurchase = !c.lastCareDate && !!c.lastPurchaseDate;
+
+                return (
+                  <tr key={c.id} className={`hover:bg-slate-50/80 transition-colors ${c.noCare ? 'bg-slate-50/40 opacity-75' : ''}`}>
+                    {/* Customer Info */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900">{c.name}</p>
+                        {c.noCare && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold flex items-center gap-0.5">
+                            <Ban size={9} /> Dừng CS
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {c.phone ? (
+                          <span className="text-xs text-slate-700 font-medium flex items-center gap-1"><Phone size={11} className="text-slate-400" /> {c.phone}</span>
+                        ) : (
+                          <span className="text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Chưa có SĐT</span>
+                        )}
+                        {c.contactAccount && (
+                          <span className="text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-100 rounded px-1.5 py-0.5 inline-flex items-center gap-1">
+                            <Instagram size={10} /> {c.contactAccount}
+                          </span>
+                        )}
+                        {c.source && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">{c.source}</span>
+                        )}
+                      </div>
+
+                      {c.address && (
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate max-w-xs" title={c.address}>
+                          <MapPin size={10} className="shrink-0 text-slate-400" /> {c.address}
+                        </p>
+                      )}
+                      {c.tags && (
+                        <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <Tag size={10} /> {c.tags}
+                        </p>
+                      )}
+                    </td>
+
+                    {/* Spend & Loyalty Points */}
+                    <td className="px-4 py-3.5">
+                      <p className="font-bold text-emerald-600">{fmt(c.totalSpent)}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span
+                          className="font-bold text-indigo-600 cursor-pointer hover:underline text-xs"
+                          onClick={() => openLoyalty(c)}
+                          title="Bấm để xem lịch sử tích điểm / đổi điểm"
+                        >
+                          ⭐ {c.loyaltyPoints}đ
+                        </span>
+                        <span onClick={() => openLoyalty(c)} className="cursor-pointer">
+                          <TierBadge tier={c.loyaltyTier} />
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Last Care Date */}
+                    <td className="px-4 py-3.5">
+                      {lastCareDisplay ? (
+                        <div>
+                          <p className="font-medium text-slate-800 text-xs">{lastCareDisplay}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 mt-0.5 font-medium ${isFromPurchase ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                            {isFromPurchase ? <ShoppingBag size={9} /> : <Phone size={9} />}
+                            {isFromPurchase ? 'Mua hàng' : 'Đã chăm sóc'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Chưa có lịch sử</span>
+                      )}
+                    </td>
+
+                    {/* Next Care Date & Fast Follow-up */}
+                    <td className="px-4 py-3.5 bg-indigo-50/30">
+                      {c.noCare ? (
+                        <div className="space-y-1">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium inline-flex items-center gap-1">
+                            <Ban size={10} /> Đã dừng chăm sóc
+                          </span>
+                          <button
+                            onClick={() => toggleNoCare(c)}
+                            className="text-[10px] text-indigo-600 hover:underline block"
+                          >
+                            Mở lại chăm sóc
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {c.nextCareDate ? (
+                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                              isDueToday
+                                ? 'bg-red-500 text-white border-red-500 animate-pulse'
+                                : isOverdue
+                                ? 'bg-red-50 text-red-700 border-red-300'
+                                : isUpcoming
+                                ? 'bg-amber-50 text-amber-800 border-amber-300 font-medium'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}>
+                              <Calendar size={11} />
+                              {isDueToday ? '🚨 Hôm nay cần gọi' : isOverdue ? `⚠️ Quá hạn ${Math.abs(daysDiff!)} ngày (${c.nextCareDate})` : `Còn ${daysDiff} ngày (${c.nextCareDate})`}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 flex items-center gap-1"><Clock size={11} /> Chưa hẹn lịch</span>
+                          )}
+
+                          {c.nextCareAction && (
+                            <p className="text-xs text-indigo-700 font-medium bg-indigo-50 rounded px-1.5 py-0.5 border border-indigo-100">
+                              🎯 {c.nextCareAction}
+                            </p>
+                          )}
+
+                          {/* Quick Schedule Buttons */}
+                          <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                            <span className="text-[10px] text-slate-400">Hẹn:</span>
+                            <button
+                              onClick={() => setQuickCare(c.id, 3, 'Fit Check đồ may (3 ngày)')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 border border-slate-200 transition-colors"
+                              title="Hẹn sau 3 ngày: Hỏi vừa vặn đồ may"
+                            >
+                              +3d
+                            </button>
+                            <button
+                              onClick={() => setQuickCare(c.id, 7, 'Hỏi thăm phản hồi (7 ngày)')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 border border-slate-200 transition-colors"
+                              title="Hẹn sau 7 ngày: Hỏi thăm lại"
+                            >
+                              +7d
+                            </button>
+                            <button
+                              onClick={() => setQuickCare(c.id, 15, 'Chăm sóc mẫu vải mới (15 ngày)')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 border border-slate-200 transition-colors"
+                              title="Hẹn sau 15 ngày: Chăm sóc & giới thiệu vải mới"
+                            >
+                              +15d
+                            </button>
+                            <button
+                              onClick={() => setQuickCare(c.id, 30, 'Tái may chu kỳ tháng sau (30 ngày)')}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 border border-slate-200 transition-colors"
+                              title="Hẹn sau 30 ngày: Chu kỳ may đồ mới"
+                            >
+                              +30d
+                            </button>
+                            <button
+                              onClick={() => toggleNoCare(c)}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-white hover:bg-red-50 hover:text-red-600 text-slate-400 border border-slate-200 transition-colors"
+                              title="Dừng chăm sóc khách này"
+                            >
+                              🚫
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-4 py-3.5">
+                      <select
+                        className="text-xs px-2 py-1 rounded-lg border border-slate-200 bg-white outline-none focus:border-indigo-500"
+                        value={c.status}
+                        onChange={e => handleStatusChange(c.id, e.target.value)}
                       >
-                        <Pencil size={12} className="text-indigo-600" /> Sửa
-                      </button>
-                      <a
-                        href={`/orders?customerId=${encodeURIComponent(c.id)}`}
-                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors"
-                        title="Tạo đơn hàng mới cho khách này"
-                      >
-                        <ShoppingCart size={12} /> Tạo đơn
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors"
+                          title="Chỉnh sửa thông tin chi tiết khách hàng"
+                        >
+                          <Pencil size={12} className="text-indigo-600" /> Sửa
+                        </button>
+                        <a
+                          href={`/orders?customerId=${encodeURIComponent(c.id)}`}
+                          className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 transition-colors"
+                          title="Tạo đơn hàng mới cho khách này"
+                        >
+                          <ShoppingCart size={12} /> Tạo đơn
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -609,7 +991,7 @@ export default function CRMContent() {
                 </div>
               </div>
 
-              {/* Source & Specific Instagram Account */}
+              {/* Source & Instagram Account */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Nguồn khách</label>
@@ -641,6 +1023,39 @@ export default function CRMContent() {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ giao hàng</label>
                 <input className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-indigo-500" placeholder="VD: 120 Phổ Quang, P.9, Q.Phú Nhuận, TP.HCM" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+              </div>
+
+              {/* Care & Follow-up Section */}
+              <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-indigo-900 flex items-center gap-1"><Calendar size={13} /> Lịch hẹn Chăm sóc khách hàng</p>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                    <input type="checkbox" checked={form.noCare} onChange={e => setForm({...form, noCare: e.target.checked})} className="rounded text-indigo-600" />
+                    <span>Dừng chăm sóc</span>
+                  </label>
+                </div>
+                {!form.noCare && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Ngày hẹn chăm sóc</label>
+                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={form.nextCareDate} onChange={e => setForm({...form, nextCareDate: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Hành động cần làm</label>
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" placeholder="VD: Gửi mẫu vải mới" value={form.nextCareAction} onChange={e => setForm({...form, nextCareAction: e.target.value})} />
+                      </div>
+                    </div>
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Chọn nhanh:</span>
+                      <button type="button" onClick={() => setForm({ ...form, nextCareDate: addDaysToDate(3), nextCareAction: 'Fit Check đồ may (3 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+3d (Fit check)</button>
+                      <button type="button" onClick={() => setForm({ ...form, nextCareDate: addDaysToDate(7), nextCareAction: 'Hỏi thăm phản hồi (7 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+7d</button>
+                      <button type="button" onClick={() => setForm({ ...form, nextCareDate: addDaysToDate(15), nextCareAction: 'Chăm sóc mẫu vải mới (15 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+15d (Vải mới)</button>
+                      <button type="button" onClick={() => setForm({ ...form, nextCareDate: addDaysToDate(30), nextCareAction: 'Tái may chu kỳ tháng sau (30 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+30d (Tái may)</button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Loyalty & Tier */}
@@ -748,6 +1163,39 @@ export default function CRMContent() {
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Địa chỉ giao hàng</label>
                 <input className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:border-indigo-500" placeholder="VD: 120 Phổ Quang, P.9, Q.Phú Nhuận, TP.HCM" value={editForm.address} onChange={e => setEditForm({...editForm, address: e.target.value})} />
+              </div>
+
+              {/* Care & Follow-up Section */}
+              <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-indigo-900 flex items-center gap-1"><Calendar size={13} /> Lịch hẹn Chăm sóc &amp; Tái mua</p>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700">
+                    <input type="checkbox" checked={editForm.noCare} onChange={e => setEditForm({...editForm, noCare: e.target.checked})} className="rounded text-indigo-600" />
+                    <span>Dừng chăm sóc</span>
+                  </label>
+                </div>
+                {!editForm.noCare && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Ngày hẹn chăm sóc</label>
+                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" value={editForm.nextCareDate} onChange={e => setEditForm({...editForm, nextCareDate: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Hành động cần làm</label>
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white outline-none focus:border-indigo-500" placeholder="VD: Gửi mẫu vải mới" value={editForm.nextCareAction} onChange={e => setEditForm({...editForm, nextCareAction: e.target.value})} />
+                      </div>
+                    </div>
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Chọn nhanh:</span>
+                      <button type="button" onClick={() => setEditForm({ ...editForm, nextCareDate: addDaysToDate(3), nextCareAction: 'Fit Check đồ may (3 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+3d (Fit check)</button>
+                      <button type="button" onClick={() => setEditForm({ ...editForm, nextCareDate: addDaysToDate(7), nextCareAction: 'Hỏi thăm phản hồi (7 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+7d</button>
+                      <button type="button" onClick={() => setEditForm({ ...editForm, nextCareDate: addDaysToDate(15), nextCareAction: 'Chăm sóc mẫu vải mới (15 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+15d (Vải mới)</button>
+                      <button type="button" onClick={() => setEditForm({ ...editForm, nextCareDate: addDaysToDate(30), nextCareAction: 'Tái may chu kỳ tháng sau (30 ngày)' })} className="text-[10px] px-2 py-0.5 bg-white rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50">+30d (Tái may)</button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Loyalty & Tier */}
@@ -904,18 +1352,6 @@ export default function CRMContent() {
                     <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Trùng trong Sheet</p><p className="text-lg font-bold text-amber-600">{sheetPreview.repeatedInSheet}</p></div>
                     <div className="rounded-lg bg-white p-2.5"><p className="text-xs text-slate-500">Không hợp lệ</p><p className="text-lg font-bold text-red-600">{sheetPreview.invalidRows}</p></div>
                   </div>
-                  {sheetPreview.duplicateSample.length > 0 && (
-                    <div className="text-xs text-amber-800">
-                      <p className="font-medium mb-1">Khách sẽ được cập nhật theo SĐT:</p>
-                      {sheetPreview.duplicateSample.map(item => <p key={`${item.rowNumber}-${item.phone}`}>Hàng {item.rowNumber}: {item.name} · {item.phone}</p>)}
-                    </div>
-                  )}
-                  {sheetPreview.invalidSample.length > 0 && (
-                    <div className="text-xs text-red-700">
-                      <p className="font-medium mb-1">Dòng sẽ bị bỏ qua:</p>
-                      {sheetPreview.invalidSample.map(item => <p key={item.rowNumber}>Hàng {item.rowNumber}: {item.reason}</p>)}
-                    </div>
-                  )}
                 </div>
               )}
 

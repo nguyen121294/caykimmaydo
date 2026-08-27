@@ -23,6 +23,9 @@ function sanitizeCustomerPayload(data: Record<string, any>) {
   if ('totalOrders' in result) {
     result.totalOrders = Math.max(0, parseInt(String(result.totalOrders || '0'), 10) || 0);
   }
+  if ('noCare' in result) {
+    result.noCare = Boolean(result.noCare);
+  }
   return result;
 }
 
@@ -48,6 +51,7 @@ export async function GET(req: NextRequest) {
           { contactAccount: { contains: search, mode: 'insensitive' } },
           { zaloId: { contains: search, mode: 'insensitive' } },
           { source: { contains: search, mode: 'insensitive' } },
+          { nextCareAction: { contains: search, mode: 'insensitive' } },
         ],
       } : undefined,
       orderBy: { createdAt: 'desc' },

@@ -427,6 +427,12 @@ model Customer {
   loyaltyPoints       Int                  @default(0)
   loyaltyTier         String               @default("New")
   lastPurchaseDate    String?
+  // Care & Follow-up fields
+  lastCareDate        String?
+  nextCareDate        String?
+  nextCareAction      String?
+  noCare              Boolean              @default(false)
+  noCareReason        String?
   // Customer profile fields
   contactAccount      String?
   address             String?

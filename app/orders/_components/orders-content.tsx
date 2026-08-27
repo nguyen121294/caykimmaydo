@@ -465,21 +465,21 @@ export default function OrdersContent() {
       </div>
 
       {/* Filters and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 min-w-[280px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             value={orderSearch}
             onChange={(e) => setOrderSearch(e.target.value)}
             placeholder="Tìm theo mã đơn, tên khách, số điện thoại, sản phẩm..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+            className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none bg-white"
           />
         </div>
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
           <select
             value={statusFilter}
             onChange={(e: any) => setStatusFilter(e?.target?.value ?? '')}
-            className="px-3 py-2.5 text-sm bg-white rounded-lg border border-slate-200 outline-none focus:border-indigo-500"
+            className="h-10 px-3 text-sm bg-white rounded-lg border border-slate-200 outline-none focus:border-indigo-500 shrink-0 cursor-pointer"
           >
             <option value="">Tất cả trạng thái</option>
             {orderStatuses?.map?.((s: string) => (
@@ -489,11 +489,11 @@ export default function OrdersContent() {
           <button
             type="button"
             onClick={() => { setMissingPhoneOnly(value => !value); if (!missingPhoneOnly) setOrderSearch('1111111111'); }}
-            className={`rounded-lg px-3 py-2.5 text-sm font-medium border transition-colors ${missingPhoneOnly ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'}`}
+            className={`h-10 rounded-lg px-3.5 text-sm font-medium border transition-colors whitespace-nowrap shrink-0 flex items-center ${missingPhoneOnly ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'}`}
           >
             Cần bổ sung SĐT
           </button>
-          <div className="text-xs text-slate-500 whitespace-nowrap pl-1 font-medium">({orders?.length ?? 0} đơn)</div>
+          <span className="text-xs text-slate-500 whitespace-nowrap shrink-0 font-medium pl-1">({orders?.length ?? 0} đơn)</span>
         </div>
       </div>
 

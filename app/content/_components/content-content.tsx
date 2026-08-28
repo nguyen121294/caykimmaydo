@@ -415,33 +415,30 @@ ${script.caption ? `📝 KỊCH BẢN CHI TIẾT:\n${script.caption}` : ''}`;
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Kho Nội Dung & Video Ads"
-          description="32 Kịch bản video phễu quảng cáo, Lịch đăng 30 ngày & Công thức viết script chuẩn"
-          icon={Film}
-          onRefresh={fetchData}
-        />
-        <div className="flex items-center gap-2">
-          {activeTab === 'scripts' ? (
-            <button
-              onClick={handleOpenAddScript}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-95"
-            >
-              <Plus size={18} className="stroke-[2.5]" />
-              <span>Thêm Video Script</span>
-            </button>
-          ) : activeTab === 'calendar' ? (
-            <button
-              onClick={handleOpenAddCal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-95"
-            >
-              <Plus size={18} className="stroke-[2.5]" />
-              <span>Thêm Lịch Đăng</span>
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title="Kho Nội Dung & Video Ads"
+        description="32 Kịch bản video phễu quảng cáo, Lịch đăng 30 ngày & Công thức viết script chuẩn"
+        icon={Film}
+        onRefresh={fetchData}
+      >
+        {activeTab === 'scripts' ? (
+          <button
+            onClick={handleOpenAddScript}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-95"
+          >
+            <Plus size={16} className="stroke-[2.5]" />
+            <span>Thêm Video Script</span>
+          </button>
+        ) : activeTab === 'calendar' ? (
+          <button
+            onClick={handleOpenAddCal}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-95"
+          >
+            <Plus size={16} className="stroke-[2.5]" />
+            <span>Thêm Lịch Đăng</span>
+          </button>
+        ) : null}
+      </PageHeader>
 
       {/* 4 Thống kê Tổng quan */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

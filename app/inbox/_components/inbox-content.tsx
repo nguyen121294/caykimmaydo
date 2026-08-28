@@ -259,21 +259,20 @@ export default function InboxContent() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader
-          title="Kho Kịch Bản Inbox"
-          description="Thư viện kịch bản bán hàng & xử lý từ chối chuẩn hoá cho đội ngũ Sales"
-          icon={MessageSquare}
-          onRefresh={fetchData}
-        />
+      <PageHeader
+        title="Kho Kịch Bản Inbox"
+        description="Thư viện kịch bản bán hàng & xử lý từ chối chuẩn hoá cho đội ngũ Sales"
+        icon={MessageSquare}
+        onRefresh={fetchData}
+      >
         <button
           onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-[0.98]"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition active:scale-95"
         >
-          <Plus size={18} className="stroke-[2.5]" />
+          <Plus size={16} className="stroke-[2.5]" />
           <span>Thêm Kịch Bản Mới</span>
         </button>
-      </div>
+      </PageHeader>
 
       {/* 4 Thống kê Thuần Kho Kịch Bản */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

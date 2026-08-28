@@ -1,10 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { DollarSign, ShoppingCart, TrendingUp, Megaphone, Percent, Film, Calendar, MessageSquare, AlertTriangle, CheckCircle, XCircle, Info, CloudOff, RefreshCw } from 'lucide-react';
+import { DollarSign, ShoppingCart, TrendingUp, Megaphone, Percent, Film, Calendar, MessageSquare, AlertTriangle, CheckCircle, XCircle, Info, CloudOff, RefreshCw, LayoutDashboard } from 'lucide-react';
 import KpiCard from '@/app/components/kpi-card';
 import PageHeader from '@/app/components/page-header';
-import { LayoutDashboard } from 'lucide-react';
 import RevenueChart from './revenue-chart';
 import FunnelChart from './funnel-chart';
 import CampaignManager from '../campaigns/_components/campaign-manager';
@@ -21,7 +20,7 @@ export default function DashboardContent() {
       setLoading(true);
       const res = await fetch(`/api/dashboard?days=${timeRange}&_t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`Dashboard request failed: ${res.status}`);
-      const json = await res?.json?.();
+      const json = await res.json();
       setData(json ?? {});
       setLastUpdate(new Date().toLocaleTimeString('vi-VN'));
     } catch {
@@ -59,12 +58,25 @@ export default function DashboardContent() {
     }
   };
 
+  const getTimeRangeLabel = (range: string) => {
+    switch (range) {
+      case '7': return '7 Ngày Qua';
+      case '14': return '14 Ngày Qua';
+      case '30': return '30 Ngày Gần Nhất';
+      case '60': return '60 Ngày Qua';
+      case '90': return '90 Ngày Qua';
+      case '180': return '6 Tháng Qua';
+      case 'all': return 'Toàn Bộ Thời Gian';
+      default: return `${range} Ngày Gần Nhất`;
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="space-y-6">
         <div className="h-10 bg-gray-200 rounded-lg w-64 animate-pulse" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {Array.from({ length: 5 })?.map?.((_: any, i: number) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-28 bg-white rounded-xl animate-pulse" />
           ))}
         </div>
@@ -162,7 +174,7 @@ export default function DashboardContent() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Doanh Thu 30 Ngày Gần Nhất</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Doanh Thu {getTimeRangeLabel(timeRange)}</h3>
           {(data?.revenueTrend ?? []).length > 0 ? (
             <RevenueChart data={data?.revenueTrend ?? []} />
           ) : (
@@ -364,7 +376,7 @@ export default function DashboardContent() {
           </h3>
           <div className="space-y-2">
             {(data?.alerts ?? []).length > 0 ? (
-              (data?.alerts ?? [])?.map?.((alert: any, i: number) => (
+              (data?.alerts ?? []).map((alert: any, i: number) => (
                 <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${getAlertBg(alert?.type)}`}>
                   {getAlertIcon(alert?.type)}
                   <div className="flex-1">

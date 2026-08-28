@@ -10,14 +10,26 @@ export async function GET(request: Request) {
     let dateFrom: string | undefined;
     if (daysParam !== 'all') {
       const days = parseInt(daysParam, 10);
-      if (!isNaN(days)) {
+      if (!isNaN(days) && days > 0) {
         const d = new Date();
-        d.setDate(d.getDate() - days);
+        d.setDate(d.getDate() - (days - 1));
         dateFrom = d.toISOString().slice(0, 10);
       }
     }
 
-    const orderWhere = dateFrom ? { createdAt: { gte: new Date(dateFrom) } } : {};
+    const orderWhere = dateFrom
+      ? {
+          OR: [
+            { orderDate: { gte: dateFrom } },
+            {
+              AND: [
+                { orderDate: null },
+                { createdAt: { gte: new Date(dateFrom) } },
+              ],
+            },
+          ],
+        }
+      : {};
     const financeWhere = dateFrom ? { date: { gte: dateFrom } } : {};
     const abTestWhere = dateFrom ? { dateStarted: { gte: dateFrom } } : {};
 
@@ -67,42 +79,100 @@ export async function GET(request: Request) {
       conversionRate 
     };
 
-    // Revenue trend: tính từ dữ liệu finance thật (nếu có), nếu không thì trả mảng rỗng
-    const revenueTrend: { date: string; revenue: number; adSpend: number }[] = [];
-    if (financeEntries.length > 0 || orders.length > 0) {
-      // Nhóm theo ngày từ FinanceEntry + Order
-      const dateMap: Record<string, { revenue: number; adSpend: number }> = {};
-      for (const o of orders) {
-        const d = o.orderDate || o.createdAt.toISOString().slice(0, 10);
-        if (!dateMap[d]) dateMap[d] = { revenue: 0, adSpend: 0 };
-        dateMap[d].revenue += o.total ?? 0;
-      }
-      for (const f of financeEntries) {
-        const d = f.date;
-        if (!dateMap[d]) dateMap[d] = { revenue: 0, adSpend: 0 };
-        if (f.type === 'Chi' && f.category?.includes('Quảng cáo')) {
-          dateMap[d].adSpend += f.amount ?? 0;
-        }
-      }
-      const sortedDates = Object.keys(dateMap).sort();
-      for (const d of sortedDates) {
-        const parts = d.split('-');
-        revenueTrend.push({
-          date: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}`,
-          fullDate: `${parseInt(parts[2] || '0')}/${parseInt(parts[1] || '0')}/${parts[0]}`,
-          revenue: dateMap[d].revenue,
-          adSpend: dateMap[d].adSpend,
-        } as any);
+    // Revenue trend: tính từ dữ liệu finance thật (nếu có) và orders
+    const revenueTrend: { date: string; fullDate: string; revenue: number; adSpend: number }[] = [];
+    
+    // Nhóm theo ngày từ FinanceEntry + Order
+    const dateMap: Record<string, { revenue: number; adSpend: number }> = {};
+    for (const o of orders) {
+      const d = o.orderDate || (o.createdAt ? o.createdAt.toISOString().slice(0, 10) : null);
+      if (!d) continue;
+      if (dateFrom && d < dateFrom) continue;
+      if (!dateMap[d]) dateMap[d] = { revenue: 0, adSpend: 0 };
+      dateMap[d].revenue += o.total ?? 0;
+    }
+    for (const f of financeEntries) {
+      const d = f.date;
+      if (!d) continue;
+      if (dateFrom && d < dateFrom) continue;
+      if (!dateMap[d]) dateMap[d] = { revenue: 0, adSpend: 0 };
+      if (f.type === 'Chi' && f.category?.includes('Quảng cáo')) {
+        dateMap[d].adSpend += f.amount ?? 0;
       }
     }
 
-    // Detailed records cho bảng: lấy từ revenueTrend nhưng giữ ngày đầy đủ để hiển thị, và tính roas
-    const detailedRecords = (revenueTrend ?? []).map((r: any) => ({
-      date: r.fullDate || r.date,
-      revenue: r.revenue,
-      adSpend: r.adSpend,
-      roas: r.adSpend > 0 ? Number((r.revenue / r.adSpend).toFixed(2)) : 0
-    })).reverse(); // Đảo ngược để hiện ngày mới nhất lên đầu
+    if (daysParam !== 'all') {
+      const days = parseInt(daysParam, 10);
+      if (!isNaN(days) && days > 0) {
+        const now = new Date();
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const ymd = d.toISOString().slice(0, 10);
+          const parts = ymd.split('-');
+          const dayNum = parseInt(parts[2] || '0', 10);
+          const monthNum = parseInt(parts[1] || '0', 10);
+          revenueTrend.push({
+            date: `${dayNum}/${monthNum}`,
+            fullDate: `${dayNum}/${monthNum}/${parts[0]}`,
+            revenue: dateMap[ymd]?.revenue ?? 0,
+            adSpend: dateMap[ymd]?.adSpend ?? 0,
+          });
+        }
+      }
+    } else {
+      const sortedDates = Object.keys(dateMap).sort();
+      if (sortedDates.length > 0) {
+        const firstDate = new Date(sortedDates[0]);
+        const lastDate = new Date();
+        const diffTime = lastDate.getTime() - firstDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+        if (diffDays > 0 && diffDays <= 365) {
+          for (let i = 0; i <= diffDays; i++) {
+            const d = new Date(firstDate);
+            d.setDate(d.getDate() + i);
+            const ymd = d.toISOString().slice(0, 10);
+            const parts = ymd.split('-');
+            const dayNum = parseInt(parts[2] || '0', 10);
+            const monthNum = parseInt(parts[1] || '0', 10);
+            revenueTrend.push({
+              date: `${dayNum}/${monthNum}`,
+              fullDate: `${dayNum}/${monthNum}/${parts[0]}`,
+              revenue: dateMap[ymd]?.revenue ?? 0,
+              adSpend: dateMap[ymd]?.adSpend ?? 0,
+            });
+          }
+        } else {
+          for (const d of sortedDates) {
+            const parts = d.split('-');
+            const dayNum = parseInt(parts[2] || '0', 10);
+            const monthNum = parseInt(parts[1] || '0', 10);
+            revenueTrend.push({
+              date: `${dayNum}/${monthNum}`,
+              fullDate: `${dayNum}/${monthNum}/${parts[0]}`,
+              revenue: dateMap[d]?.revenue ?? 0,
+              adSpend: dateMap[d]?.adSpend ?? 0,
+            });
+          }
+        }
+      }
+    }
+
+    // Detailed records cho bảng: lấy các ngày thực tế có giao dịch phát sinh, xếp mới nhất lên đầu
+    const activeDates = Object.keys(dateMap).sort().reverse();
+    const detailedRecords = activeDates.map((d) => {
+      const parts = d.split('-');
+      const dayNum = parseInt(parts[2] || '0', 10);
+      const monthNum = parseInt(parts[1] || '0', 10);
+      const rev = dateMap[d].revenue;
+      const spend = dateMap[d].adSpend;
+      return {
+        date: `${dayNum}/${monthNum}/${parts[0]}`,
+        revenue: rev,
+        adSpend: spend,
+        roas: spend > 0 ? Number((rev / spend).toFixed(2)) : 0,
+      };
+    });
 
     // Campaign records: cộng dồn số liệu từ abTests theo từng chiến dịch
     const campaignsMap = new Map<string, any>();

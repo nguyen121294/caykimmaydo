@@ -23,17 +23,25 @@ export default function RevenueChart({ data }: { data: any[] }) {
             dataKey="date"
             tickLine={false}
             tick={{ fontSize: 10 }}
+            minTickGap={16}
             interval="preserveStartEnd"
             label={{ value: 'Ngày', position: 'insideBottom', offset: -15, style: { textAnchor: 'middle', fontSize: 11 } }}
           />
           <YAxis
             tickLine={false}
             tick={{ fontSize: 10 }}
-            tickFormatter={(v: number) => (v ?? 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            tickFormatter={(v: number) => (v >= 1000000 ? `${(v / 1000000).toFixed(1)}Tr` : (v ?? 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','))}
           />
           <Tooltip
-            contentStyle={{ fontSize: 11 }}
-            formatter={(value: any) => [`${(value ?? 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}đ`, '']}
+            contentStyle={{ fontSize: 11, borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'rgba(255, 255, 255, 0.96)' }}
+            formatter={(value: any, name: any) => [
+              `${(Number(value) || 0).toLocaleString('vi-VN')} đ`,
+              name === 'revenue' || name === 'Doanh thu' ? 'Doanh thu' : 'Chi phí quảng cáo'
+            ]}
+            labelFormatter={(label, payload) => {
+              const fullDate = payload?.[0]?.payload?.fullDate;
+              return fullDate ? `Ngày ${fullDate}` : `Ngày ${label}`;
+            }}
           />
           <Area type="monotone" dataKey="revenue" stroke="#818cf8" fill="url(#revGrad)" strokeWidth={2} name="Doanh thu" />
           <Area type="monotone" dataKey="adSpend" stroke="#f97316" fill="url(#spendGrad)" strokeWidth={2} name="Chi phí quảng cáo" />

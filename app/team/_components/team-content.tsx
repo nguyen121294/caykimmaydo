@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
+import { Users } from 'lucide-react';
 import { toast } from 'sonner';
+import PageHeader from '@/app/components/page-header';
 import { Modal, Input, Select } from '@/app/components/form-controls';
 import { parseTaskViewBuffer } from '@/lib/task-import';
 
@@ -392,461 +394,446 @@ export default function TeamContent() {
   }, [filteredTasks, currentPage, pageSize]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* Header tinh gọn: Không có nút Đơn hàng và Đăng xuất */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition"
-              title="Quay lại trang chủ"
-            >
-              ←
-            </Link>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 leading-tight">Team & Bảng Công Việc</h1>
-              <p className="text-xs text-slate-500">Quản lý phân công, tiến độ và quy trình làm việc xưởng</p>
-            </div>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="inline-flex bg-slate-100 rounded-lg p-1 border border-slate-200/80">
-            <button
-              onClick={() => setView('tasks')}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition ${
-                view === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              📋 Bảng công việc ({tasks.length})
-            </button>
-            <button
-              onClick={() => setView('roles')}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition ${
-                view === 'roles' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              👥 Vai trò & Quy trình
-            </button>
-          </div>
+    <div className="space-y-6 w-full">
+      <PageHeader
+        title="Team & Bảng Công Việc"
+        description="Quản lý phân công, tiến độ và quy trình làm việc xưởng"
+        icon={Users}
+        onRefresh={loadTasks}
+      >
+        <div className="inline-flex bg-slate-100 rounded-xl p-1 border border-slate-200/80 shadow-sm">
+          <button
+            onClick={() => setView('tasks')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              view === 'tasks' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            📋 Bảng công việc ({tasks.length})
+          </button>
+          <button
+            onClick={() => setView('roles')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              view === 'roles' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            👥 Vai trò & Quy trình
+          </button>
         </div>
-      </header>
+      </PageHeader>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {view === 'tasks' && (
-          <div className="space-y-5">
-            {/* KPI Cards Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                <div className="text-xs font-medium text-slate-500">Tổng công việc</div>
-                <div className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</div>
-              </div>
-              <div className="bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-200 shadow-sm">
-                <div className="text-xs font-medium text-emerald-700">Đã hoàn thành</div>
-                <div className="text-2xl font-bold text-emerald-700 mt-1">{stats.completed}</div>
-              </div>
-              <div className="bg-blue-50/60 p-3.5 rounded-xl border border-blue-200 shadow-sm">
-                <div className="text-xs font-medium text-blue-700">Đang thực thi</div>
-                <div className="text-2xl font-bold text-blue-700 mt-1">{stats.inProgress}</div>
-              </div>
-              <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 shadow-sm">
-                <div className="text-xs font-medium text-amber-700">Giao việc (Chờ)</div>
-                <div className="text-2xl font-bold text-amber-700 mt-1">{stats.pending}</div>
-              </div>
-              <div className="bg-slate-100 p-3.5 rounded-xl border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
-                <div className="text-xs font-medium text-slate-500">Huỷ / Tạm dừng</div>
-                <div className="text-2xl font-bold text-slate-600 mt-1">{stats.cancelled}</div>
-              </div>
+      {view === 'tasks' && (
+        <div className="space-y-5 w-full">
+          {/* KPI Cards Summary */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 w-full">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="text-xs font-medium text-slate-500">Tổng công việc</div>
+              <div className="text-2xl lg:text-3xl font-bold text-slate-900 mt-1">{stats.total}</div>
+            </div>
+            <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 shadow-sm">
+              <div className="text-xs font-medium text-emerald-700">Đã hoàn thành</div>
+              <div className="text-2xl lg:text-3xl font-bold text-emerald-700 mt-1">{stats.completed}</div>
+            </div>
+            <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 shadow-sm">
+              <div className="text-xs font-medium text-blue-700">Đang thực thi</div>
+              <div className="text-2xl lg:text-3xl font-bold text-blue-700 mt-1">{stats.inProgress}</div>
+            </div>
+            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 shadow-sm">
+              <div className="text-xs font-medium text-amber-700">Giao việc (Chờ)</div>
+              <div className="text-2xl lg:text-3xl font-bold text-amber-700 mt-1">{stats.pending}</div>
+            </div>
+            <div className="bg-slate-100 p-4 rounded-xl border border-slate-200 shadow-sm col-span-2 sm:col-span-1">
+              <div className="text-xs font-medium text-slate-500">Huỷ / Tạm dừng</div>
+              <div className="text-2xl lg:text-3xl font-bold text-slate-600 mt-1">{stats.cancelled}</div>
+            </div>
+          </div>
+
+          {/* Action Bar & Filters */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col xl:flex-row gap-3 items-stretch xl:items-center justify-between w-full">
+            {/* Search Box */}
+            <div className="relative flex-1 min-w-[280px]">
+              <input
+                type="text"
+                placeholder="🔍 Tìm kiếm công việc, chi tiết, người phụ trách, link nguồn..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full text-xs sm:text-sm pl-3 pr-8 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50/50"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            {/* Action Bar & Filters */}
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-              {/* Search Box */}
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  placeholder="🔍 Tìm kiếm công việc, chi tiết, người phụ trách, link nguồn..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full text-xs sm:text-sm pl-3 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50/50"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch('')}
-                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+            {/* Filter Selects */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={filterStatus}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
+              >
+                <option value="all">Tất cả tình trạng</option>
+                {taskStatuses.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
 
-              {/* Filter Selects */}
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={filterStatus}
-                  onChange={(e) => {
-                    setFilterStatus(e.target.value);
-                    setPage(1);
-                  }}
-                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-                >
-                  <option value="all">Tất cả tình trạng</option>
-                  {taskStatuses.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+              <select
+                value={filterAssignee}
+                onChange={(e) => {
+                  setFilterAssignee(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
+              >
+                <option value="all">Tất cả người phụ trách</option>
+                {assignees.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
 
-                <select
-                  value={filterAssignee}
-                  onChange={(e) => {
-                    setFilterAssignee(e.target.value);
-                    setPage(1);
-                  }}
-                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900"
-                >
-                  <option value="all">Tất cả người phụ trách</option>
-                  {assignees.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
-                </select>
+              <select
+                value={filterDept}
+                onChange={(e) => {
+                  setFilterDept(e.target.value);
+                  setPage(1);
+                }}
+                className="text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white font-medium focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[180px] truncate cursor-pointer"
+              >
+                <option value="all">Tất cả nhóm</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
 
-                <select
-                  value={filterDept}
-                  onChange={(e) => {
-                    setFilterDept(e.target.value);
-                    setPage(1);
-                  }}
-                  className="text-xs px-2.5 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900 max-w-[150px] truncate"
-                >
-                  <option value="all">Tất cả nhóm</option>
-                  {departments.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+              {/* Import / Sync / Create Actions */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
 
-                {/* Import / Sync / Create Actions */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={syncing}
+                className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5 whitespace-nowrap"
+                title="Tải lên file Excel để nạp công việc"
+              >
+                📥 Upload Excel
+              </button>
 
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={syncing}
-                  className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5"
-                  title="Tải lên file Excel để nạp công việc"
-                >
-                  📥 Upload Excel
-                </button>
+              <button
+                onClick={syncLocalExcel}
+                disabled={syncing}
+                className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5 whitespace-nowrap"
+                title="Đồng bộ lại từ docs/taskview.xlsx"
+              >
+                {syncing ? '⏳ Đang đồng bộ...' : '🔄 Đồng bộ file gốc'}
+              </button>
 
-                <button
-                  onClick={syncLocalExcel}
-                  disabled={syncing}
-                  className="text-xs px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition border border-slate-200 flex items-center gap-1.5"
-                  title="Đồng bộ lại từ docs/taskview.xlsx"
-                >
-                  {syncing ? '⏳ Đang đồng bộ...' : '🔄 Đồng bộ file gốc'}
-                </button>
-
-                <button
-                  onClick={openCreate}
-                  className="text-xs px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg transition shadow-sm flex items-center gap-1.5"
-                >
-                  + Thêm việc
-                </button>
-              </div>
+              <button
+                onClick={openCreate}
+                className="text-xs px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg transition shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+              >
+                + Thêm việc
+              </button>
             </div>
+          </div>
 
-            {/* Task Table View */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-100/80 text-slate-700 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
+          {/* Task Table View */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden w-full">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3.5 px-3.5 w-12 text-center whitespace-nowrap">STT</th>
+                    <th className="py-3.5 px-3.5 w-36 whitespace-nowrap">Tình trạng</th>
+                    <th className="py-3.5 px-3.5 w-32 whitespace-nowrap">Deadline</th>
+                    <th className="py-3.5 px-3.5 w-40 whitespace-nowrap">Nhóm công việc</th>
+                    <th className="py-3.5 px-4 min-w-[280px]">Chi tiết công việc</th>
+                    <th className="py-3.5 px-3.5 w-36 whitespace-nowrap">Người phụ trách</th>
+                    <th className="py-3.5 px-3.5 min-w-[200px]">Nguồn / File đính kèm</th>
+                    <th className="py-3.5 px-3.5 w-20 text-right whitespace-nowrap">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {loading ? (
                     <tr>
-                      <th className="py-3 px-3 w-12 text-center">STT</th>
-                      <th className="py-3 px-3 w-36">Tình trạng</th>
-                      <th className="py-3 px-3 w-28">Deadline</th>
-                      <th className="py-3 px-3 w-44">Nhóm công việc</th>
-                      <th className="py-3 px-4 min-w-[240px]">Chi tiết công việc</th>
-                      <th className="py-3 px-3 w-32">Người phụ trách</th>
-                      <th className="py-3 px-3 w-48">Nguồn / File đính kèm</th>
-                      <th className="py-3 px-3 w-20 text-right">Thao tác</th>
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        Đang tải danh sách công việc...
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {loading ? (
-                      <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-400">
-                          Đang tải danh sách công việc...
-                        </td>
-                      </tr>
-                    ) : paginatedTasks.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-400">
-                          Không tìm thấy công việc nào phù hợp với bộ lọc.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedTasks.map((t, idx) => {
-                        const stt = (currentPage - 1) * pageSize + idx + 1;
-                        const links = Array.isArray(t.checklist)
-                          ? t.checklist.filter((c: any) => c.url && typeof c.url === 'string')
-                          : [];
+                  ) : paginatedTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                        Không tìm thấy công việc nào phù hợp với bộ lọc.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedTasks.map((t, idx) => {
+                      const stt = (currentPage - 1) * pageSize + idx + 1;
+                      const links = Array.isArray(t.checklist)
+                        ? t.checklist.filter((c: any) => c.url && typeof c.url === 'string')
+                        : [];
 
-                        return (
-                          <tr
-                            key={t.id}
-                            className={`hover:bg-slate-50/80 transition-colors ${
-                              t.status === 'Đã hoàn thành' ? 'bg-emerald-50/10' : ''
-                            }`}
-                          >
-                            <td className="py-3 px-3 text-center font-medium text-slate-400">
-                              {stt}
-                            </td>
-                            <td className="py-3 px-3">
-                              <select
-                                value={t.status}
-                                onChange={(e) => updateStatus(t.id, e.target.value)}
-                                className={`text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none transition ${statusBadge(
-                                  t.status
+                      return (
+                        <tr
+                          key={t.id}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            t.status === 'Đã hoàn thành' ? 'bg-emerald-50/10' : ''
+                          }`}
+                        >
+                          <td className="py-3.5 px-3.5 text-center font-medium text-slate-400 whitespace-nowrap">
+                            {stt}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            <select
+                              value={t.status}
+                              onChange={(e) => updateStatus(t.id, e.target.value)}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none transition ${statusBadge(
+                                t.status
+                              )}`}
+                            >
+                              {taskStatuses.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-3.5 px-3.5 font-medium text-slate-600 whitespace-nowrap">
+                            {t.deadline ? (
+                              <span className="inline-flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 whitespace-nowrap">
+                                <span>📅</span>
+                                <span className="font-medium">{t.deadline}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5 font-medium text-slate-900 whitespace-nowrap">
+                            <span className="inline-block bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded text-[11px] font-medium border border-slate-200/60">
+                              {t.department || t.name || 'Tổng hợp'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-normal text-slate-800 whitespace-pre-line leading-relaxed text-xs sm:text-sm">
+                              {t.description || t.name}
+                            </div>
+                            {t.note && (
+                              <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded inline-block border border-amber-200/50">
+                                📝 {t.note}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                            {t.assignee ? (
+                              <span
+                                className={`inline-block font-semibold px-2.5 py-0.5 rounded-full border text-[11px] ${assigneeBadge(
+                                  t.assignee
                                 )}`}
                               >
-                                {taskStatuses.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="py-3 px-3 font-medium text-slate-600">
-                              {t.deadline ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <span>📅</span>
-                                  <span>{t.deadline}</span>
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-3 font-medium text-slate-900">
-                              <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
-                                {t.department || t.name || 'Tổng hợp'}
+                                {t.assignee}
                               </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-normal text-slate-800 whitespace-pre-line leading-relaxed">
-                                {t.description || t.name}
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Không có</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5">
+                            {links.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {links.map((link: any, i: number) => {
+                                  let label = `🔗 Nguồn ${i + 1}`;
+                                  if (link.url.includes('docs.google.com/spreadsheets')) label = '📊 Google Sheet';
+                                  else if (link.url.includes('instagram.com')) label = '📸 Instagram';
+                                  else if (link.url.includes('apps.abacus.ai') || link.url.includes('maydo.abacusai')) label = '⚡ App/Agent';
+                                  else if (link.url.includes('chatgpt.com') || link.url.includes('gemini.google')) label = '🤖 AI Chat';
+
+                                  return (
+                                    <a
+                                      key={i}
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-800 px-2 py-0.5 rounded transition border border-indigo-100 whitespace-nowrap"
+                                      title={link.url}
+                                    >
+                                      {label} ↗
+                                    </a>
+                                  );
+                                })}
                               </div>
-                              {t.note && (
-                                <div className="mt-1 text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded inline-block">
-                                  📝 {t.note}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-3">
-                              {t.assignee ? (
-                                <span
-                                  className={`inline-block font-semibold px-2.5 py-0.5 rounded-full border text-[11px] ${assigneeBadge(
-                                    t.assignee
-                                  )}`}
-                                >
-                                  {t.assignee}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400 italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-3">
-                              {links.length > 0 ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {links.map((link: any, i: number) => {
-                                    let label = `🔗 Nguồn ${i + 1}`;
-                                    if (link.url.includes('docs.google.com/spreadsheets')) label = '📊 Google Sheet';
-                                    else if (link.url.includes('instagram.com')) label = '📸 Instagram';
-                                    else if (link.url.includes('apps.abacus.ai') || link.url.includes('maydo.abacusai')) label = '⚡ App/Agent';
-                                    else if (link.url.includes('chatgpt.com') || link.url.includes('gemini.google')) label = '🤖 AI Chat';
-
-                                    return (
-                                      <a
-                                        key={i}
-                                        href={link.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-800 px-2 py-0.5 rounded transition border border-indigo-100"
-                                        title={link.url}
-                                      >
-                                        {label} ↗
-                                      </a>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 italic text-[11px]">Không có</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-3 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => openEdit(t)}
-                                  className="text-slate-500 hover:text-indigo-600 p-1 rounded hover:bg-slate-100 transition"
-                                  title="Chỉnh sửa"
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  onClick={() => deleteTask(t.id)}
-                                  className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition"
-                                  title="Xóa"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination footer */}
-              <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-                <div className="flex items-center gap-2">
-                  <span>Hiển thị</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setPage(1);
-                    }}
-                    className="border border-slate-200 rounded px-2 py-1 bg-white font-medium focus:outline-none"
-                  >
-                    <option value={20}>20</option>
-                    <option value={30}>30</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value={filteredTasks.length}>Tất cả ({filteredTasks.length})</option>
-                  </select>
-                  <span>dòng trên trang (Tổng {filteredTasks.length} công việc)</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage <= 1}
-                    className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    ← Trước
-                  </button>
-                  <span className="font-semibold text-slate-800">
-                    Trang {currentPage} / {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage >= totalPages}
-                    className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    Sau →
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab: Vai trò & Quy trình (Luôn mở đầy đủ 100%) */}
-        {view === 'roles' && (
-          <div className="space-y-6">
-            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Bản đồ Vai trò & Trách nhiệm Xưởng May</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Toàn bộ quy trình và nhiệm vụ hằng ngày, hằng tuần của từng vị trí được hiển thị chi tiết bên dưới.
-                </p>
-              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Không có</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEdit(t)}
+                                className="text-slate-500 hover:text-indigo-600 p-1 rounded hover:bg-slate-100 transition"
+                                title="Chỉnh sửa"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deleteTask(t.id)}
+                                className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition"
+                                title="Xóa"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {Object.entries(roleData).map(([key, role]) => (
-                <div
-                  key={key}
-                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col"
+            {/* Pagination footer */}
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+              <div className="flex items-center gap-2">
+                <span>Hiển thị</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="border border-slate-200 rounded px-2 py-1 bg-white font-medium focus:outline-none"
                 >
-                  {/* Card Header Gradient */}
-                  <div className={`bg-gradient-to-r ${role.color} text-white p-5 flex items-start gap-3.5`}>
-                    <span className="text-3xl bg-white/20 p-2 rounded-xl backdrop-blur-sm shadow-inner">
-                      {role.icon}
-                    </span>
+                  <option value={20}>20</option>
+                  <option value={30}>30</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={filteredTasks.length}>Tất cả ({filteredTasks.length})</option>
+                </select>
+                <span>dòng trên trang (Tổng {filteredTasks.length} công việc)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  ← Trước
+                </button>
+                <span className="font-semibold text-slate-800">
+                  Trang {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-2.5 py-1 border border-slate-200 rounded bg-white font-medium hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Vai trò & Quy trình (Luôn mở đầy đủ 100%) */}
+      {view === 'roles' && (
+        <div className="space-y-6 w-full">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Bản đồ Vai trò & Trách nhiệm Xưởng May</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Toàn bộ quy trình và nhiệm vụ hằng ngày, hằng tuần của từng vị trí được hiển thị chi tiết bên dưới.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 w-full">
+            {Object.entries(roleData).map(([key, role]) => (
+              <div
+                key={key}
+                className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition flex flex-col"
+              >
+                {/* Card Header Gradient */}
+                <div className={`bg-gradient-to-r ${role.color} text-white p-5 flex items-start gap-3.5`}>
+                  <span className="text-3xl bg-white/20 p-2 rounded-xl backdrop-blur-sm shadow-inner">
+                    {role.icon}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold tracking-tight">{role.name}</h3>
+                    <p className="text-xs text-white/90 leading-relaxed mt-1">{role.description}</p>
+                  </div>
+                </div>
+
+                {/* Card Body - Luôn mở 100% */}
+                <div className="p-5 space-y-4 flex-1 flex flex-col justify-between bg-white">
+                  <div className="space-y-4">
+                    {/* Daily Tasks */}
                     <div>
-                      <h3 className="text-lg font-bold tracking-tight">{role.name}</h3>
-                      <p className="text-xs text-white/90 leading-relaxed mt-1">{role.description}</p>
+                      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        Nhiệm vụ Hằng ngày
+                      </h4>
+                      <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                        {role.dailyTasks.map((t: string, i: number) => (
+                          <li key={i} className="flex items-start gap-1.5">
+                            <span className="text-emerald-600 font-bold text-sm leading-none">•</span>
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Weekly Tasks */}
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        Nhiệm vụ Hằng tuần
+                      </h4>
+                      <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                        {role.weeklyTasks.map((t: string, i: number) => (
+                          <li key={i} className="flex items-start gap-1.5">
+                            <span className="text-indigo-600 font-bold text-sm leading-none">•</span>
+                            <span>{t}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
 
-                  {/* Card Body - Luôn mở 100% */}
-                  <div className="p-5 space-y-4 flex-1 flex flex-col justify-between bg-white">
-                    <div className="space-y-4">
-                      {/* Daily Tasks */}
-                      <div>
-                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                          Nhiệm vụ Hằng ngày
-                        </h4>
-                        <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
-                          {role.dailyTasks.map((t: string, i: number) => (
-                            <li key={i} className="flex items-start gap-1.5">
-                              <span className="text-emerald-600 font-bold text-sm leading-none">•</span>
-                              <span>{t}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {/* Weekly Tasks */}
-                      <div>
-                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                          Nhiệm vụ Hằng tuần
-                        </h4>
-                        <ul className="text-xs text-slate-700 space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
-                          {role.weeklyTasks.map((t: string, i: number) => (
-                            <li key={i} className="flex items-start gap-1.5">
-                              <span className="text-indigo-600 font-bold text-sm leading-none">•</span>
-                              <span>{t}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Tools */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                        🛠️ Công cụ làm việc
-                      </h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {role.tools.map((t: string, i: number) => (
-                          <span
-                            key={i}
-                            className="px-2.5 py-1 text-[11px] font-medium bg-slate-100 text-slate-700 rounded-lg border border-slate-200/60"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Tools */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      🛠️ Công cụ làm việc
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {role.tools.map((t: string, i: number) => (
+                        <span
+                          key={i}
+                          className="px-2.5 py-1 text-[11px] font-medium bg-slate-100 text-slate-700 rounded-lg border border-slate-200/60"
+                        >
+                          {t}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
       {/* Modal Thêm/Chỉnh sửa công việc */}
       {showForm && (

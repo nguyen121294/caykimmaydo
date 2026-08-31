@@ -253,6 +253,86 @@ export async function GET(request: Request) {
       { stage: 'BOF', ...funnelStages.BOF }
     ];
 
+    // 6-Month Monthly Performance Stats (6 tháng gần nhất)
+    const monthlyStats: {
+      monthKey: string;
+      monthLabel: string;
+      shortLabel: string;
+      revenue: number;
+      adSpend: number;
+      adsPercentage: number;
+      roas: number;
+      orderCount: number;
+    }[] = [];
+
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const monthKey = `${year}-${month}`;
+      monthlyStats.push({
+        monthKey,
+        monthLabel: `Tháng ${month}/${year}`,
+        shortLabel: `T${month}/${String(year).slice(-2)}`,
+        revenue: 0,
+        adSpend: 0,
+        adsPercentage: 0,
+        roas: 0,
+        orderCount: 0,
+      });
+    }
+
+    const firstMonthDateStr = `${monthlyStats[0].monthKey}-01`;
+    const [sixMonthOrders, sixMonthFinance] = await Promise.all([
+      prisma.order.findMany({
+        where: {
+          OR: [
+            { orderDate: { gte: firstMonthDateStr } },
+            { createdAt: { gte: new Date(`${firstMonthDateStr}T00:00:00Z`) } },
+          ],
+        },
+        select: { total: true, orderDate: true, createdAt: true },
+      }),
+      prisma.financeEntry.findMany({
+        where: {
+          date: { gte: firstMonthDateStr },
+          type: 'Chi',
+        },
+        select: { amount: true, date: true, category: true },
+      }),
+    ]);
+
+    for (const o of sixMonthOrders) {
+      const d = o.orderDate || (o.createdAt ? o.createdAt.toISOString().slice(0, 10) : null);
+      if (!d) continue;
+      const mKey = d.slice(0, 7);
+      const target = monthlyStats.find(m => m.monthKey === mKey);
+      if (target) {
+        target.revenue += o.total ?? 0;
+        target.orderCount += 1;
+      }
+    }
+
+    for (const f of sixMonthFinance) {
+      if (!f.date) continue;
+      const mKey = f.date.slice(0, 7);
+      const isAd = f.category
+        ? (f.category.includes('Quảng cáo') || f.category.includes('Facebook') || f.category.includes('Ads') || f.category.includes('Marketing'))
+        : false;
+      if (isAd) {
+        const target = monthlyStats.find(m => m.monthKey === mKey);
+        if (target) {
+          target.adSpend += f.amount ?? 0;
+        }
+      }
+    }
+
+    for (const m of monthlyStats) {
+      m.adsPercentage = m.revenue > 0 ? Number(((m.adSpend / m.revenue) * 100).toFixed(1)) : 0;
+      m.roas = m.adSpend > 0 ? Number((m.revenue / m.adSpend).toFixed(2)) : 0;
+    }
+
     // Alerts: tạo từ dữ liệu thật (automation logs gần nhất)
     const alerts = automationLogs.slice(0, 5).map(log => ({
       type: log.level === 'error' ? 'error' : log.level === 'warning' ? 'warning' : log.level === 'info' ? 'info' : 'info',
@@ -267,6 +347,7 @@ export async function GET(request: Request) {
       hasData,
       kpis,
       revenueTrend,
+      monthlyStats,
       detailedRecords,
       campaignRecords,
       funnelData,

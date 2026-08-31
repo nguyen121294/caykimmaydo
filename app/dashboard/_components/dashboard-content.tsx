@@ -6,6 +6,7 @@ import KpiCard from '@/app/components/kpi-card';
 import PageHeader from '@/app/components/page-header';
 import RevenueChart from './revenue-chart';
 import FunnelChart from './funnel-chart';
+import MonthlyPerformance from './monthly-performance';
 import CampaignManager from '../campaigns/_components/campaign-manager';
 
 export default function DashboardContent() {
@@ -170,6 +171,9 @@ export default function DashboardContent() {
 
       {/* KPI Cards */}
       {renderKpis()}
+
+      {/* 6-Month Performance: Biểu đồ & Bảng tổng hợp theo tháng */}
+      <MonthlyPerformance data={data?.monthlyStats ?? []} />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -209,6 +209,55 @@ export default function CRMContent() {
     toast.success('Đã tải xuống file template mẫu import khách hàng');
   };
 
+  const exportCustomerCSV = () => {
+    const listToExport = filtered.length > 0 ? filtered : customers;
+    if (listToExport.length === 0) {
+      toast.error('Không có dữ liệu khách hàng để xuất');
+      return;
+    }
+    const headers = [
+      'STT',
+      'Họ và tên',
+      'Số điện thoại',
+      'Email',
+      'Tài khoản MXH',
+      'Địa chỉ',
+      'Nguồn khách',
+      'Hạng VIP',
+      'Điểm tích lũy',
+      'Tổng chi tiêu (VNĐ)',
+      'Ngày mua gần nhất',
+      'Trạng thái',
+      'Nhãn / Tags',
+      'Ghi chú'
+    ];
+    const rows = listToExport.map((c, idx) => [
+      idx + 1,
+      c.name || '',
+      c.phone || '',
+      c.email || '',
+      c.contactAccount || '',
+      c.address || '',
+      c.source || '',
+      c.loyaltyTier || 'New',
+      c.loyaltyPoints || 0,
+      c.totalSpent || 0,
+      c.lastPurchaseDate || '',
+      c.status || '',
+      c.tags || '',
+      c.notes || ''
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `danh-sach-khach-hang-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Đã xuất file CSV / Excel (${listToExport.length} khách hàng)`);
+  };
+
   const handleAdd = async () => {
     if (!form.name.trim()) { toast.error('Vui lòng nhập tên khách hàng'); return; }
     setAddSaving(true);
@@ -510,6 +559,9 @@ export default function CRMContent() {
           </button>
           <button onClick={downloadCustomerTemplate} className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm" title="Tải file Excel/CSV mẫu để chuẩn bị dữ liệu">
             <Download size={14} className="text-indigo-600" /> Tải template mẫu
+          </button>
+          <button onClick={exportCustomerCSV} className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm" title="Xuất danh sách khách hàng ra file CSV / Excel">
+            <Download size={14} /> Xuất CSV / Excel
           </button>
           <button onClick={() => { setShowImport(true); setImportError(null); setImportResult(null); setSheetPreview(null); setImportFile(null); }} className="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm flex items-center gap-1.5 font-medium transition-colors">
             <FileSpreadsheet size={14} /> Import khách hàng

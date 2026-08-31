@@ -558,7 +558,7 @@ export default function TeamContent() {
                 <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3.5 px-3.5 w-12 text-center whitespace-nowrap">STT</th>
-                    <th className="py-3.5 px-3.5 w-36 whitespace-nowrap">Tình trạng</th>
+                    <th className="py-3.5 px-3.5 min-w-[140px] whitespace-nowrap">Tình trạng</th>
                     <th className="py-3.5 px-3.5 w-32 whitespace-nowrap">Deadline</th>
                     <th className="py-3.5 px-3.5 w-40 whitespace-nowrap">Nhóm công việc</th>
                     <th className="py-3.5 px-4 min-w-[280px]">Chi tiết công việc</th>
@@ -597,11 +597,11 @@ export default function TeamContent() {
                           <td className="py-3.5 px-3.5 text-center font-medium text-slate-400 whitespace-nowrap">
                             {stt}
                           </td>
-                          <td className="py-3.5 px-3.5 whitespace-nowrap">
+                          <td className="py-3.5 px-3.5 whitespace-nowrap min-w-[140px]">
                             <select
                               value={t.status}
                               onChange={(e) => updateStatus(t.id, e.target.value)}
-                              className={`text-xs font-semibold px-2.5 py-1 rounded-full border cursor-pointer focus:outline-none transition ${statusBadge(
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border cursor-pointer focus:outline-none transition min-w-[132px] ${statusBadge(
                                 t.status
                               )}`}
                             >
@@ -704,15 +704,15 @@ export default function TeamContent() {
 
             {/* Pagination footer */}
             <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2">
-                <span>Hiển thị</span>
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <span className="whitespace-nowrap shrink-0">Hiển thị</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setPage(1);
                   }}
-                  className="border border-slate-200 rounded px-2 py-1 bg-white font-medium focus:outline-none"
+                  className="border border-slate-200 rounded px-2.5 py-1 bg-white font-medium focus:outline-none shrink-0"
                 >
                   <option value={20}>20</option>
                   <option value={30}>30</option>
@@ -720,10 +720,10 @@ export default function TeamContent() {
                   <option value={100}>100</option>
                   <option value={filteredTasks.length}>Tất cả ({filteredTasks.length})</option>
                 </select>
-                <span>dòng trên trang (Tổng {filteredTasks.length} công việc)</span>
+                <span className="whitespace-nowrap shrink-0">dòng trên trang (Tổng {filteredTasks.length} công việc)</span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}

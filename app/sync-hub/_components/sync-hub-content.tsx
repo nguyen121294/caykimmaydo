@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { RefreshCw, CheckCircle2, XCircle, Clock, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
-import PageHeader from '@/app/components/page-header';
 import { toast } from 'sonner';
 
 type PlatformStatus = 'idle' | 'syncing' | 'success' | 'error';
@@ -236,26 +235,34 @@ export default function SyncHubContent() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PageHeader 
-          title="Sync Hub (Đồng bộ)" 
-          description="Quản lý và đồng bộ dữ liệu từ các nền tảng"
-          icon={RefreshCw} 
-        />
-        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+      {/* Header Bar */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
+            <RefreshCw className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
+              Sync Hub (Đồng bộ)
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Quản lý và đồng bộ dữ liệu tự động từ các nền tảng đa kênh</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center sm:items-end gap-3">
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-            Từ ngày
+            <span>Từ ngày</span>
             <input
               type="date"
               value={startDate}
               max={endDate}
               onChange={(event) => setStartDate(event.target.value)}
               disabled={isSyncingAll || items.some(item => item.status === 'syncing')}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+              className="h-10 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 transition shadow-sm"
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-            Đến ngày
+            <span>Đến ngày</span>
             <input
               type="date"
               value={endDate}
@@ -263,19 +270,21 @@ export default function SyncHubContent() {
               max={defaultEndDate}
               onChange={(event) => setEndDate(event.target.value)}
               disabled={isSyncingAll || items.some(item => item.status === 'syncing')}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+              className="h-10 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs sm:text-sm font-semibold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 transition shadow-sm"
             />
           </label>
-          <div className="flex flex-col items-end">
-          <button
-            onClick={handleSyncAll}
-            disabled={isSyncingAll}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md hover:shadow-lg transition-all font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <RefreshCw size={16} className={isSyncingAll ? "animate-spin" : ""} />
-            Đồng bộ tất cả nền tảng
-          </button>
-          <span className="text-xs text-gray-500 mt-2 font-medium">Dữ liệu cập nhật lần cuối lúc: {lastUpdate}</span>
+          <div className="flex flex-col items-start sm:items-end gap-1">
+            <button
+              onClick={handleSyncAll}
+              disabled={isSyncingAll}
+              className="h-10 flex items-center gap-2 px-5 text-sm bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl shadow-md hover:shadow-lg transition-all font-semibold whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+            >
+              <RefreshCw size={15} className={isSyncingAll ? "animate-spin" : ""} />
+              <span>Đồng bộ tất cả nền tảng</span>
+            </button>
+            <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+              Cập nhật lần cuối: {lastUpdate || 'Vừa xong'}
+            </span>
           </div>
         </div>
       </div>
@@ -381,7 +390,7 @@ export default function SyncHubContent() {
                             )}
                           </td>
                         </tr>
-                      )
+                      );
                     })
                   )}
                 </tbody>

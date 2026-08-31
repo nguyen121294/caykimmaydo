@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins, FileSpreadsheet, Link2, Loader2, RefreshCw, Search, Trash2, Receipt, CreditCard, Scissors, UploadCloud } from 'lucide-react';
+import { Package, ClipboardCheck, Camera, Clock, CheckCircle, AlertCircle, Plus, Download, DollarSign, Wallet, Coins, FileSpreadsheet, Link2, Loader2, RefreshCw, Search, Trash2, Receipt, CreditCard, Scissors, UploadCloud, Pencil, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import PageHeader from '@/app/components/page-header';
 import { Modal, Input, Select } from '@/app/components/form-controls';
@@ -75,6 +75,7 @@ export default function OrdersContent() {
   const [missingPhoneOnly, setMissingPhoneOnly] = useState(false);
   const [initialCustomerId, setInitialCustomerId] = useState('');
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
   const [googleSheetNames, setGoogleSheetNames] = useState<string[]>([]);
@@ -166,6 +167,74 @@ export default function OrdersContent() {
       fetchData();
     } catch (e: any) {
       toast.error(e?.message ?? 'Lỗi thêm đơn');
+    }
+  }
+
+  async function handleEditOrder(payload: { orderData: any; files?: Array<{ type: string; file: File }> } | any) {
+    if (!editingOrder?.id) return;
+    try {
+      const orderData = payload.orderData ?? payload;
+      const files = payload.files ?? [];
+
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingOrder.id, ...orderData }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Lỗi cập nhật đơn hàng');
+
+      if (files.length > 0) {
+        let uploadedCount = 0;
+        for (const item of files) {
+          try {
+            const fd = new FormData();
+            fd.append('file', item.file);
+            fd.append('type', item.type);
+            const uploadRes = await fetch(`/api/orders/${editingOrder.id}/assets/upload`, {
+              method: 'POST',
+              body: fd,
+            });
+            if (uploadRes.ok) uploadedCount++;
+          } catch (uploadErr) {
+            console.error('Upload asset error:', uploadErr);
+          }
+        }
+        if (uploadedCount > 0) {
+          toast.success(`Đã cập nhật đơn ${editingOrder.orderId || ''} và tải lên ${uploadedCount} ảnh/bill mới!`);
+        } else {
+          toast.success(`Đã cập nhật đơn ${editingOrder.orderId || ''} thành công!`);
+        }
+      } else {
+        toast.success(`Đã cập nhật đơn ${editingOrder.orderId || ''} thành công!`);
+      }
+
+      setEditingOrder(null);
+      fetchData();
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Lỗi cập nhật đơn hàng');
+    }
+  }
+
+  async function handleDeleteAsset(orderId: string, assetId: string) {
+    if (!confirm('Bạn có chắc chắn muốn xóa ảnh/bill này?')) return;
+    try {
+      const res = await fetch(`/api/orders/${orderId}/assets`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId }),
+      });
+      if (!res.ok) throw new Error('Lỗi xóa file');
+      toast.success('Đã xóa file đính kèm');
+      if (editingOrder && editingOrder.id === orderId) {
+        setEditingOrder((prev: any) => prev ? {
+          ...prev,
+          assets: (prev.assets || []).filter((a: any) => a.id !== assetId)
+        } : null);
+      }
+      fetchData();
+    } catch (e: any) {
+      toast.error(e?.message || 'Lỗi xóa file');
     }
   }
 
@@ -383,16 +452,17 @@ export default function OrdersContent() {
             <Download size={14} className="text-indigo-600" /> Tải template mẫu
           </button>
           <button
+            onClick={exportCSV}
+            className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm"
+            title="Xuất danh sách đơn hàng ra file CSV / Excel"
+          >
+            <Download size={14} /> Xuất CSV / Excel
+          </button>
+          <button
             onClick={() => { setShowImport(true); setImportError(null); setImportPreview(null); setImportResult(null); }}
             className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm flex items-center gap-1.5 font-medium transition-colors"
           >
             <FileSpreadsheet size={14} /> Import Google Sheet
-          </button>
-          <button
-            onClick={exportCSV}
-            className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-sm flex items-center gap-1.5 font-medium transition-colors shadow-sm"
-          >
-            <Download size={14} /> Xuất CSV / Excel
           </button>
           <button
             onClick={() => setShowOrderForm(true)}
@@ -465,21 +535,21 @@ export default function OrdersContent() {
       </div>
 
       {/* Filters and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 min-w-[280px]">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <input
             value={orderSearch}
             onChange={(e) => setOrderSearch(e.target.value)}
             placeholder="Tìm theo mã đơn, tên khách, số điện thoại, sản phẩm..."
-            className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none bg-white"
+            className="w-full pl-9 pr-3 h-10 rounded-lg border border-slate-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none bg-white shadow-sm"
           />
         </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={statusFilter}
             onChange={(e: any) => setStatusFilter(e?.target?.value ?? '')}
-            className="h-10 px-3 text-sm bg-white rounded-lg border border-slate-200 outline-none focus:border-indigo-500 shrink-0 cursor-pointer"
+            className="h-10 px-3 text-sm bg-white rounded-lg border border-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
           >
             <option value="">Tất cả trạng thái</option>
             {orderStatuses?.map?.((s: string) => (
@@ -488,12 +558,20 @@ export default function OrdersContent() {
           </select>
           <button
             type="button"
-            onClick={() => { setMissingPhoneOnly(value => !value); if (!missingPhoneOnly) setOrderSearch('1111111111'); }}
-            className={`h-10 rounded-lg px-3.5 text-sm font-medium border transition-colors whitespace-nowrap shrink-0 flex items-center ${missingPhoneOnly ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'}`}
+            onClick={() => {
+              const next = !missingPhoneOnly;
+              setMissingPhoneOnly(next);
+              if (next) setOrderSearch('1111111111');
+              else if (orderSearch === '1111111111') setOrderSearch('');
+            }}
+            className={`h-10 rounded-lg px-3.5 text-sm font-medium border transition-all whitespace-nowrap flex items-center gap-1.5 shadow-sm ${missingPhoneOnly ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-slate-200 hover:bg-amber-50'}`}
           >
-            Cần bổ sung SĐT
+            <AlertCircle size={14} className={missingPhoneOnly ? 'text-white' : 'text-amber-600'} />
+            <span>Cần bổ sung SĐT</span>
           </button>
-          <span className="text-xs text-slate-500 whitespace-nowrap shrink-0 font-medium pl-1">({orders?.length ?? 0} đơn)</span>
+          <div className="h-10 px-3 rounded-lg bg-slate-100 border border-slate-200/70 flex items-center justify-center text-xs font-semibold text-slate-600 whitespace-nowrap shadow-sm">
+            {orders?.length ?? 0} đơn
+          </div>
         </div>
       </div>
 
@@ -567,7 +645,15 @@ export default function OrdersContent() {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setEditingOrder(o)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-700 transition-colors shadow-sm"
+                          title="Chỉnh sửa đơn hàng & upload ảnh / bill"
+                        >
+                          <Pencil size={12} className="text-indigo-600" />
+                          <span>Sửa</span>
+                        </button>
                         <button
                           onClick={() => handleDeleteOrder(o.id, o.orderId || o.customerName)}
                           className="inline-flex items-center gap-1 rounded-lg bg-white hover:bg-red-50 hover:text-red-600 border border-slate-200 p-1.5 text-xs text-slate-400 transition-colors"
@@ -779,7 +865,20 @@ export default function OrdersContent() {
       )}
 
       {showOrderForm && (
-        <OrderForm initialCustomerId={initialCustomerId} onClose={() => { setShowOrderForm(false); setInitialCustomerId(''); }} onSave={handleAddOrder} />
+        <OrderForm
+          initialCustomerId={initialCustomerId}
+          onClose={() => { setShowOrderForm(false); setInitialCustomerId(''); }}
+          onSave={handleAddOrder}
+        />
+      )}
+
+      {editingOrder && (
+        <OrderForm
+          editingOrder={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSave={handleEditOrder}
+          onDeleteAsset={handleDeleteAsset}
+        />
       )}
     </div>
   );
@@ -857,7 +956,19 @@ function ImageUploadBox({
   );
 }
 
-function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: string; onClose: () => void; onSave: (payload: any) => void }) {
+function OrderForm({
+  initialCustomerId = '',
+  editingOrder = null,
+  onClose,
+  onSave,
+  onDeleteAsset,
+}: {
+  initialCustomerId?: string;
+  editingOrder?: any | null;
+  onClose: () => void;
+  onSave: (payload: any) => void;
+  onDeleteAsset?: (orderId: string, assetId: string) => void;
+}) {
   const [customers, setCustomers] = useState<Array<{ id: string; name: string; phone: string | null }>>([]);
   const [users, setUsers] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -866,25 +977,25 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
   const [balanceBillFile, setBalanceBillFile] = useState<File | null>(null);
   const [fabricBillFile, setFabricBillFile] = useState<File | null>(null);
   const [form, setForm] = useState<any>({
-    customerId: initialCustomerId,
-    customerName: '',
-    phone: '',
-    product: '',
-    productType: 'Áo dài',
-    quantity: 1,
-    total: '',
-    deposit: '',
-    orderDate: '',
-    tryDate: '',
-    deliveryDate: '',
-    deliveryAddress: '',
-    salesOwnerId: '',
-    fabricCost: '',
-    tailorCost: '',
-    shippingFee: '',
-    department: 'Tư vấn / Sale',
-    status: 'Mới nhận',
-    note: '',
+    customerId: editingOrder?.customerId ?? initialCustomerId ?? '',
+    customerName: editingOrder?.customerName ?? '',
+    phone: editingOrder?.phone ?? '',
+    product: editingOrder?.product ?? '',
+    productType: editingOrder?.productType ?? 'Áo dài',
+    quantity: editingOrder?.quantity ?? 1,
+    total: editingOrder?.total !== undefined ? String(editingOrder.total) : '',
+    deposit: editingOrder?.deposit !== undefined ? String(editingOrder.deposit) : '',
+    orderDate: editingOrder?.orderDate ?? '',
+    tryDate: editingOrder?.tryDate ?? '',
+    deliveryDate: editingOrder?.deliveryDate ?? editingOrder?.expectedDate ?? '',
+    deliveryAddress: editingOrder?.deliveryAddress ?? '',
+    salesOwnerId: editingOrder?.salesOwnerId ?? '',
+    fabricCost: editingOrder?.fabricCost !== undefined ? String(editingOrder.fabricCost) : '',
+    tailorCost: editingOrder?.tailorCost !== undefined ? String(editingOrder.tailorCost) : '',
+    shippingFee: editingOrder?.shippingFee !== undefined ? String(editingOrder.shippingFee) : '',
+    department: editingOrder?.department ?? 'Tư vấn / Sale',
+    status: editingOrder?.status ?? 'Mới nhận',
+    note: editingOrder?.notes ?? '',
   });
 
   useEffect(() => {
@@ -894,12 +1005,12 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
     ]).then(([customerRows, userRows]) => {
       setCustomers(Array.isArray(customerRows) ? customerRows : []);
       setUsers(Array.isArray(userRows) ? userRows : []);
-      if (initialCustomerId) {
+      if (!editingOrder && initialCustomerId) {
         const selected = customerRows.find((customer: any) => customer.id === initialCustomerId);
         if (selected) setForm((current: any) => ({ ...current, customerId: selected.id, customerName: selected.name, phone: selected.phone ?? '' }));
       }
     }).catch(() => undefined);
-  }, [initialCustomerId]);
+  }, [initialCustomerId, editingOrder]);
 
   const filteredCustomers = customers.filter(customer => {
     const query = customerSearch.trim().toLocaleLowerCase('vi');
@@ -939,22 +1050,24 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
   const remain = Number(form.total || 0) - Number(form.deposit || 0);
 
   return (
-    <Modal title="Thêm đơn hàng mới" onClose={onClose}>
+    <Modal title={editingOrder ? `Chỉnh sửa đơn hàng ${editingOrder.orderId || ''}` : 'Thêm đơn hàng mới'} onClose={onClose}>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-          <label className="mb-1 block text-xs font-semibold text-indigo-900">Chọn khách đã có trong CRM</label>
-          <input
-            value={customerSearch}
-            onChange={(e) => setCustomerSearch(e.target.value)}
-            placeholder="Gõ tên hoặc SĐT để lọc..."
-            className="mb-2 w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm outline-none"
-          />
-          <select value={form.customerId} onChange={(e) => selectCustomer(e.target.value)} className="w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm">
-            <option value="">Khách mới — nhập thông tin bên dưới</option>
-            {filteredCustomers.map(customer => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone || 'chưa có SĐT'}</option>)}
-          </select>
-          <p className="mt-1.5 text-xs text-indigo-700">Khách mới có SĐT hợp lệ sẽ tự tạo trong CRM. Thiếu SĐT sẽ lưu là 1111111111 và chưa tạo CRM.</p>
-        </div>
+        {!editingOrder && (
+          <div className="md:col-span-2 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+            <label className="mb-1 block text-xs font-semibold text-indigo-900">Chọn khách đã có trong CRM</label>
+            <input
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              placeholder="Gõ tên hoặc SĐT để lọc..."
+              className="mb-2 w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm outline-none"
+            />
+            <select value={form.customerId} onChange={(e) => selectCustomer(e.target.value)} className="w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm">
+              <option value="">Khách mới — nhập thông tin bên dưới</option>
+              {filteredCustomers.map(customer => <option key={customer.id} value={customer.id}>{customer.name} · {customer.phone || 'chưa có SĐT'}</option>)}
+            </select>
+            <p className="mt-1.5 text-xs text-indigo-700">Khách mới có SĐT hợp lệ sẽ tự tạo trong CRM. Thiếu SĐT sẽ lưu là 1111111111 và chưa tạo CRM.</p>
+          </div>
+        )}
         <Input label="Tên khách hàng *" value={form.customerName} onChange={(v) => setForm({ ...form, customerName: v })} />
         
         <div className="space-y-1">
@@ -978,7 +1091,7 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-gray-700">Nhân viên xử lý</span>
           <select value={form.salesOwnerId} onChange={(e) => setForm({ ...form, salesOwnerId: e.target.value })} className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm">
-            <option value="">Tự động: người đang tạo</option>
+            <option value="">Tự động: người đang tạo/sửa</option>
             {users.map(user => <option key={user.id} value={user.id}>{user.name || user.email}</option>)}
           </select>
         </label>
@@ -988,10 +1101,55 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
         <Input label="Tiền công may" type="number" value={form.tailorCost} onChange={(v) => setForm({ ...form, tailorCost: v })} />
         <Input label="Phí ship" type="number" value={form.shippingFee} onChange={(v) => setForm({ ...form, shippingFee: v })} />
 
+        {/* Existing Assets Section if editing */}
+        {editingOrder && Array.isArray(editingOrder.assets) && editingOrder.assets.length > 0 && (
+          <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <Camera size={14} className="text-indigo-600" /> Hình ảnh &amp; Bill đã lưu ({editingOrder.assets.length})
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {editingOrder.assets.map((asset: any) => (
+                <div key={asset.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img src={asset.url} alt={asset.fileName || 'Asset'} className="w-11 h-11 object-cover rounded-lg border border-slate-200 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-purple-50 text-purple-700 border border-purple-100">
+                        {asset.type === 'PRODUCT' ? 'Hình SP' : asset.type === 'DEPOSIT_BILL' ? 'Bill cọc' : asset.type === 'BALANCE_BILL' ? 'Bill còn lại' : 'Bill vải'}
+                      </span>
+                      <p className="text-xs text-slate-600 truncate mt-0.5">{asset.fileName || 'Ảnh đính kèm'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <a
+                      href={asset.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+                      title="Xem ảnh đầy đủ"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                    {onDeleteAsset && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteAsset(editingOrder.id, asset.id)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Xóa ảnh/bill này"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Direct Image Upload Fields */}
         <div className="md:col-span-2 border-t border-gray-100 pt-3">
           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
-            <Camera size={14} className="text-indigo-600" /> Tải lên hình ảnh &amp; Bill đính kèm
+            <UploadCloud size={14} className="text-indigo-600" /> {editingOrder ? 'Tải lên thêm hình ảnh & Bill mới' : 'Tải lên hình ảnh & Bill đính kèm'}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ImageUploadBox
@@ -1030,7 +1188,7 @@ function OrderForm({ initialCustomerId, onClose, onSave }: { initialCustomerId: 
         </div>
         <div className="md:col-span-2 flex gap-3 pt-2">
           <button type="submit" className="rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md">
-            Lưu đơn hàng
+            {editingOrder ? 'Cập nhật đơn hàng' : 'Lưu đơn hàng'}
           </button>
           <button type="button" onClick={onClose} className="rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200">
             Hủy
